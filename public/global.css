@@ -31,6 +31,10 @@ html {
   box-sizing: inherit;
 }
 
+*:focus {
+  outline: none !important;
+}
+
 /* Sections
    ========================================================================== */
 

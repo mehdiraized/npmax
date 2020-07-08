@@ -1,43 +1,4 @@
-const util = require("util");
 const { app, BrowserWindow, Menu, screen, Tray } = require("electron");
-const exec = util.promisify(require("child_process").exec);
-
-async function globalPackages() {
-  let yarn = await yarnPackages();
-  let npm = await npmPackages();
-  let pnpm = await pnpmPackages();
-  console.log({
-    yarn,
-    npm,
-    pnpm,
-  });
-}
-async function yarnPackages() {
-  try {
-    const { stdout } = await exec("yarn -v");
-    return stdout;
-  } catch (err) {
-    return false;
-  }
-}
-async function npmPackages() {
-  try {
-    const { stdout } = await exec("npm -v");
-    return stdout;
-  } catch (err) {
-    return false;
-  }
-}
-async function pnpmPackages() {
-  try {
-    const { stdout } = await exec("pnpm -v");
-    return stdout;
-  } catch (err) {
-    return false;
-  }
-}
-
-globalPackages();
 
 require("electron-reload")(__dirname, {
   electron: require(`${__dirname}/node_modules/electron`),
