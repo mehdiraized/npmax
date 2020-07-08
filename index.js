@@ -56,8 +56,6 @@ const createWindow = () => {
     height: height / 1.25,
     webPreferences: {
       nodeIntegration: true,
-    },
-    webPreferences: {
       devTools: true,
     },
   });
@@ -69,10 +67,32 @@ const createWindow = () => {
 
   window.on("close", (e) => {
     e.preventDefault();
-    window.hide();
+    window.destroy();
+    app.quit();
   });
 
   window.loadFile("public/index.html");
+};
+
+let appIcon = null;
+let window = null;
+
+app.whenReady().then(createWindow);
+app.on("window-all-closed", () => app.quit());
+app.on("ready", () => {
+  appIcon = new Tray("public/favicon.png");
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: "Show", click: () => window.show() },
+    {
+      label: "Quit",
+      click: () => {
+        window.destroy();
+        app.quit();
+      },
+    },
+  ]);
+  appIcon.setContextMenu(contextMenu);
 
   // if (process.platform === "darwin") {
   //   var template = [
@@ -130,26 +150,20 @@ const createWindow = () => {
   //   var osxMenu = menu.buildFromTemplate(template);
   //   menu.setApplicationMenu(osxMenu);
   // }
-};
 
-let appIcon = null;
-let window = null;
+  // const dockMenu = Menu.buildFromTemplate([
+  //   {
+  //     label: "New Window",
+  //     click() {
+  //       console.log("New Window");
+  //     },
+  //   },
+  //   {
+  //     label: "New Window with Settings",
+  //     submenu: [{ label: "Basic" }, { label: "Pro" }],
+  //   },
+  //   { label: "New Command..." },
+  // ]);
 
-app.whenReady().then(createWindow);
-app.on("window-all-closed", () => app.quit());
-app.on("ready", () => {
-  appIcon = new Tray("public/favicon.png");
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: "Show", click: () => window.show() },
-    {
-      label: "Quit",
-      click: () => {
-        window.destroy();
-        app.quit();
-      },
-    },
-  ]);
-
-  appIcon.setContextMenu(contextMenu);
+  // app.dock.setMenu(dockMenu);
 });

@@ -1,17 +1,79 @@
 {
-  "name": "svelte-app",
-  "version": "1.0.0",
+  "name": "npmax",
+  "description": "Package Manager",
+  "version": "0.1.0",
   "main": "index.js",
+  "license": "MIT",
+  "homepage": "https://mehd.ir",
+  "github": "https://github.com/mehdiraized/npmax",
+  "author": {
+    "name": "mehdir",
+    "email": "mehdiraized@gmail.com",
+    "url": "http://mehd.ir"
+  },
+  "authors": [
+    "Mehdi Rezaei"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mehdiraized/npmax.git"
+  },
+  "copyright": "©Mehdir, Mehdi Rezaei",
+  "bugs": {
+    "url": "https://github.com/mehdiraized/npmax/issues"
+  },
+  "social": {
+    "twitter": {
+      "url": "https://twitter.com/mehdiraized"
+    }
+  },
   "scripts": {
     "start": "electron .",
     "dev": "rollup -c -w",
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "productName": "npMax",
+    "appId": "net.mehdir.npmax",
+    "copyright": "© Mehdir - Mehdi Rezaei",
+    "asar": false,
+    "mac": {
+      "icon": "./public/icon.icns",
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "linux": {
+      "maintainer": "mehdir",
+      "category": "Utility",
+      "description": "npm package manager",
+      "packageCategory": "Utility"
+    },
+    "win": {
+      "icon": "./public/icon.ico"
+    },
+    "files": [
+      "./build/**/*",
+      "./dist/**/*",
+      "./node_modules/**/*",
+      "./public/**/*",
+      "*.js"
+    ],
+    "directories": {
+      "buildResources": "./public",
+      "output": "./releases"
+    }
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^12.0.0",
     "@rollup/plugin-node-resolve": "^8.0.0",
     "concurrently": "5.1.0",
     "electron": "^9.1.0",
+    "electron-builder": "^22.7.0",
     "electron-reload": "^1.5.0",
     "node-sass": "^4.14.1",
     "rollup": "^2.3.4",

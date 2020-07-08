@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "file": "bundle.css",
+  "sources": [
+    "../../App.svelte",
+    "../../main.svelte",
+    "../../sidebar.svelte"
+  ],
+  "sourcesContent": [
+    "<script>\n  import Sidebar from \"./components/sidebar.svelte\";\n  import Main from \"./components/main.svelte\";\n</script>\n\n<style type=\"text/scss\" lang=\"scss\">\n  .main {\n    display: flex;\n    height: 100vh;\n    width: 100vw;\n  }\n</style>\n\n<main class=\"main\">\n  <Sidebar />\n  <Main />\n</main>\n",
+    "<style>\n  .content {\n    background-color: #1d1d1d;\n    width: 100%;\n    border-left: 1px solid #000;\n    padding: 10px;\n  }\n  h1 {\n    color: #ff3e00;\n    text-transform: uppercase;\n    font-size: 4em;\n    font-weight: 100;\n  }\n</style>\n\n<section class=\"content\">\n  <h1>P !</h1>\n  <p>\n    Visit the\n    <a href=\"https://svelte.dev/tutorial\">Svelte tutorial</a>\n    to learn how to build Svelte apps.\n  </p>\n</section>\n",
+    "<style type=\"text/scss\" lang=\"scss\">\n  .sidebar {\n    background: rgba(0, 0, 0, 0.2);\n    width: 250px;\n    height: 100%;\n    color: #fff;\n    box-sizing: border-box;\n    padding: 50px 15px;\n    overflow-x: auto;\n    -webkit-app-region: drag;\n  }\n  .sidebar__addProject {\n    width: 100%;\n    border: none;\n    background-color: rgba(0, 0, 0, 0.3);\n    color: #fff;\n    padding: 10px;\n    border-radius: 5px;\n    display: block;\n  }\n</style>\n\n<aside class=\"sidebar\">\n  Your Projects\n  <ul>\n    <li>ivahid Frontend</li>\n  </ul>\n  <button class=\"sidebar__addProject\">Import Project</button>\n\n</aside>\n"
+  ],
+  "names": [],
+  "mappings": "AAME,KAAK,eAAC,CAAC,AACL,OAAO,CAAE,IAAI,CACb,MAAM,CAAE,KAAK,CACb,KAAK,CAAE,KAAK,AACd,CAAC;ACTD,QAAQ,eAAC,CAAC,AACR,gBAAgB,CAAE,OAAO,CACzB,KAAK,CAAE,IAAI,CACX,WAAW,CAAE,GAAG,CAAC,KAAK,CAAC,IAAI,CAC3B,OAAO,CAAE,IAAI,AACf,CAAC,AACD,EAAE,eAAC,CAAC,AACF,KAAK,CAAE,OAAO,CACd,cAAc,CAAE,SAAS,CACzB,SAAS,CAAE,GAAG,CACd,WAAW,CAAE,GAAG,AAClB,CAAC;ACXD,QAAQ,cAAC,CAAC,AACR,UAAU,CAAE,KAAK,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,GAAG,CAAC,CAC9B,KAAK,CAAE,KAAK,CACZ,MAAM,CAAE,IAAI,CACZ,KAAK,CAAE,IAAI,CACX,UAAU,CAAE,UAAU,CACtB,OAAO,CAAE,IAAI,CAAC,IAAI,CAClB,UAAU,CAAE,IAAI,CAChB,kBAAkB,CAAE,IAAI,AAC1B,CAAC,AACD,oBAAoB,cAAC,CAAC,AACpB,KAAK,CAAE,IAAI,CACX,MAAM,CAAE,IAAI,CACZ,gBAAgB,CAAE,KAAK,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,GAAG,CAAC,CACpC,KAAK,CAAE,IAAI,CACX,OAAO,CAAE,IAAI,CACb,aAAa,CAAE,GAAG,CAClB,OAAO,CAAE,KAAK,AAChB,CAAC"
+}

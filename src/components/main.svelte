@@ -6,18 +6,22 @@
     padding: 10px;
   }
   h1 {
-    color: #ff3e00;
-    text-transform: uppercase;
-    font-size: 4em;
-    font-weight: 100;
+    color: #fff;
+    /* text-transform: uppercase; */
+    font-size: 30px;
+    /* font-weight: 100; */
+  }
+  p {
+    color: #fff;
+    font-size: 15px;
   }
 </style>
 
 <section class="content">
-  <h1>P !</h1>
+  <h1>Thank you for using our app</h1>
   <p>
     Visit the
-    <a href="https://svelte.dev/tutorial">Svelte tutorial</a>
-    to learn how to build Svelte apps.
+    <a href="http://mehd.ir">Mehdi Rezaei WebSite</a>
+    to See other apps.
   </p>
 </section>

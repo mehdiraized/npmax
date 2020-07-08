@@ -1,7 +1,7 @@
 <script>
-  const { shell } = require("electron");
+  // const { shell } = require("electron");
 
-  shell.openItem("folderpath");
+  // shell.openItem("folderpath");
   let menuActive = "global_1",
     menuGlobal = [
       {
@@ -77,7 +77,31 @@
     menuProjects = [
       {
         id: 1,
-        title: "ivahid Frontend"
+        title: "Tapchat Frontend"
+      },
+      {
+        id: 2,
+        title: "Tapchat Backend"
+      },
+      {
+        id: 3,
+        title: "Doctop Frontend"
+      },
+      {
+        id: 4,
+        title: "Doctop Backend"
+      },
+      {
+        id: 5,
+        title: "Parola Frontend"
+      },
+      {
+        id: 6,
+        title: "Parola Backend"
+      },
+      {
+        id: 7,
+        title: "Parola Plugin"
       }
     ];
 </script>
@@ -85,7 +109,8 @@
 <style lang="scss">
   .sidebar {
     background: rgba(0, 0, 0, 0.1);
-    width: 225px;
+    // width: 225px;
+    width: 250px;
     height: 100%;
     color: #fff;
     box-sizing: border-box;
