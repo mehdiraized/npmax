@@ -1,41 +1,18 @@
 <script>
   import { onMount } from "svelte";
-  import { globalPackages } from "../utils/shell.js";
+  import { writable } from "svelte/store";
+  import { globalPackages, openDirectory } from "../utils/shell.js";
+  import { isJson } from "../utils/index.js";
+
   let packages = {};
+  const projects = writable([]);
+  const menuActive = writable(null);
   onMount(async () => {
+    packages = isJson ? JSON.parse(localStorage.getItem("packages")) : {};
+    projects.set(isJson ? JSON.parse(localStorage.getItem("projects")) : []);
     packages = await globalPackages().then(res => res);
+    localStorage.setItem("packages", JSON.stringify(packages));
   });
-  let menuActive = "global_1",
-    menuProjects = [
-      {
-        id: 1,
-        title: "Tapchat Frontend"
-      },
-      {
-        id: 2,
-        title: "Tapchat Backend"
-      },
-      {
-        id: 3,
-        title: "Doctop Frontend"
-      },
-      {
-        id: 4,
-        title: "Doctop Backend"
-      },
-      {
-        id: 5,
-        title: "Parola Frontend"
-      },
-      {
-        id: 6,
-        title: "Parola Backend"
-      },
-      {
-        id: 7,
-        title: "Parola Plugin"
-      }
-    ];
 </script>
 
 <style lang="scss">
@@ -143,10 +120,10 @@
     <h1 class="sidebarList__title">Globals</h1>
     {#if packages.npm}
       <button
-        class:active={menuActive === `global_1`}
+        class:active={$menuActive === `global_1`}
         class="sidebarList__item"
         on:click={() => {
-          menuActive = `global_1`;
+          $menuActive = `global_1`;
         }}>
         <svg
           class="ui__iconGlobal"
@@ -174,10 +151,10 @@
     {/if}
     {#if packages.yarn}
       <button
-        class:active={menuActive === `global_2`}
+        class:active={$menuActive === `global_2`}
         class="sidebarList__item"
         on:click={() => {
-          menuActive = `global_2`;
+          $menuActive = `global_2`;
         }}>
         <svg
           class="ui__iconGlobal"
@@ -218,10 +195,10 @@
     {/if}
     {#if packages.pnpm}
       <button
-        class:active={menuActive === `global_3`}
+        class:active={$menuActive === `global_3`}
         class="sidebarList__item"
         on:click={() => {
-          menuActive = `global_3`;
+          $menuActive = `global_3`;
         }}>
         <svg
           class="ui__iconGlobal"
@@ -263,31 +240,48 @@
   </section>
   <section class="sidebarList">
     <h1 class="sidebarList__title">Projects</h1>
-    {#each menuProjects as { id, title }}
-      <button
-        class:active={menuActive === `project_${id}`}
-        class="sidebarList__item"
-        on:click={() => {
-          menuActive = `project_${id}`;
-        }}>
-        <svg
-          class="ui__iconProject"
-          strokeLinecap="round"
-          strokeWidth="1.5"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2
-            0 0 1 2 2z" />
-        </svg>
-        {title}
-      </button>
-    {/each}
+    {#if $projects}
+      {#each $projects as { id, name, path }}
+        <button
+          class:active={$menuActive === `project_${id}`}
+          class="sidebarList__item"
+          on:click={() => {
+            $menuActive = `project_${id}`;
+          }}>
+          <svg
+            class="ui__iconProject"
+            strokeLinecap="round"
+            strokeWidth="1.5"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2
+              2 0 0 1 2 2z" />
+          </svg>
+          {name}
+        </button>
+      {/each}
+    {/if}
   </section>
   <button
     class="addProject"
     on:click={() => {
-      console.log('omad');
+      openDirectory()
+        .then(result => {
+          if (!result.canceled) {
+            const projectPath = result.filePaths[0];
+            const projectPathArray = result.filePaths[0].split('/');
+            const projectName = projectPathArray[projectPathArray.length - 1];
+            projects.set([
+              ...$projects,
+              { id: $projects.length, name: projectName, path: projectPath }
+            ]);
+            localStorage.setItem('projects', JSON.stringify($projects));
+          }
+        })
+        .catch(err => {
+          console.log(err);
+        });
     }}>
     Import Project
   </button>

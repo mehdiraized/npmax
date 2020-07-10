@@ -1,4 +1,5 @@
 const util = require("util");
+const { dialog } = require("electron").remote;
 const exec = util.promisify(require("child_process").exec);
 
 export const globalPackages = async () => {
@@ -10,6 +11,12 @@ export const globalPackages = async () => {
     npm,
     pnpm,
   };
+};
+
+export const openDirectory = async () => {
+  return dialog.showOpenDialog({
+    properties: ["openDirectory"],
+  });
 };
 
 export const yarnPackages = async () => {
