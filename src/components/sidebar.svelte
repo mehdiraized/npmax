@@ -98,7 +98,8 @@
     padding: 0px 1px 0px 0px;
 
     &:hover {
-      color: red;
+      background-color: rgba(0, 0, 0, 1);
+      color: #fff;
     }
   }
   .ui__iconProject {

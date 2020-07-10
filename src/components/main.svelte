@@ -51,14 +51,40 @@
     table {
       width: 100%;
       border: none;
+      border-collapse: collapse;
       thead {
         td {
           border: none;
           margin: 0;
-          background-color: #000;
+          background-color: rgba(0, 0, 0, 0.5);
+          &:first-child {
+            border-radius: 15px 0 0 0;
+          }
+          &:last-child {
+            border-radius: 0 15px 0 0;
+          }
         }
       }
+      tbody {
+        tr:last-child {
+          td {
+            &:first-child {
+              border-radius: 0 0 0 15px;
+            }
+            &:last-child {
+              border-radius: 0 0 15px 0;
+            }
+          }
+        }
+      }
+      td {
+        padding: 15px;
+        background-color: rgba(0, 0, 0, 0.2);
+      }
     }
+  }
+  .projectTable__title {
+    padding-left: 15px;
   }
 </style>
 
@@ -97,7 +123,7 @@
     </section>
   {:else}
     <section class="projectTable">
-      <h1>{currentProject.name}</h1>
+      <h1 class="projectTable__title">{currentProject.name}</h1>
       <table>
         <thead>
           <tr>
@@ -108,6 +134,22 @@
             <td>env</td>
           </tr>
         </thead>
+        <tbody>
+          <tr>
+            <td>npmax</td>
+            <td>1.0.0</td>
+            <td>1.1.0</td>
+            <td>1.1.1</td>
+            <td>dev</td>
+          </tr>
+          <tr>
+            <td>parola</td>
+            <td>1.0.0</td>
+            <td>1.1.0</td>
+            <td>1.1.1</td>
+            <td>dev</td>
+          </tr>
+        </tbody>
       </table>
     </section>
   {/if}
