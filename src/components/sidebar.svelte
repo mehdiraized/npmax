@@ -90,12 +90,16 @@
     height: 20px;
     border-radius: 20px;
     border: none;
-    line-height: 15px;
+    line-height: 14px;
     font-size: 16px;
     color: #fff;
     margin-top: -2px;
     text-align: center;
     padding: 0px 1px 0px 0px;
+
+    &:hover {
+      color: red;
+    }
   }
   .ui__iconProject {
     width: 18px;
@@ -279,6 +283,7 @@
                 return item.id !== id;
               });
               projects.set(projectFilter);
+              menuActive.set(null);
               localStorage.setItem('projects', JSON.stringify(projectFilter));
             }}>
             &times;
@@ -299,7 +304,9 @@
             projects.set([
               ...$projects,
               {
-                id: $projects[$projects.length - 1].id,
+                id: $projects[$projects.length - 1]
+                  ? $projects[$projects.length - 1].id + 1
+                  : 0,
                 name: projectName,
                 path: projectPath
               }

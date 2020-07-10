@@ -47,6 +47,18 @@
   }
   .projectTable {
     color: #fff;
+
+    table {
+      width: 100%;
+      border: none;
+      thead {
+        td {
+          border: none;
+          margin: 0;
+          background-color: #000;
+        }
+      }
+    }
   }
 </style>
 
@@ -66,7 +78,9 @@
                 projects.set([
                   ...$projects,
                   {
-                    id: $projects[$projects.length - 1].id,
+                    id: $projects[$projects.length - 1]
+                      ? $projects[$projects.length - 1].id + 1
+                      : 0,
                     name: projectName,
                     path: projectPath
                   }
