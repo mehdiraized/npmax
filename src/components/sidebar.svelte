@@ -1,12 +1,10 @@
 <script>
   import { onMount } from "svelte";
-  import { writable } from "svelte/store";
+  import { projects, menuActive } from "../store";
   import { globalPackages, openDirectory } from "../utils/shell.js";
   import { isJson } from "../utils/index.js";
 
   let packages = {};
-  const projects = writable([]);
-  const menuActive = writable(null);
   onMount(async () => {
     packages = isJson ? JSON.parse(localStorage.getItem("packages")) : {};
     projects.set(isJson ? JSON.parse(localStorage.getItem("projects")) : []);
@@ -50,7 +48,6 @@
     height: 30px;
     line-height: normal;
     transition: all 0.3s ease-in-out;
-
     span {
       float: right;
       background-color: rgba(255, 255, 255, 0.1);
@@ -60,29 +57,45 @@
       font-size: 12px;
       transition: all 0.3s ease-in-out;
     }
-
     &:hover {
       .ui__iconGlobal {
         fill: red;
       }
       .ui__iconProject {
-        stroke: red;
+        fill: #fff;
       }
     }
-
     &.active {
       background-color: rgba(255, 255, 255, 0.1);
       span {
         background-color: rgba(255, 255, 255, 0.2);
       }
-
+      .sidebarList__itemRemove {
+        opacity: 1;
+      }
       .ui__iconGlobal {
         fill: red;
       }
       .ui__iconProject {
-        stroke: red;
+        fill: #fff;
       }
     }
+  }
+  .sidebarList__itemRemove {
+    opacity: 0;
+    transition: all 0.3s ease-in-out;
+    float: right;
+    background-color: rgba(255, 255, 255, 0.1);
+    width: 20px;
+    height: 20px;
+    border-radius: 20px;
+    border: none;
+    line-height: 15px;
+    font-size: 16px;
+    color: #fff;
+    margin-top: -2px;
+    text-align: center;
+    padding: 0px 1px 0px 0px;
   }
   .ui__iconProject {
     width: 18px;
@@ -103,10 +116,10 @@
     transition: all 0.3s ease-in-out;
     fill: #fff;
   }
-
   .addProject {
     width: 100%;
     border: none;
+    cursor: pointer;
     background-color: rgba(0, 0, 0, 0.3);
     color: #fff;
     padding: 10px;
@@ -123,7 +136,7 @@
         class:active={$menuActive === `global_1`}
         class="sidebarList__item"
         on:click={() => {
-          $menuActive = `global_1`;
+          menuActive.set(`global_1`);
         }}>
         <svg
           class="ui__iconGlobal"
@@ -154,7 +167,7 @@
         class:active={$menuActive === `global_2`}
         class="sidebarList__item"
         on:click={() => {
-          $menuActive = `global_2`;
+          menuActive.set(`global_2`);
         }}>
         <svg
           class="ui__iconGlobal"
@@ -198,7 +211,7 @@
         class:active={$menuActive === `global_3`}
         class="sidebarList__item"
         on:click={() => {
-          $menuActive = `global_3`;
+          menuActive.set(`global_3`);
         }}>
         <svg
           class="ui__iconGlobal"
@@ -246,7 +259,7 @@
           class:active={$menuActive === `project_${id}`}
           class="sidebarList__item"
           on:click={() => {
-            $menuActive = `project_${id}`;
+            menuActive.set(`project_${id}`);
           }}>
           <svg
             class="ui__iconProject"
@@ -259,6 +272,17 @@
               2 0 0 1 2 2z" />
           </svg>
           {name}
+          <button
+            class="sidebarList__itemRemove"
+            on:click={() => {
+              const projectFilter = $projects.filter(item => {
+                return item.id !== id;
+              });
+              projects.set(projectFilter);
+              localStorage.setItem('projects', JSON.stringify(projectFilter));
+            }}>
+            &times;
+          </button>
         </button>
       {/each}
     {/if}
@@ -274,7 +298,11 @@
             const projectName = projectPathArray[projectPathArray.length - 1];
             projects.set([
               ...$projects,
-              { id: $projects.length, name: projectName, path: projectPath }
+              {
+                id: $projects[$projects.length - 1].id,
+                name: projectName,
+                path: projectPath
+              }
             ]);
             localStorage.setItem('projects', JSON.stringify($projects));
           }
@@ -283,6 +311,6 @@
           console.log(err);
         });
     }}>
-    Import Project
+    Add Project
   </button>
 </aside>
