@@ -32,7 +32,7 @@
     "dev": "rollup -c -w",
     "build": "rollup -c",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder -mwl"
   },
   "build": {
     "productName": "npMax",

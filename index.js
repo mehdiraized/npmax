@@ -19,6 +19,7 @@ const createWindow = () => {
     webPreferences: {
       nodeIntegration: true,
       devTools: true,
+      enableRemoteModule: true,
     },
   });
 
@@ -42,7 +43,8 @@ let window = null;
 app.whenReady().then(createWindow);
 app.on("window-all-closed", () => app.quit());
 app.on("ready", () => {
-  appIcon = new Tray("public/favicon.png");
+  // const nimage = nativeImage.createFromPath(trayIcon);
+  appIcon = new Tray(`${__dirname}/public/favicon.png`);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: "Show", click: () => window.show() },
