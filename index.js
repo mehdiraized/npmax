@@ -1,8 +1,9 @@
 const { app, BrowserWindow, Menu, screen, Tray } = require("electron");
-
-require("electron-reload")(__dirname, {
-  electron: require(`${__dirname}/node_modules/electron`),
-});
+const isDev = process.env.ELECTRON_ENV === "development";
+isDev &&
+  require("electron-reload")(__dirname, {
+    electron: require(`${__dirname}/node_modules/electron`),
+  });
 
 const createWindow = () => {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
