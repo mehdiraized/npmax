@@ -1,13 +1,40 @@
 <script>
   import { projects, menuActive } from "../store";
-  import { openDirectory } from "../utils/shell.js";
+  import { openDirectory, getProjectPackages } from "../utils/shell.js";
   let currentProjectID = false;
   let currentProject = {};
-  menuActive.subscribe(value => {
+  let project = {};
+  let packages = [];
+  let dependencies = [];
+  let devDependencies = [];
+  menuActive.subscribe(async value => {
     currentProjectID = value ? value.split("_")[1] : false;
     currentProject = $projects.filter(item => {
       return item.id === parseInt(currentProjectID);
     })[0];
+    if (currentProject) {
+      const data = await getProjectPackages(currentProject.path).then(
+        res => res
+      );
+      project = JSON.parse(data);
+      dependencies = Object.entries(project.dependencies);
+      devDependencies = Object.entries(project.devDependencies);
+      let i = 1;
+      for await (let item of dependencies) {
+        packages = [
+          ...packages,
+          { id: i, name: item[0], current: item[1], dev: false }
+        ];
+        i++;
+      }
+      for await (let item of devDependencies) {
+        packages = [
+          ...packages,
+          { id: i, name: item[0], current: item[1], dev: true }
+        ];
+        i++;
+      }
+    }
   });
 </script>
 
@@ -56,6 +83,7 @@
         td {
           border: none;
           margin: 0;
+          padding: 15px;
           background-color: rgba(0, 0, 0, 0.5);
           &:first-child {
             border-radius: 15px 0 0 0;
@@ -66,25 +94,52 @@
         }
       }
       tbody {
-        tr:last-child {
+        tr {
           td {
-            &:first-child {
-              border-radius: 0 0 0 15px;
-            }
-            &:last-child {
-              border-radius: 0 0 15px 0;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.2);
+          }
+          &:nth-child(2n) {
+            background-color: rgba(0, 0, 0, 0.21);
+          }
+          &:last-child {
+            td {
+              &:first-child {
+                border-radius: 0 0 0 15px;
+              }
+              &:last-child {
+                border-radius: 0 0 15px 0;
+              }
             }
           }
         }
-      }
-      td {
-        padding: 15px;
-        background-color: rgba(0, 0, 0, 0.2);
       }
     }
   }
   .projectTable__title {
     padding-left: 15px;
+  }
+
+  .skeleton {
+    width: 100%;
+    background-color: rgba(255, 255, 255, 0.5);
+    display: inline-block;
+    height: 15px;
+    -webkit-animation: change-opacity 2s linear infinite;
+    animation: change-opacity 2s linear infinite;
+    opacity: 0.3;
+  }
+
+  @keyframes change-opacity {
+    0% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.3;
+    }
   }
 </style>
 
@@ -135,20 +190,23 @@
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>npmax</td>
-            <td>1.0.0</td>
-            <td>1.1.0</td>
-            <td>1.1.1</td>
-            <td>dev</td>
-          </tr>
-          <tr>
-            <td>parola</td>
-            <td>1.0.0</td>
-            <td>1.1.0</td>
-            <td>1.1.1</td>
-            <td>dev</td>
-          </tr>
+          {#if packages}
+            {#each packages as { id, name, current, dev }}
+              <tr id={`package_${id}`}>
+                <td>{name}</td>
+                <td>{current}</td>
+                <td>
+                  <span class="skeleton" />
+                </td>
+                <td>
+                  <span class="skeleton" />
+                </td>
+                <td>
+                  {#if dev}dev{/if}
+                </td>
+              </tr>
+            {/each}
+          {/if}
         </tbody>
       </table>
     </section>

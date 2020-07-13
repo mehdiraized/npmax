@@ -5,9 +5,11 @@
 
 <style type="text/scss">
   .main {
+    min-height: 100vh;
+    height: 100%;
     display: flex;
-    height: 100vh;
-    width: 100vw;
+    flex-direction: row;
+    align-items: stretch;
   }
 </style>
 

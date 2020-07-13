@@ -32,7 +32,8 @@
     "dev": "rollup -c -w",
     "build": "rollup -c",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder -mwl"
+    "dist": "electron-builder",
+    "dist-all": "electron-builder -mwl"
   },
   "build": {
     "productName": "npMax",
@@ -86,6 +87,7 @@
   },
   "dependencies": {
     "child_process": "^1.0.2",
+    "fix-path": "^3.0.0",
     "normalize.css": "^8.0.1",
     "sirv-cli": "^0.4.4"
   }

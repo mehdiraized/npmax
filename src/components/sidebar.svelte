@@ -17,13 +17,15 @@
   .sidebar {
     background: rgba(0, 0, 0, 0.1);
     width: 250px;
-    height: 100%;
+    height: 100vh;
     color: #fff;
     box-sizing: border-box;
     padding: 50px 15px;
     overflow-x: auto;
     -webkit-app-region: drag;
     -webkit-user-select: none;
+    position: sticky;
+    top: 0;
   }
   .sidebarList__title {
     font-size: 11px;

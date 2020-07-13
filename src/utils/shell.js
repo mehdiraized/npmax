@@ -1,6 +1,10 @@
+const fixPath = require("fix-path");
+fixPath();
 const util = require("util");
+const fs = require("fs");
 const { dialog } = require("electron").remote;
 const exec = util.promisify(require("child_process").exec);
+const readFile = util.promisify(fs.readFile);
 
 export const globalPackages = async () => {
   let yarn = await yarnPackages();
@@ -17,6 +21,10 @@ export const openDirectory = async () => {
   return dialog.showOpenDialog({
     properties: ["openDirectory"],
   });
+};
+
+export const getProjectPackages = (path) => {
+  return readFile(`${path}/package.json`, "utf-8");
 };
 
 export const yarnPackages = async () => {
