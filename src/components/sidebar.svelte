@@ -20,7 +20,7 @@
     height: 100vh;
     color: #fff;
     box-sizing: border-box;
-    padding: 50px 15px;
+    padding: 50px 15px 15px;
     overflow-x: auto;
     -webkit-app-region: drag;
     -webkit-user-select: none;
@@ -50,6 +50,9 @@
     height: 30px;
     line-height: normal;
     transition: all 0.3s ease-in-out;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     span {
       float: right;
       background-color: rgba(255, 255, 255, 0.1);

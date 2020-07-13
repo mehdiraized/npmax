@@ -1,5 +1,5 @@
-const fixPath = require("fix-path");
-fixPath();
+// const fixPath = require("fix-path");
+// fixPath();
 const util = require("util");
 const fs = require("fs");
 const { dialog } = require("electron").remote;
