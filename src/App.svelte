@@ -8,6 +8,7 @@
     min-height: 100vh;
     height: 100%;
     display: flex;
+    overflow: hidden;
     flex-direction: row;
     align-items: stretch;
   }

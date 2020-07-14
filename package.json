@@ -89,6 +89,7 @@
     "child_process": "^1.0.2",
     "fix-path": "^3.0.0",
     "normalize.css": "^8.0.1",
+    "simplebar": "^5.2.1",
     "sirv-cli": "^0.4.4"
   }
 }

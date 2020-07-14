@@ -1,4 +1,5 @@
 <script>
+  import SimpleBar from "../components/SimpleBar.svelte";
   import { projects, menuActive } from "../store";
   import { openDirectory, getProjectPackages } from "../utils/shell.js";
   let currentProjectID = false;
@@ -42,8 +43,10 @@
   .content {
     background-color: #1d1d1d;
     width: 100%;
+    height: 100vh;
     border-left: 1px solid #000;
     padding: 10px;
+    // overflow: hidden;
   }
 
   .empty {
@@ -56,6 +59,7 @@
     justify-content: center;
     align-items: center;
     height: 100%;
+    min-height: 100vh;
 
     img {
       width: 250px;
@@ -144,71 +148,73 @@
 </style>
 
 <div class="content">
-  {#if !currentProject}
-    <section class="empty">
-      <img src="./images/add.png" width="300" alt="" />
-      <h1>Select Project to start</h1>
-      <button
-        on:click={() => {
-          openDirectory()
-            .then(result => {
-              if (!result.canceled) {
-                const projectPath = result.filePaths[0];
-                const projectPathArray = result.filePaths[0].split('/');
-                const projectName = projectPathArray[projectPathArray.length - 1];
-                projects.set([
-                  ...$projects,
-                  {
-                    id: $projects[$projects.length - 1]
-                      ? $projects[$projects.length - 1].id + 1
-                      : 0,
-                    name: projectName,
-                    path: projectPath
-                  }
-                ]);
-                localStorage.setItem('projects', JSON.stringify($projects));
-              }
-            })
-            .catch(err => {
-              console.log(err);
-            });
-        }}>
-        Add Project
-      </button>
-    </section>
-  {:else}
-    <section class="projectTable">
-      <h1 class="projectTable__title">{currentProject.name}</h1>
-      <table>
-        <thead>
-          <tr>
-            <td>Package</td>
-            <td>Current</td>
-            <td>Wanted</td>
-            <td>Latest</td>
-            <td>env</td>
-          </tr>
-        </thead>
-        <tbody>
-          {#if packages}
-            {#each packages as { id, name, current, dev }}
-              <tr id={`package_${id}`}>
-                <td>{name}</td>
-                <td>{current}</td>
-                <td>
-                  <span class="skeleton" />
-                </td>
-                <td>
-                  <span class="skeleton" />
-                </td>
-                <td>
-                  {#if dev}dev{/if}
-                </td>
-              </tr>
-            {/each}
-          {/if}
-        </tbody>
-      </table>
-    </section>
-  {/if}
+  <SimpleBar maxHeight={'calc(100vh - 20px)'}>
+    {#if !currentProject}
+      <section class="empty">
+        <img src="./images/add.png" width="300" alt="" />
+        <h1>Select Project to start</h1>
+        <button
+          on:click={() => {
+            openDirectory()
+              .then(result => {
+                if (!result.canceled) {
+                  const projectPath = result.filePaths[0];
+                  const projectPathArray = result.filePaths[0].split('/');
+                  const projectName = projectPathArray[projectPathArray.length - 1];
+                  projects.set([
+                    ...$projects,
+                    {
+                      id: $projects[$projects.length - 1]
+                        ? $projects[$projects.length - 1].id + 1
+                        : 0,
+                      name: projectName,
+                      path: projectPath
+                    }
+                  ]);
+                  localStorage.setItem('projects', JSON.stringify($projects));
+                }
+              })
+              .catch(err => {
+                console.log(err);
+              });
+          }}>
+          Add Project
+        </button>
+      </section>
+    {:else}
+      <section class="projectTable">
+        <h1 class="projectTable__title">{currentProject.name}</h1>
+        <table>
+          <thead>
+            <tr>
+              <td>Package</td>
+              <td>Current</td>
+              <td>Wanted</td>
+              <td>Latest</td>
+              <td>env</td>
+            </tr>
+          </thead>
+          <tbody>
+            {#if packages}
+              {#each packages as { id, name, current, dev }}
+                <tr id={`package_${id}`}>
+                  <td>{name}</td>
+                  <td>{current}</td>
+                  <td>
+                    <span class="skeleton" />
+                  </td>
+                  <td>
+                    <span class="skeleton" />
+                  </td>
+                  <td>
+                    {#if dev}dev{/if}
+                  </td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+        </table>
+      </section>
+    {/if}
+  </SimpleBar>
 </div>
