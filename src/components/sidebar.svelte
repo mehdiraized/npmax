@@ -46,6 +46,7 @@
     background-color: transparent;
     border-radius: 7px;
     font-size: 14px;
+    position: relative;
     display: block;
     height: 30px;
     line-height: normal;
@@ -72,6 +73,7 @@
     }
     &.active {
       background-color: rgba(255, 255, 255, 0.1);
+      padding-right: 30px;
       span {
         background-color: rgba(255, 255, 255, 0.2);
       }
@@ -89,22 +91,31 @@
   .sidebarList__itemRemove {
     opacity: 0;
     transition: all 0.3s ease-in-out;
-    float: right;
+    position: absolute;
     background-color: rgba(255, 255, 255, 0.1);
     width: 20px;
     height: 20px;
     border-radius: 20px;
     border: none;
-    line-height: 14px;
-    font-size: 16px;
-    color: #fff;
-    margin-top: -2px;
-    text-align: center;
-    padding: 0px 1px 0px 0px;
+    top: 5px;
+    right: 5px;
 
     &:hover {
       background-color: rgba(0, 0, 0, 1);
-      color: #fff;
+    }
+
+    svg {
+      position: absolute;
+      display: block;
+      width: 14px;
+      stroke-width: 2px;
+      stroke: #fff;
+      height: 14px;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      left: 0;
+      margin: auto;
     }
   }
   .ui__iconProject {
@@ -277,8 +288,6 @@
             }}>
             <svg
               class="ui__iconProject"
-              strokeLinecap="round"
-              strokeWidth="1.5"
               viewBox="0 0 24 24"
               xmlns="http://www.w3.org/2000/svg">
               <path
@@ -296,7 +305,10 @@
                 menuActive.set(null);
                 localStorage.setItem('projects', JSON.stringify(projectFilter));
               }}>
-              &times;
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <line x1="18" x2="6" y1="6" y2="18" />
+                <line x1="6" x2="18" y1="6" y2="18" />
+              </svg>
             </button>
           </button>
         {/each}
