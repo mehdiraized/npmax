@@ -3,6 +3,7 @@
 ![screenshot-npm-desktop-manager](https://mehdiraized.github.io/npmax/dist/images/coverApp.png)
 
 The Open Source npm desktop GUI.
+
 Runs on Linux, MacOS and Windows..
 
 ## Download
