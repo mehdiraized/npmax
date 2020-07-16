@@ -1,6 +1,6 @@
 # npMax
 
-![screenshot-npm-desktop-manager](https://mehdiraized.github.io/npmax/dist/images/coverApp.png)
+![screenshot-npMax-package-manager](https://mehdiraized.github.io/npmax/dist/images/coverApp.png)
 
 The Open Source npm desktop GUI.
 

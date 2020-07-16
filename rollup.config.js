@@ -2,6 +2,8 @@ import path from "path";
 import svelte from "rollup-plugin-svelte";
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
+import progress from "rollup-plugin-progress";
+import filesize from "rollup-plugin-filesize";
 import livereload from "rollup-plugin-livereload";
 import { terser } from "rollup-plugin-terser";
 import postcss from "rollup-plugin-postcss";
@@ -52,10 +54,13 @@ export default {
     // Watch the `public` directory and refresh the
     // browser on changes when not in production
     !production && livereload("public"),
-
     // If we're building for production (npm run build
     // instead of npm run dev), minify
     production && terser(),
+    progress({
+      clearLine: false,
+    }),
+    filesize(),
   ],
   watch: {
     clearScreen: false,
