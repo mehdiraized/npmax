@@ -8,7 +8,7 @@ Runs on Linux, MacOS and Windows..
 
 ## Download
 
-**[Download for MacOS](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-alpha/npMax-0.1.0.dmg)** &nbsp; | &nbsp;**[Download for Linux](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-alpha/npMax-0.1.0.AppImage)** &nbsp; | &nbsp;**[Download for Windows](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-alpha/npMax.Setup.0.1.0.exe)** &nbsp;
+**[Download for MacOS](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-beta/npMax-0.1.0-beta.dmg)** &nbsp; | &nbsp;**[Download for Linux](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-beta/npMax-0.1.0-beta.AppImage)** &nbsp; | &nbsp;**[Download for Windows](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-beta/npMax.Setup.0.1.0-beta.exe)** &nbsp;
 
 ## Contribute
 
