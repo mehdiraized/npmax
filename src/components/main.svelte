@@ -51,7 +51,6 @@
         }
       });
       packages = newData;
-      console.log(packages);
     }
   });
 </script>
@@ -117,7 +116,7 @@
       tbody {
         tr {
           td {
-            padding: 15px;
+            padding: 5px 15px;
             background-color: rgba(0, 0, 0, 0.2);
           }
           &:nth-child(2n) {
@@ -142,7 +141,7 @@
   }
 
   .skeleton {
-    width: 100%;
+    min-width: 30px;
     background-color: rgba(255, 255, 255, 0.5);
     display: inline-block;
     height: 15px;
@@ -166,11 +165,11 @@
   .projectAction {
     position: relative;
     display: inline-block;
-    width: 30px;
-    height: 30px;
-    padding: 5px;
-    border-radius: 30px;
-    background-color: rgba(255, 255, 255, 1);
+    width: 25px;
+    height: 25px;
+    padding: 4px;
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.8);
     margin-right: 5px;
 
     .tooltiptext {
@@ -205,6 +204,17 @@
       visibility: visible;
       opacity: 1;
     }
+  }
+
+  .projectTable__versionCheck {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 3px;
+    position: relative;
+    top: 2px;
   }
 </style>
 
@@ -249,10 +259,9 @@
           <thead>
             <tr>
               <td>Package</td>
-              <td>Current</td>
-              <td>Latest</td>
-              <td>Info</td>
+              <td>Version</td>
               <td>env</td>
+              <td>Info</td>
             </tr>
           </thead>
           <tbody>
@@ -260,11 +269,22 @@
               {#each packages as { id, name, current, dev, data }}
                 <tr id={`package_${id}`}>
                   <td>{name}</td>
-                  <td>{current}</td>
                   <td>
+                    {current}
                     {#if !data}
                       <span class="skeleton" />
-                    {:else}{data.collected.metadata.version}{/if}
+                    {:else if current.replace('^', '') === data.collected.metadata.version}
+                      <svg
+                        class="projectTable__versionCheck"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                    {:else}(Latest {data.collected.metadata.version}){/if}
+                  </td>
+                  <td>
+                    {#if dev}dev{/if}
                   </td>
                   <td>
                     {#if !data}
@@ -414,9 +434,6 @@
                         <span class="tooltiptext">Repository</span>
                       </a>
                     {/if}
-                  </td>
-                  <td>
-                    {#if dev}dev{/if}
                   </td>
                 </tr>
               {/each}
