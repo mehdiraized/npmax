@@ -11,14 +11,14 @@
   let newData = [];
   let dependencies = [];
   let devDependencies = [];
-  menuActive.subscribe(async value => {
+  menuActive.subscribe(async (value) => {
     currentProjectID = value ? value.split("_")[1] : false;
-    currentProject = $projects.filter(item => {
+    currentProject = $projects.filter((item) => {
       return item.id === parseInt(currentProjectID);
     })[0];
     if (currentProject) {
       const data = await getProjectPackages(currentProject.path).then(
-        res => res
+        (res) => res
       );
       project = JSON.parse(data);
       packages = [];
@@ -30,21 +30,21 @@
       for await (let item of dependencies) {
         packages = [
           ...packages,
-          { id: i, name: item[0], current: item[1], dev: false }
+          { id: i, name: item[0], current: item[1], dev: false },
         ];
         i++;
       }
       for await (let item of devDependencies) {
         packages = [
           ...packages,
-          { id: i, name: item[0], current: item[1], dev: true }
+          { id: i, name: item[0], current: item[1], dev: true },
         ];
         i++;
       }
       for await (let pack of packages) {
         packagesPost = [...packagesPost, pack.name];
       }
-      await getPackagesInfo(packagesPost).then(async res => {
+      await getPackagesInfo(packagesPost).then(async (res) => {
         // const dataInfo = Object.entries(res.data);
         for await (let item of packages) {
           newData = [...newData, { ...item, data: res.data[item.name] }];
@@ -227,7 +227,7 @@
         <button
           on:click={() => {
             openDirectory()
-              .then(result => {
+              .then((result) => {
                 if (!result.canceled) {
                   const projectPath = result.filePaths[0];
                   const projectPathArray = result.filePaths[0].split('/');
@@ -239,13 +239,13 @@
                         ? $projects[$projects.length - 1].id + 1
                         : 0,
                       name: projectName,
-                      path: projectPath
-                    }
+                      path: projectPath,
+                    },
                   ]);
                   localStorage.setItem('projects', JSON.stringify($projects));
                 }
               })
-              .catch(err => {
+              .catch((err) => {
                 console.log(err);
               });
           }}>

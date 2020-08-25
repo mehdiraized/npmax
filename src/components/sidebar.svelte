@@ -9,7 +9,7 @@
   onMount(async () => {
     packages = isJson ? JSON.parse(localStorage.getItem("packages")) : {};
     projects.set(isJson ? JSON.parse(localStorage.getItem("projects")) : []);
-    packages = await globalPackages().then(res => res);
+    packages = await globalPackages().then((res) => res);
     localStorage.setItem("packages", JSON.stringify(packages));
   });
 </script>
@@ -298,7 +298,7 @@
             <button
               class="sidebarList__itemRemove"
               on:click={() => {
-                const projectFilter = $projects.filter(item => {
+                const projectFilter = $projects.filter((item) => {
                   return item.id !== id;
                 });
                 projects.set(projectFilter);
@@ -319,7 +319,7 @@
     class="addProject"
     on:click={() => {
       openDirectory()
-        .then(result => {
+        .then((result) => {
           if (!result.canceled) {
             const projectPath = result.filePaths[0];
             const projectPathArray = result.filePaths[0].split('/');
@@ -331,13 +331,13 @@
                   ? $projects[$projects.length - 1].id + 1
                   : 0,
                 name: projectName,
-                path: projectPath
-              }
+                path: projectPath,
+              },
             ]);
             localStorage.setItem('projects', JSON.stringify($projects));
           }
         })
-        .catch(err => {
+        .catch((err) => {
           console.log(err);
         });
     }}>
