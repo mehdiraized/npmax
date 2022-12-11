@@ -73,7 +73,7 @@
     "@rollup/plugin-commonjs": "^22.0.1",
     "@rollup/plugin-node-resolve": "^13.3.0",
     "concurrently": "7.2.2",
-    "electron": "^19.0.11",
+    "electron": "^19.1.8",
     "electron-builder": "^23.1.0",
     "electron-reload": "2.0.0-alpha.1",
     "postcss": "^8.4.14",
