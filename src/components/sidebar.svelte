@@ -1,172 +1,44 @@
 <script>
-  import { onMount } from "svelte";
-  import SimpleBar from "../components/SimpleBar.svelte";
-  import { projects, menuActive } from "../store";
-  import { globalPackages, openDirectory } from "../utils/shell.js";
-  import { isJson } from "../utils/index.js";
+	import { onMount } from "svelte";
+	import SimpleBar from "../components/SimpleBar.svelte";
+	import { projects, menuActive } from "../store";
+	import { globalPackages, openDirectory } from "../utils/shell.js";
+	import { isJson } from "../utils/index.js";
 
-  let packages = {};
-  onMount(async () => {
-    packages = isJson ? JSON.parse(localStorage.getItem("packages")) : {};
-    projects.set(isJson ? JSON.parse(localStorage.getItem("projects")) : []);
-    packages = await globalPackages().then((res) => res);
-    localStorage.setItem("packages", JSON.stringify(packages));
-  });
+	let packages = {};
+	onMount(async () => {
+		packages = isJson(localStorage.getItem("packages"))
+			? JSON.parse(localStorage.getItem("packages"))
+			: {};
+		projects.set(
+			localStorage.getItem("projects") !== "null"
+				? JSON.parse(localStorage.getItem("projects") || false)
+				: []
+		);
+		packages = await globalPackages().then((res) => res);
+		localStorage.setItem("packages", JSON.stringify(packages));
+	});
 </script>
 
-<style lang="scss">
-  .sidebar {
-    background: rgba(0, 0, 0, 0.1);
-    width: 250px;
-    height: 100vh;
-    color: #fff;
-    box-sizing: border-box;
-    padding: 40px 15px 15px;
-    -webkit-app-region: drag;
-    -webkit-user-select: none;
-    position: sticky;
-    top: 0;
-  }
-  .sidebarList__title {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-    color: rgba(255, 255, 255, 0.2);
-    display: block;
-  }
-  .sidebarList {
-    // margin-bottom: 15px;
-  }
-  .sidebarList__item {
-    text-align: left;
-    width: 100%;
-    border: none;
-    color: #fff;
-    padding: 7px 15px;
-    background-color: transparent;
-    border-radius: 7px;
-    font-size: 14px;
-    position: relative;
-    display: block;
-    height: 30px;
-    line-height: normal;
-    transition: all 0.3s ease-in-out;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    span {
-      float: right;
-      background-color: rgba(255, 255, 255, 0.1);
-      color: #fff;
-      padding: 1px 5px 0;
-      border-radius: 50px;
-      font-size: 12px;
-      transition: all 0.3s ease-in-out;
-    }
-    &:hover {
-      .ui__iconGlobal {
-        fill: red;
-      }
-      .ui__iconProject {
-        fill: #fff;
-      }
-    }
-    &.active {
-      background-color: rgba(255, 255, 255, 0.1);
-      padding-right: 30px;
-      span {
-        background-color: rgba(255, 255, 255, 0.2);
-      }
-      .sidebarList__itemRemove {
-        opacity: 1;
-      }
-      .ui__iconGlobal {
-        fill: red;
-      }
-      .ui__iconProject {
-        fill: #fff;
-      }
-    }
-  }
-  .sidebarList__itemRemove {
-    opacity: 0;
-    transition: all 0.3s ease-in-out;
-    position: absolute;
-    background-color: rgba(255, 255, 255, 0.1);
-    width: 20px;
-    height: 20px;
-    border-radius: 20px;
-    border: none;
-    top: 5px;
-    right: 5px;
-
-    &:hover {
-      background-color: rgba(0, 0, 0, 1);
-    }
-
-    svg {
-      position: absolute;
-      display: block;
-      width: 14px;
-      stroke-width: 2px;
-      stroke: #fff;
-      height: 14px;
-      top: 0;
-      bottom: 0;
-      right: 0;
-      left: 0;
-      margin: auto;
-    }
-  }
-  .ui__iconProject {
-    width: 18px;
-    margin-right: 15px;
-    float: left;
-    line-height: 0;
-    margin-top: -1px;
-    stroke: #fff;
-    transition: all 0.3s ease-in-out;
-    fill: transparent;
-  }
-  .ui__iconGlobal {
-    width: 25px;
-    margin-right: 15px;
-    float: left;
-    line-height: 0;
-    margin-top: -5px;
-    transition: all 0.3s ease-in-out;
-    fill: #fff;
-  }
-  .addProject {
-    margin-top: 15px;
-    width: 100%;
-    border: none;
-    cursor: pointer;
-    background-color: rgba(0, 0, 0, 0.3);
-    color: #fff;
-    padding: 10px;
-    border-radius: 5px;
-    display: block;
-  }
-</style>
-
 <aside class="sidebar">
-  <SimpleBar maxHeight={'calc(100vh - 105px)'}>
-    <section class="sidebarList">
-      <h1 class="sidebarList__title">Globals</h1>
-      {#if packages.npm}
-        <button
-          class:active={$menuActive === `global_1`}
-          class="sidebarList__item"
-          on:click={() => {
-            menuActive.set(`global_1`);
-          }}>
-          <svg
-            class="ui__iconGlobal"
-            viewBox="0 0 32 32"
-            xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0
+	<SimpleBar maxHeight={"calc(100vh - 105px)"}>
+		<section class="sidebarList">
+			<h1 class="sidebarList__title">Globals</h1>
+			{#if packages.npm}
+				<button
+					class:active={$menuActive === `global_1`}
+					class="sidebarList__item"
+					on:click={() => {
+						menuActive.set(`global_1`);
+					}}
+				>
+					<svg
+						class="ui__iconGlobal"
+						viewBox="0 0 32 32"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0
               10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625
               11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281
               13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438
@@ -179,25 +51,28 @@
               L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641
               L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344
               z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16
-              13.556641 L 14.222656 13.556641 z" />
-          </svg>
-          Npm
-          <span>{packages.npm}</span>
-        </button>
-      {/if}
-      {#if packages.yarn}
-        <button
-          class:active={$menuActive === `global_2`}
-          class="sidebarList__item"
-          on:click={() => {
-            menuActive.set(`global_2`);
-          }}>
-          <svg
-            class="ui__iconGlobal"
-            viewBox="0 0 32 32"
-            xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29
+              13.556641 L 14.222656 13.556641 z"
+						/>
+					</svg>
+					Npm
+					<span>{packages.npm}</span>
+				</button>
+			{/if}
+			{#if packages.yarn}
+				<button
+					class:active={$menuActive === `global_2`}
+					class="sidebarList__item"
+					on:click={() => {
+						menuActive.set(`global_2`);
+					}}
+				>
+					<svg
+						class="ui__iconGlobal"
+						viewBox="0 0 32 32"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29
               23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C
               27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M
               16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781
@@ -224,25 +99,28 @@
               11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5
               17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391
               9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984
-              9.0449219 z" />
-          </svg>
-          Yarn
-          <span>{packages.yarn}</span>
-        </button>
-      {/if}
-      {#if packages.pnpm}
-        <button
-          class:active={$menuActive === `global_3`}
-          class="sidebarList__item"
-          on:click={() => {
-            menuActive.set(`global_3`);
-          }}>
-          <svg
-            class="ui__iconGlobal"
-            viewBox="0 0 32 32"
-            xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29
+              9.0449219 z"
+						/>
+					</svg>
+					Yarn
+					<span>{packages.yarn}</span>
+				</button>
+			{/if}
+			{#if packages.pnpm}
+				<button
+					class:active={$menuActive === `global_3`}
+					class="sidebarList__item"
+					on:click={() => {
+						menuActive.set(`global_3`);
+					}}
+				>
+					<svg
+						class="ui__iconGlobal"
+						viewBox="0 0 32 32"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29
               23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C
               27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M
               16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781
@@ -269,78 +147,221 @@
               11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5
               17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391
               9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984
-              9.0449219 z" />
-          </svg>
-          Pnpm
-          <span>{packages.pnpm}</span>
-        </button>
-      {/if}
-    </section>
-    <section class="sidebarList">
-      <h1 class="sidebarList__title">Projects</h1>
-      {#if $projects}
-        {#each $projects as { id, name, path }}
-          <button
-            class:active={$menuActive === `project_${id}`}
-            class="sidebarList__item"
-            on:click={() => {
-              menuActive.set(`project_${id}`);
-            }}>
-            <svg
-              class="ui__iconProject"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2
-                3h9a2 2 0 0 1 2 2z" />
-            </svg>
-            {name}
-            <button
-              class="sidebarList__itemRemove"
-              on:click={() => {
-                const projectFilter = $projects.filter((item) => {
-                  return item.id !== id;
-                });
-                projects.set(projectFilter);
-                menuActive.set(null);
-                localStorage.setItem('projects', JSON.stringify(projectFilter));
-              }}>
-              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <line x1="18" x2="6" y1="6" y2="18" />
-                <line x1="6" x2="18" y1="6" y2="18" />
-              </svg>
-            </button>
-          </button>
-        {/each}
-      {/if}
-    </section>
-  </SimpleBar>
-  <button
-    class="addProject"
-    on:click={() => {
-      openDirectory()
-        .then((result) => {
-          if (!result.canceled) {
-            const projectPath = result.filePaths[0];
-            const projectPathArray = result.filePaths[0].split('/');
-            const projectName = projectPathArray[projectPathArray.length - 1];
-            projects.set([
-              ...$projects,
-              {
-                id: $projects[$projects.length - 1]
-                  ? $projects[$projects.length - 1].id + 1
-                  : 0,
-                name: projectName,
-                path: projectPath,
-              },
-            ]);
-            localStorage.setItem('projects', JSON.stringify($projects));
-          }
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    }}>
-    Add Project
-  </button>
+              9.0449219 z"
+						/>
+					</svg>
+					Pnpm
+					<span>{packages.pnpm}</span>
+				</button>
+			{/if}
+		</section>
+		<section class="sidebarList">
+			<h1 class="sidebarList__title">Projects</h1>
+			{#if $projects}
+				{#each $projects as { id, name, path }}
+					<button
+						class:active={$menuActive === `project_${id}`}
+						class="sidebarList__item"
+						on:click={() => {
+							menuActive.set(`project_${id}`);
+						}}
+					>
+						<svg
+							class="ui__iconProject"
+							viewBox="0 0 24 24"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2
+                3h9a2 2 0 0 1 2 2z"
+							/>
+						</svg>
+						{name}
+						<button
+							class="sidebarList__itemRemove"
+							on:click={() => {
+								const projectFilter = $projects.filter((item) => {
+									return item.id !== id;
+								});
+								projects.set(projectFilter);
+								menuActive.set(null);
+								localStorage.setItem("projects", JSON.stringify(projectFilter));
+							}}
+						>
+							<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+								<line x1="18" x2="6" y1="6" y2="18" />
+								<line x1="6" x2="18" y1="6" y2="18" />
+							</svg>
+						</button>
+					</button>
+				{/each}
+			{/if}
+		</section>
+	</SimpleBar>
+	<button
+		class="addProject"
+		on:click={() => {
+			openDirectory()
+				.then((result) => {
+					if (result.length > 0) {
+						const projectPath = result[0];
+						const projectPathArray = result[0].split("/");
+						const projectName = projectPathArray[projectPathArray.length - 1];
+						projects.set([
+							...$projects,
+							{
+								id: $projects[$projects?.length - 1]
+									? $projects[$projects?.length - 1].id + 1
+									: 0,
+								name: projectName,
+								path: projectPath,
+							},
+						]);
+						localStorage.setItem("projects", JSON.stringify($projects));
+					}
+				})
+				.catch((err) => {
+					console.log(err);
+				});
+		}}
+	>
+		Add Project
+	</button>
 </aside>
+
+<style lang="scss">
+	.sidebar {
+		background: rgba(0, 0, 0, 0.1);
+		width: 250px;
+		height: 100vh;
+		color: #fff;
+		box-sizing: border-box;
+		padding: 40px 15px 15px;
+		// -webkit-app-region: drag;
+		// -webkit-user-select: none;
+		position: sticky;
+		top: 0;
+	}
+	.sidebarList__title {
+		font-size: 11px;
+		font-weight: 500;
+		letter-spacing: 0.5px;
+		color: rgba(255, 255, 255, 0.2);
+		display: block;
+	}
+	.sidebarList {
+		display: block;
+		// margin-bottom: 15px;
+	}
+	.sidebarList__item {
+		text-align: left;
+		width: 100%;
+		border: none;
+		color: #fff;
+		padding: 7px 15px;
+		background-color: transparent;
+		border-radius: 7px;
+		font-size: 14px;
+		position: relative;
+		display: block;
+		height: 30px;
+		line-height: normal;
+		transition: all 0.3s ease-in-out;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		span {
+			float: right;
+			background-color: rgba(255, 255, 255, 0.1);
+			color: #fff;
+			padding: 1px 5px 0;
+			border-radius: 50px;
+			font-size: 12px;
+			transition: all 0.3s ease-in-out;
+		}
+		&:hover {
+			.ui__iconGlobal {
+				fill: red;
+			}
+			.ui__iconProject {
+				fill: #fff;
+			}
+		}
+		&.active {
+			background-color: rgba(255, 255, 255, 0.1);
+			padding-right: 30px;
+			span {
+				background-color: rgba(255, 255, 255, 0.2);
+			}
+			.sidebarList__itemRemove {
+				opacity: 1;
+			}
+			.ui__iconGlobal {
+				fill: red;
+			}
+			.ui__iconProject {
+				fill: #fff;
+			}
+		}
+	}
+	.sidebarList__itemRemove {
+		opacity: 0;
+		transition: all 0.3s ease-in-out;
+		position: absolute;
+		background-color: rgba(255, 255, 255, 0.1);
+		width: 20px;
+		height: 20px;
+		border-radius: 20px;
+		border: none;
+		top: 5px;
+		right: 5px;
+
+		&:hover {
+			background-color: rgba(0, 0, 0, 1);
+		}
+
+		svg {
+			position: absolute;
+			display: block;
+			width: 14px;
+			stroke-width: 2px;
+			stroke: #fff;
+			height: 14px;
+			top: 0;
+			bottom: 0;
+			right: 0;
+			left: 0;
+			margin: auto;
+		}
+	}
+	.ui__iconProject {
+		width: 18px;
+		margin-right: 15px;
+		float: left;
+		line-height: 0;
+		margin-top: -1px;
+		stroke: #fff;
+		transition: all 0.3s ease-in-out;
+		fill: transparent;
+	}
+	.ui__iconGlobal {
+		width: 25px;
+		margin-right: 15px;
+		float: left;
+		line-height: 0;
+		margin-top: -5px;
+		transition: all 0.3s ease-in-out;
+		fill: #fff;
+	}
+	.addProject {
+		margin-top: 15px;
+		width: 100%;
+		border: none;
+		cursor: pointer;
+		background-color: rgba(0, 0, 0, 0.3);
+		color: #fff;
+		padding: 10px;
+		border-radius: 5px;
+		display: block;
+	}
+</style>
