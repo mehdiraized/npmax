@@ -29,8 +29,8 @@
   },
   "scripts": {
     "start": "electron .",
-    "dev": "rollup -c -w",
-    "build": "rollup -c",
+    "dev": "rollup -c -w --bundleConfigAsCjs",
+    "build": "rollup -c --bundleConfigAsCjs",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist-all": "electron-builder -mwl"
@@ -70,29 +70,29 @@
     }
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^22.0.1",
-    "@rollup/plugin-node-resolve": "^13.3.0",
-    "concurrently": "7.2.2",
-    "electron": "^19.1.8",
-    "electron-builder": "^23.1.0",
+    "@rollup/plugin-commonjs": "^25.0.3",
+    "@rollup/plugin-node-resolve": "^15.1.0",
+    "concurrently": "8.2.0",
+    "electron": "^25.4.0",
+    "electron-builder": "^24.6.3",
     "electron-reload": "2.0.0-alpha.1",
-    "postcss": "^8.4.14",
-    "rollup": "^2.77.0",
-    "rollup-plugin-filesize": "^9.1.2",
+    "postcss": "^8.4.27",
+    "rollup": "^3.27.2",
+    "rollup-plugin-filesize": "^10.0.0",
     "rollup-plugin-livereload": "^2.0.5",
     "rollup-plugin-postcss": "^4.0.2",
-    "rollup-plugin-svelte": "^7.1.0",
+    "rollup-plugin-svelte": "^7.1.6",
     "rollup-plugin-terser": "^7.0.2",
-    "sass": "^1.53.0",
-    "svelte": "^3.49.0",
-    "svelte-preprocess": "^4.10.7"
+    "sass": "^1.64.2",
+    "svelte": "^4.1.2",
+    "svelte-preprocess": "^5.0.4"
   },
   "dependencies": {
-    "axios": "^0.27.2",
+    "axios": "^1.4.0",
     "child_process": "^1.0.2",
     "fix-path": "^4.0.0",
     "normalize.css": "^8.0.1",
-    "simplebar": "^5.3.8",
+    "simplebar": "^6.2.5",
     "sirv-cli": "^2.0.2"
   }
 }

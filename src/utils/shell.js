@@ -2,7 +2,8 @@
 // fixPath();
 const util = require("util");
 const fs = require("fs");
-const { dialog } = require("electron").remote;
+
+const { dialog } = require("electron");
 const exec = util.promisify(require("child_process").exec);
 const readFile = util.promisify(fs.readFile);
 

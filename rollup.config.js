@@ -7,6 +7,7 @@ import livereload from "rollup-plugin-livereload";
 import { terser } from "rollup-plugin-terser";
 import postcss from "rollup-plugin-postcss";
 import autoPreprocess from "svelte-preprocess";
+import childProcess from "child_process";
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -71,7 +72,7 @@ function serve() {
       if (!started) {
         started = true;
 
-        require("child_process").spawn("npm", ["run", "start", "--", "--dev"], {
+        childProcess.spawn("npm", ["run", "start", "--", "--dev"], {
           stdio: ["ignore", "inherit", "inherit"],
           shell: true,
         });
