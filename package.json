@@ -37,10 +37,14 @@
 	},
 	"build": {
 		"productName": "npMax",
-		"appId": "net.mehdir.npmax",
+		"appId": "app.mehdir.npmax",
 		"copyright": "© Mehdir - Mehdi Rezaei",
-		"asar": false,
+		"asar": true,
+		"asarUnpack": "**\\*.{node,dll}",
 		"mac": {
+			"type": "distribution",
+			"hardenedRuntime": true,
+			"gatekeeperAssess": false,
 			"icon": "./public/icon.icns",
 			"category": "public.app-category.productivity",
 			"target": {
@@ -50,6 +54,20 @@
 					"x64"
 				]
 			}
+		},
+		"dmg": {
+			"contents": [
+				{
+					"x": 130,
+					"y": 220
+				},
+				{
+					"x": 410,
+					"y": 220,
+					"type": "link",
+					"path": "/Applications"
+				}
+			]
 		},
 		"linux": {
 			"maintainer": "mehdir",
@@ -74,8 +92,9 @@
 			"*.js"
 		],
 		"directories": {
-			"buildResources": "./public",
-			"output": "./releases"
+			"app": "release/app",
+			"buildResources": "public",
+			"output": "release/build"
 		}
 	},
 	"devDependencies": {
