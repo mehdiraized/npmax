@@ -92,9 +92,9 @@
 			"*.js"
 		],
 		"directories": {
-			"app": "release/app",
+			"app": "releases/app",
 			"buildResources": "public",
-			"output": "release/build"
+			"output": "releases/build"
 		}
 	},
 	"devDependencies": {
