@@ -3045,7 +3045,28 @@ var app = (function () {
 		return child_ctx;
 	}
 
-	// (27:3) {#if packages.npm}
+	// (26:3) {#if packages.npm || packages.yarn || packages.pnpm}
+	function create_if_block_4$2(ctx) {
+		let h1;
+
+		return {
+			c() {
+				h1 = element("h1");
+				h1.textContent = "Globals";
+				attr(h1, "class", "sidebarList__title svelte-19uwfgj");
+			},
+			m(target, anchor) {
+				insert(target, h1, anchor);
+			},
+			d(detaching) {
+				if (detaching) {
+					detach(h1);
+				}
+			}
+		};
+	}
+
+	// (29:3) {#if packages.npm}
 	function create_if_block_3$2(ctx) {
 		let button;
 		let svg;
@@ -3066,11 +3087,11 @@ var app = (function () {
 				span = element("span");
 				t1 = text(t1_value);
 				attr(path_1, "d", "M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0\n              10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625\n              11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281\n              13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438\n              19.445312 L 1.7773438 11.777344 z M 10.667969 11.777344 L\n              17.777344 11.777344 L 17.779297 11.777344 L 17.779297 19.443359 L\n              14.222656 19.443359 L 14.222656 21.222656 L 10.667969 21.222656 L\n              10.667969 11.777344 z M 19.556641 11.777344 L 30.222656 11.777344\n              L 30.224609 11.777344 L 30.224609 19.445312 L 28.445312 19.445312\n              L 28.445312 13.556641 L 26.667969 13.556641 L 26.667969 19.445312\n              L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641\n              L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344\n              z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16\n              13.556641 L 14.222656 13.556641 z");
-				attr(svg, "class", "ui__iconGlobal svelte-1s6472y");
+				attr(svg, "class", "ui__iconGlobal svelte-19uwfgj");
 				attr(svg, "viewBox", "0 0 32 32");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "svelte-1s6472y");
-				attr(button, "class", "sidebarList__item svelte-1s6472y");
+				attr(span, "class", "svelte-19uwfgj");
+				attr(button, "class", "sidebarList__item svelte-19uwfgj");
 				toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_1`);
 			},
 			m(target, anchor) {
@@ -3104,7 +3125,7 @@ var app = (function () {
 		};
 	}
 
-	// (61:3) {#if packages.yarn}
+	// (63:3) {#if packages.yarn}
 	function create_if_block_2$2(ctx) {
 		let button;
 		let svg;
@@ -3125,11 +3146,11 @@ var app = (function () {
 				span = element("span");
 				t1 = text(t1_value);
 				attr(path_1, "d", "M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29\n              23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C\n              27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M\n              16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781\n              10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C\n              12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C\n              12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391\n              12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391\n              10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391\n              9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781\n              10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391\n              10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391\n              12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219\n              12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609\n              13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13\n              22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219\n              22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219\n              22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609\n              20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609\n              19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20\n              20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781\n              20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391\n              16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219\n              14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391\n              11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5\n              17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391\n              9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984\n              9.0449219 z");
-				attr(svg, "class", "ui__iconGlobal svelte-1s6472y");
+				attr(svg, "class", "ui__iconGlobal svelte-19uwfgj");
 				attr(svg, "viewBox", "0 0 32 32");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "svelte-1s6472y");
-				attr(button, "class", "sidebarList__item svelte-1s6472y");
+				attr(span, "class", "svelte-19uwfgj");
+				attr(button, "class", "sidebarList__item svelte-19uwfgj");
 				toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_2`);
 			},
 			m(target, anchor) {
@@ -3163,7 +3184,7 @@ var app = (function () {
 		};
 	}
 
-	// (109:3) {#if packages.pnpm}
+	// (111:3) {#if packages.pnpm}
 	function create_if_block_1$2(ctx) {
 		let button;
 		let svg;
@@ -3184,11 +3205,11 @@ var app = (function () {
 				span = element("span");
 				t1 = text(t1_value);
 				attr(path_1, "d", "M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29\n              23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C\n              27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M\n              16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781\n              10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C\n              12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C\n              12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391\n              12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391\n              10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391\n              9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781\n              10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391\n              10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391\n              12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219\n              12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609\n              13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13\n              22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219\n              22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219\n              22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609\n              20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609\n              19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20\n              20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781\n              20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391\n              16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219\n              14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391\n              11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5\n              17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391\n              9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984\n              9.0449219 z");
-				attr(svg, "class", "ui__iconGlobal svelte-1s6472y");
+				attr(svg, "class", "ui__iconGlobal svelte-19uwfgj");
 				attr(svg, "viewBox", "0 0 32 32");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "svelte-1s6472y");
-				attr(button, "class", "sidebarList__item svelte-1s6472y");
+				attr(span, "class", "svelte-19uwfgj");
+				attr(button, "class", "sidebarList__item svelte-19uwfgj");
 				toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_3`);
 			},
 			m(target, anchor) {
@@ -3222,7 +3243,7 @@ var app = (function () {
 		};
 	}
 
-	// (160:3) {#if $projects}
+	// (162:3) {#if $projects}
 	function create_if_block$5(ctx) {
 		let each_1_anchor;
 		let each_value = ensure_array_like(/*$projects*/ ctx[2]);
@@ -3283,7 +3304,7 @@ var app = (function () {
 		};
 	}
 
-	// (161:4) {#each $projects as { id, name, path }}
+	// (163:4) {#each $projects as { id, name, path }}
 	function create_each_block$2(ctx) {
 		let button1;
 		let svg0;
@@ -3314,14 +3335,14 @@ var app = (function () {
 				t1 = text(t1_value);
 				t2 = space();
 				button0 = element("button");
-				button0.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="svelte-1s6472y"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg>`;
+				button0.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="svelte-19uwfgj"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg>`;
 				t3 = space();
 				attr(path_1, "d", "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2\n                3h9a2 2 0 0 1 2 2z");
-				attr(svg0, "class", "ui__iconProject svelte-1s6472y");
+				attr(svg0, "class", "ui__iconProject svelte-19uwfgj");
 				attr(svg0, "viewBox", "0 0 24 24");
 				attr(svg0, "xmlns", "http://www.w3.org/2000/svg");
-				attr(button0, "class", "sidebarList__itemRemove svelte-1s6472y");
-				attr(button1, "class", "sidebarList__item svelte-1s6472y");
+				attr(button0, "class", "sidebarList__itemRemove svelte-19uwfgj");
+				attr(button1, "class", "sidebarList__item svelte-19uwfgj");
 				toggle_class(button1, "active", /*$menuActive*/ ctx[1] === `project_${/*id*/ ctx[9]}`);
 			},
 			m(target, anchor) {
@@ -3365,113 +3386,122 @@ var app = (function () {
 	// (24:1) <SimpleBar maxHeight={"calc(100vh - 105px)"}>
 	function create_default_slot$1(ctx) {
 		let section0;
-		let h10;
+		let t0;
 		let t1;
 		let t2;
 		let t3;
-		let t4;
 		let section1;
-		let h11;
-		let t6;
-		let if_block0 = /*packages*/ ctx[0].npm && create_if_block_3$2(ctx);
-		let if_block1 = /*packages*/ ctx[0].yarn && create_if_block_2$2(ctx);
-		let if_block2 = /*packages*/ ctx[0].pnpm && create_if_block_1$2(ctx);
-		let if_block3 = /*$projects*/ ctx[2] && create_if_block$5(ctx);
+		let h1;
+		let t5;
+		let if_block0 = (/*packages*/ ctx[0].npm || /*packages*/ ctx[0].yarn || /*packages*/ ctx[0].pnpm) && create_if_block_4$2();
+		let if_block1 = /*packages*/ ctx[0].npm && create_if_block_3$2(ctx);
+		let if_block2 = /*packages*/ ctx[0].yarn && create_if_block_2$2(ctx);
+		let if_block3 = /*packages*/ ctx[0].pnpm && create_if_block_1$2(ctx);
+		let if_block4 = /*$projects*/ ctx[2] && create_if_block$5(ctx);
 
 		return {
 			c() {
 				section0 = element("section");
-				h10 = element("h1");
-				h10.textContent = "Globals";
-				t1 = space();
 				if (if_block0) if_block0.c();
-				t2 = space();
+				t0 = space();
 				if (if_block1) if_block1.c();
-				t3 = space();
+				t1 = space();
 				if (if_block2) if_block2.c();
-				t4 = space();
-				section1 = element("section");
-				h11 = element("h1");
-				h11.textContent = "Projects";
-				t6 = space();
+				t2 = space();
 				if (if_block3) if_block3.c();
-				attr(h10, "class", "sidebarList__title svelte-1s6472y");
-				attr(section0, "class", "sidebarList svelte-1s6472y");
-				attr(h11, "class", "sidebarList__title svelte-1s6472y");
-				attr(section1, "class", "sidebarList svelte-1s6472y");
+				t3 = space();
+				section1 = element("section");
+				h1 = element("h1");
+				h1.textContent = "Projects";
+				t5 = space();
+				if (if_block4) if_block4.c();
+				attr(section0, "class", "sidebarList svelte-19uwfgj");
+				attr(h1, "class", "sidebarList__title svelte-19uwfgj");
+				attr(section1, "class", "sidebarList svelte-19uwfgj");
 			},
 			m(target, anchor) {
 				insert(target, section0, anchor);
-				append(section0, h10);
-				append(section0, t1);
 				if (if_block0) if_block0.m(section0, null);
-				append(section0, t2);
+				append(section0, t0);
 				if (if_block1) if_block1.m(section0, null);
-				append(section0, t3);
+				append(section0, t1);
 				if (if_block2) if_block2.m(section0, null);
-				insert(target, t4, anchor);
+				append(section0, t2);
+				if (if_block3) if_block3.m(section0, null);
+				insert(target, t3, anchor);
 				insert(target, section1, anchor);
-				append(section1, h11);
-				append(section1, t6);
-				if (if_block3) if_block3.m(section1, null);
+				append(section1, h1);
+				append(section1, t5);
+				if (if_block4) if_block4.m(section1, null);
 			},
 			p(ctx, dirty) {
-				if (/*packages*/ ctx[0].npm) {
-					if (if_block0) {
-						if_block0.p(ctx, dirty);
-					} else {
-						if_block0 = create_if_block_3$2(ctx);
+				if (/*packages*/ ctx[0].npm || /*packages*/ ctx[0].yarn || /*packages*/ ctx[0].pnpm) {
+					if (if_block0) ; else {
+						if_block0 = create_if_block_4$2();
 						if_block0.c();
-						if_block0.m(section0, t2);
+						if_block0.m(section0, t0);
 					}
 				} else if (if_block0) {
 					if_block0.d(1);
 					if_block0 = null;
 				}
 
-				if (/*packages*/ ctx[0].yarn) {
+				if (/*packages*/ ctx[0].npm) {
 					if (if_block1) {
 						if_block1.p(ctx, dirty);
 					} else {
-						if_block1 = create_if_block_2$2(ctx);
+						if_block1 = create_if_block_3$2(ctx);
 						if_block1.c();
-						if_block1.m(section0, t3);
+						if_block1.m(section0, t1);
 					}
 				} else if (if_block1) {
 					if_block1.d(1);
 					if_block1 = null;
 				}
 
-				if (/*packages*/ ctx[0].pnpm) {
+				if (/*packages*/ ctx[0].yarn) {
 					if (if_block2) {
 						if_block2.p(ctx, dirty);
 					} else {
-						if_block2 = create_if_block_1$2(ctx);
+						if_block2 = create_if_block_2$2(ctx);
 						if_block2.c();
-						if_block2.m(section0, null);
+						if_block2.m(section0, t2);
 					}
 				} else if (if_block2) {
 					if_block2.d(1);
 					if_block2 = null;
 				}
 
-				if (/*$projects*/ ctx[2]) {
+				if (/*packages*/ ctx[0].pnpm) {
 					if (if_block3) {
 						if_block3.p(ctx, dirty);
 					} else {
-						if_block3 = create_if_block$5(ctx);
+						if_block3 = create_if_block_1$2(ctx);
 						if_block3.c();
-						if_block3.m(section1, null);
+						if_block3.m(section0, null);
 					}
 				} else if (if_block3) {
 					if_block3.d(1);
 					if_block3 = null;
 				}
+
+				if (/*$projects*/ ctx[2]) {
+					if (if_block4) {
+						if_block4.p(ctx, dirty);
+					} else {
+						if_block4 = create_if_block$5(ctx);
+						if_block4.c();
+						if_block4.m(section1, null);
+					}
+				} else if (if_block4) {
+					if_block4.d(1);
+					if_block4 = null;
+				}
 			},
 			d(detaching) {
 				if (detaching) {
 					detach(section0);
-					detach(t4);
+					detach(t3);
 					detach(section1);
 				}
 
@@ -3479,6 +3509,7 @@ var app = (function () {
 				if (if_block1) if_block1.d();
 				if (if_block2) if_block2.d();
 				if (if_block3) if_block3.d();
+				if (if_block4) if_block4.d();
 			}
 		};
 	}
@@ -3507,8 +3538,8 @@ var app = (function () {
 				t0 = space();
 				button = element("button");
 				button.textContent = "Add Project";
-				attr(button, "class", "addProject svelte-1s6472y");
-				attr(aside, "class", "sidebar svelte-1s6472y");
+				attr(button, "class", "addProject svelte-19uwfgj");
+				attr(aside, "class", "sidebar svelte-19uwfgj");
 			},
 			m(target, anchor) {
 				insert(target, aside, anchor);

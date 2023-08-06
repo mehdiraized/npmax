@@ -23,7 +23,9 @@
 <aside class="sidebar">
 	<SimpleBar maxHeight={"calc(100vh - 105px)"}>
 		<section class="sidebarList">
-			<h1 class="sidebarList__title">Globals</h1>
+			{#if packages.npm || packages.yarn || packages.pnpm}
+				<h1 class="sidebarList__title">Globals</h1>
+			{/if}
 			{#if packages.npm}
 				<button
 					class:active={$menuActive === `global_1`}
@@ -237,7 +239,7 @@
 		color: #fff;
 		box-sizing: border-box;
 		padding: 40px 15px 15px;
-		// -webkit-app-region: drag;
+		-webkit-app-region: drag;
 		// -webkit-user-select: none;
 		position: sticky;
 		top: 0;
@@ -254,6 +256,7 @@
 		// margin-bottom: 15px;
 	}
 	.sidebarList__item {
+		-webkit-app-region: none;
 		text-align: left;
 		width: 100%;
 		border: none;
@@ -363,5 +366,6 @@
 		padding: 10px;
 		border-radius: 5px;
 		display: block;
+		-webkit-app-region: none;
 	}
 </style>
