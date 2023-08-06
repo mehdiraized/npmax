@@ -42,7 +42,7 @@ For additional help, you can use one of these channels to ask a question:
 
 ## Building and running in production mode
 
-To create an optimised version of the app:
+To create an optimized version of the app:
 
 ```bash
 npm run dist

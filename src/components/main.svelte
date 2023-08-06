@@ -174,7 +174,7 @@
                             110-162.5 40.5-199v-256z"
 														/>
 													</svg>
-													<span class="tooltiptext">Issues</span>
+													<span class="tooltipText">Issues</span>
 												</a>
 											{/if}
 											{#if homepage}
@@ -196,7 +196,7 @@
                             20 16 L 12 16 L 12 26 L 7 26 L 7 14.4375 Z"
 														/>
 													</svg>
-													<span class="tooltiptext">Home Page</span>
+													<span class="tooltipText">Home Page</span>
 												</a>
 											{/if}
 											<a
@@ -231,7 +231,7 @@
                             13.556641 z"
 													/>
 												</svg>
-												<span class="tooltiptext">Npm</span>
+												<span class="tooltipText">Npm</span>
 											</a>
 											{#if repository}
 												<a
@@ -294,7 +294,7 @@
 															</g>
 														</g>
 													</svg>
-													<span class="tooltiptext">Repository</span>
+													<span class="tooltipText">Repository</span>
 												</a>
 											{/if}
 										{/if}
@@ -427,7 +427,7 @@
 		background-color: rgba(255, 255, 255, 0.8);
 		margin-right: 5px;
 
-		.tooltiptext {
+		.tooltipText {
 			visibility: hidden;
 			width: 120px;
 			background-color: #555;
@@ -455,7 +455,7 @@
 			}
 		}
 
-		&:hover .tooltiptext {
+		&:hover .tooltipText {
 			visibility: visible;
 			opacity: 1;
 		}

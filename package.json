@@ -1,7 +1,7 @@
 {
 	"name": "npmax",
 	"description": "Package Manager",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"main": "index.js",
 	"license": "MIT",
 	"homepage": "https://mehd.ir",

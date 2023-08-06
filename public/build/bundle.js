@@ -9007,13 +9007,13 @@ var app = (function () {
 				t1 = space();
 				table = element("table");
 				thead = element("thead");
-				thead.innerHTML = `<tr class="svelte-g7dy22"><td class="svelte-g7dy22">Package</td> <td class="svelte-g7dy22">Version</td> <td class="svelte-g7dy22">env</td> <td class="svelte-g7dy22">Info</td></tr>`;
+				thead.innerHTML = `<tr class="svelte-inm9vu"><td class="svelte-inm9vu">Package</td> <td class="svelte-inm9vu">Version</td> <td class="svelte-inm9vu">env</td> <td class="svelte-inm9vu">Info</td></tr>`;
 				t9 = space();
 				tbody = element("tbody");
 				if (if_block) if_block.c();
-				attr(h1, "class", "projectTable__title svelte-g7dy22");
-				attr(table, "class", "svelte-g7dy22");
-				attr(section, "class", "projectTable svelte-g7dy22");
+				attr(h1, "class", "projectTable__title svelte-inm9vu");
+				attr(table, "class", "svelte-inm9vu");
+				attr(section, "class", "projectTable svelte-inm9vu");
 			},
 			m(target, anchor) {
 				insert(target, section, anchor);
@@ -9077,9 +9077,9 @@ var app = (function () {
 				if (!src_url_equal(img.src, img_src_value = "./images/add.png")) attr(img, "src", img_src_value);
 				attr(img, "width", "300");
 				attr(img, "alt", "");
-				attr(img, "class", "svelte-g7dy22");
-				attr(button, "class", "svelte-g7dy22");
-				attr(section, "class", "empty svelte-g7dy22");
+				attr(img, "class", "svelte-inm9vu");
+				attr(button, "class", "svelte-inm9vu");
+				attr(section, "class", "empty svelte-inm9vu");
 			},
 			m(target, anchor) {
 				insert(target, section, anchor);
@@ -9211,7 +9211,7 @@ var app = (function () {
 				polyline = svg_element("polyline");
 				attr(path, "d", "M22 11.08V12a10 10 0 1 1-5.93-9.14");
 				attr(polyline, "points", "22 4 12 14.01 9 11.01");
-				attr(svg, "class", "projectTable__versionCheck svelte-g7dy22");
+				attr(svg, "class", "projectTable__versionCheck svelte-inm9vu");
 				attr(svg, "viewBox", "0 0 24 24");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
 			},
@@ -9236,7 +9236,7 @@ var app = (function () {
 		return {
 			c() {
 				span = element("span");
-				attr(span, "class", "skeleton svelte-g7dy22");
+				attr(span, "class", "skeleton svelte-inm9vu");
 			},
 			m(target, anchor) {
 				insert(target, span, anchor);
@@ -9303,8 +9303,8 @@ var app = (function () {
 				attr(path, "d", "M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32\n                            21 L 32 10 L 0 10 z M 1.7773438 11.777344 L\n                            8.8886719 11.777344 L 8.890625 11.777344 L 8.890625\n                            19.445312 L 7.1113281 19.445312 L 7.1113281\n                            13.556641 L 5.3339844 13.556641 L 5.3339844\n                            19.445312 L 1.7773438 19.445312 L 1.7773438\n                            11.777344 z M 10.667969 11.777344 L 17.777344\n                            11.777344 L 17.779297 11.777344 L 17.779297\n                            19.443359 L 14.222656 19.443359 L 14.222656\n                            21.222656 L 10.667969 21.222656 L 10.667969\n                            11.777344 z M 19.556641 11.777344 L 30.222656\n                            11.777344 L 30.224609 11.777344 L 30.224609\n                            19.445312 L 28.445312 19.445312 L 28.445312\n                            13.556641 L 26.667969 13.556641 L 26.667969\n                            19.445312 L 24.890625 19.445312 L 24.890625\n                            13.556641 L 23.111328 13.556641 L 23.111328\n                            19.445312 L 19.556641 19.445312 L 19.556641\n                            11.777344 z M 14.222656 13.556641 L 14.222656\n                            17.667969 L 16 17.667969 L 16 13.556641 L 14.222656\n                            13.556641 z");
 				attr(svg, "viewBox", "0 0 32 32");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltiptext svelte-g7dy22");
-				attr(a, "class", "projectAction svelte-g7dy22");
+				attr(span, "class", "tooltipText svelte-inm9vu");
+				attr(a, "class", "projectAction svelte-inm9vu");
 				attr(a, "href", a_href_value = `https://www.npmjs.com/package/${/*name*/ ctx[9]}`);
 				attr(a, "title", "Npm");
 			},
@@ -9389,7 +9389,7 @@ var app = (function () {
 		return {
 			c() {
 				span = element("span");
-				attr(span, "class", "skeleton svelte-g7dy22");
+				attr(span, "class", "skeleton svelte-inm9vu");
 			},
 			m(target, anchor) {
 				insert(target, span, anchor);
@@ -9423,8 +9423,8 @@ var app = (function () {
 				attr(path, "d", "M1608 897q65 2 122 27.5t99 68.5 66.5 100.5T1920\n                            1216v192h-128v-192q0-32-10.5-61.5t-29-54-44.5-42-57-26.5q6\n                            29 9.5 59.5t3.5 60.5v256q0 7-1 13t-2 13l6-6q60 60 92\n                            138t32 163-32 162.5-92 137.5l-90-90q42-42\n                            64-95.5t22-113.5q0-68-31-132-31 100-90.5 183T1402\n                            1923t-176.5 92-201.5\n                            33-201.5-33-176.5-92-139.5-142-90.5-183q-31 64-31\n                            132 0 60 22 113.5t64 95.5l-90\n                            90q-60-60-92.5-137.5T256 1729t32.5-163 92.5-138l6\n                            6q-1-7-2-13t-1-13v-256q0-30 3.5-60.5t9.5-59.5q-31\n                            9-57 26.5t-44.5 42-29 54T256 1216v192H128v-192q0-65\n                            24.5-122.5T219 993t99-68.5T440 897q31-70\n                            80-135-57-10-105.5-38.5T331 653t-55-94.5T256\n                            448V256h128v192q0 40 15 75t41 61 61 41 75\n                            15h64v3q47-35 96-59-15-32-23.5-66.5T704 448q0-70\n                            31-135L595 173l90-90 127 127q45-39 98.5-60.5T1024\n                            128t113.5 21.5T1236 210l127-127 90 90-140 140q31 65\n                            31 135 0 35-8.5 69.5T1312 584q26 13 49.5 27.5T1408\n                            643v-3h64q40 0 75-15t61-41 41-61 15-75V256h128v192q0\n                            58-20 110.5t-55 94.5-83.5 70.5T1528 762q49 65 80\n                            135zm-584-641q-40 0-75 15t-61 41-41 61-15 75q0 50 24\n                            90 42-11 83.5-17.5t84.5-6.5 84.5 6.5T1192 538q24-40\n                            24-90 0-40-15-75t-41-61-61-41-75-15zm512\n                            896q0-104-41-197t-110.5-163T1222 681t-198-41-198\n                            41-162.5 111T553 955t-41 197v256q0 106 40.5 199t110\n                            162.5 162.5 110 199 40.5 199-40.5 162.5-110\n                            110-162.5 40.5-199v-256z");
 				attr(svg, "viewBox", "0 0 2048 2048");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltiptext svelte-g7dy22");
-				attr(a, "class", "projectAction svelte-g7dy22");
+				attr(span, "class", "tooltipText svelte-inm9vu");
+				attr(a, "class", "projectAction svelte-inm9vu");
 				attr(a, "href", a_href_value = /*bugs*/ ctx[13].url);
 				attr(a, "title", "Issues");
 			},
@@ -9468,8 +9468,8 @@ var app = (function () {
 				attr(path, "d", "M 16 2.59375 L 15.28125 3.28125 L 2.28125\n                            16.28125 L 3.71875 17.71875 L 5 16.4375 L 5 28 L 14\n                            28 L 14 18 L 18 18 L 18 28 L 27 28 L 27 16.4375 L\n                            28.28125 17.71875 L 29.71875 16.28125 L 16.71875\n                            3.28125 Z M 16 5.4375 L 25 14.4375 L 25 26 L 20 26 L\n                            20 16 L 12 16 L 12 26 L 7 26 L 7 14.4375 Z");
 				attr(svg, "viewBox", "0 0 32 32");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltiptext svelte-g7dy22");
-				attr(a, "class", "projectAction svelte-g7dy22");
+				attr(span, "class", "tooltipText svelte-inm9vu");
+				attr(a, "class", "projectAction svelte-inm9vu");
 				attr(a, "href", a_href_value = /*homepage*/ ctx[14]);
 				attr(a, "title", "Home Page");
 			},
@@ -9523,8 +9523,8 @@ var app = (function () {
 				attr(g1, "strokewidth", "1");
 				attr(svg, "viewBox", "0 0 48 47");
 				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltiptext svelte-g7dy22");
-				attr(a, "class", "projectAction svelte-g7dy22");
+				attr(span, "class", "tooltipText svelte-inm9vu");
+				attr(a, "class", "projectAction svelte-inm9vu");
 				attr(a, "href", a_href_value = /*repository*/ ctx[15].url);
 				attr(a, "title", "Repository");
 			},
@@ -9606,12 +9606,12 @@ var app = (function () {
 				td3 = element("td");
 				if_block2.c();
 				t6 = space();
-				attr(td0, "class", "svelte-g7dy22");
-				attr(td1, "class", "svelte-g7dy22");
-				attr(td2, "class", "svelte-g7dy22");
-				attr(td3, "class", "svelte-g7dy22");
+				attr(td0, "class", "svelte-inm9vu");
+				attr(td1, "class", "svelte-inm9vu");
+				attr(td2, "class", "svelte-inm9vu");
+				attr(td3, "class", "svelte-inm9vu");
 				attr(tr, "id", tr_id_value = `package_${/*id*/ ctx[8]}`);
-				attr(tr, "class", "svelte-g7dy22");
+				attr(tr, "class", "svelte-inm9vu");
 			},
 			m(target, anchor) {
 				insert(target, tr, anchor);
@@ -9752,7 +9752,7 @@ var app = (function () {
 				create_component(simplebar.$$.fragment);
 				t = space();
 				create_component(toaster.$$.fragment);
-				attr(div, "class", "content svelte-g7dy22");
+				attr(div, "class", "content svelte-inm9vu");
 			},
 			m(target, anchor) {
 				insert(target, div, anchor);
