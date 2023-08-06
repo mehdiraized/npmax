@@ -139,7 +139,7 @@
 											<span class="skeleton" />
 										{:else}
 											{#if bugs}
-												<a class="projectAction" href={bugs.url} title="Issue">
+												<a class="projectAction" href={bugs.url} title="Issues">
 													<svg
 														viewBox="0 0 2048 2048"
 														xmlns="http://www.w3.org/2000/svg"
@@ -174,7 +174,7 @@
                             110-162.5 40.5-199v-256z"
 														/>
 													</svg>
-													<span class="tooltiptext">Issue</span>
+													<span class="tooltiptext">Issues</span>
 												</a>
 											{/if}
 											{#if homepage}
