@@ -120,6 +120,7 @@
 		"fix-path": "^4.0.0",
 		"normalize.css": "^8.0.1",
 		"simplebar": "^6.2.5",
-		"sirv-cli": "^2.0.2"
+		"sirv-cli": "^2.0.2",
+		"svelte-french-toast": "^1.2.0"
 	}
 }
