@@ -8,7 +8,9 @@ Runs on Linux, MacOS and Windows..
 
 ## Download
 
-**[Download for MacOS](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-beta/npMax-0.1.0-beta.dmg)** &nbsp; | &nbsp;**[Download for Linux](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-beta/npMax-0.1.0-beta.AppImage)** &nbsp; | &nbsp;**[Download for Windows](https://github.com/mehdiraized/npmax/releases/download/v0.1.0-beta/npMax.Setup.0.1.0-beta.exe)** &nbsp;
+**[Download for MacOS Arm](https://github.com/mehdiraized/npmax/releases/download/v1.0.1/npMax-1.0.1-arm64.dmg)** &nbsp; | **[Download for MacOS x64](https://github.com/mehdiraized/npmax/releases/download/v1.0.1/npMax-1.0.1.dmg)**
+
+**[Download for Linux](https://github.com/mehdiraized/npmax/releases/download/v1.0.1/npMax-1.0.1.AppImage)** &nbsp; | &nbsp;**[Download for Windows](https://github.com/mehdiraized/npmax/releases/download/v1.0.1/npMax.Setup.1.0.1.exe)** &nbsp;
 
 ## Contributing
 
@@ -40,7 +42,7 @@ For additional help, you can use one of these channels to ask a question:
 
 ## Building and running in production mode
 
-To create an optimised version of the app:
+To create an optimized version of the app:
 
 ```bash
 npm run dist

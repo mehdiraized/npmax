@@ -1,5 +1,7 @@
 import axios from "axios";
 
-export const getPackagesInfo = (data) => {
-  return axios.post("https://api.npms.io/v2/package/mget", data);
+export const getPackageInfo = (packageName) => {
+	return axios
+		.get("https://registry.npmjs.org/" + packageName + "/latest")
+		.then((res) => res.data);
 };
