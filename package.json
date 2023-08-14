@@ -80,7 +80,18 @@
 		},
 		"win": {
 			"target": [
-				"nsis"
+				{
+					"target": "zip",
+					"arch": [
+						"x64"
+					]
+				},
+				{
+					"target": "portable",
+					"arch": [
+						"x64"
+					]
+				}
 			],
 			"icon": "./public/icon.ico"
 		},
@@ -97,21 +108,21 @@
 		}
 	},
 	"devDependencies": {
-		"@rollup/plugin-commonjs": "^25.0.3",
+		"@rollup/plugin-commonjs": "^25.0.4",
 		"@rollup/plugin-node-resolve": "^15.1.0",
 		"@rollup/plugin-terser": "^0.4.3",
 		"concurrently": "8.2.0",
-		"electron": "^25.4.0",
+		"electron": "^25.5.0",
 		"electron-builder": "^24.6.3",
 		"electron-reload": "2.0.0-alpha.1",
 		"postcss": "^8.4.27",
-		"rollup": "^3.27.2",
+		"rollup": "^3.28.0",
 		"rollup-plugin-filesize": "^10.0.0",
 		"rollup-plugin-livereload": "^2.0.5",
 		"rollup-plugin-postcss": "^4.0.2",
 		"rollup-plugin-svelte": "^7.1.6",
-		"sass": "^1.64.2",
-		"svelte": "^4.1.2",
+		"sass": "^1.65.1",
+		"svelte": "^4.2.0",
 		"svelte-preprocess": "^5.0.4"
 	},
 	"dependencies": {
