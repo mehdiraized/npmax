@@ -1,4 +1,5 @@
 <script>
+	import { blur } from "svelte/transition";
 	import toast, { Toaster } from "svelte-french-toast";
 	import SimpleBar from "../components/SimpleBar.svelte";
 	import { projects, menuActive } from "../store";
@@ -64,7 +65,7 @@
 <div class="content">
 	<SimpleBar maxHeight={"calc(100vh - 20px)"}>
 		{#if !currentProject}
-			<section class="empty">
+			<section transition:blur class="empty">
 				<img src="./images/add.png" width="300" alt="" />
 				<h1>Select Project to start</h1>
 				<button
@@ -98,52 +99,57 @@
 				</button>
 			</section>
 		{:else}
-			<section class="projectTable">
-				<h1 class="projectTable__title">{currentProject.name}</h1>
-				<table>
-					<thead>
-						<tr>
-							<td>Package</td>
-							<td>Version</td>
-							<td>env</td>
-							<td>Info</td>
-						</tr>
-					</thead>
-					<tbody>
-						{#if packages}
-							{#each packages as { id, name, current, dev, version, bugs, homepage, repository }}
-								<tr id={`package_${id}`}>
-									<td>{name}</td>
-									<td>
-										{current}
-										{#if !version}
-											<span class="skeleton" />
-										{:else if current.replace("^", "") === version}
-											<svg
-												class="projectTable__versionCheck"
-												viewBox="0 0 24 24"
-												xmlns="http://www.w3.org/2000/svg"
-											>
-												<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-												<polyline points="22 4 12 14.01 9 11.01" />
-											</svg>
-										{:else}(Latest {version}){/if}
-									</td>
-									<td>
-										{#if dev}dev{/if}
-									</td>
-									<td>
-										{#if !bugs && !homepage && !repository}
-											<span class="skeleton" />
-										{:else}
-											{#if bugs}
-												<a class="projectAction" href={bugs.url} title="Issues">
-													<svg
-														viewBox="0 0 2048 2048"
-														xmlns="http://www.w3.org/2000/svg"
+			{#key currentProjectID}
+				<section transition:blur class="projectTable">
+					<h1 class="projectTable__title">{currentProject.name}</h1>
+					<table>
+						<thead>
+							<tr>
+								<td>Package</td>
+								<td>Version</td>
+								<td>env</td>
+								<td>Info</td>
+							</tr>
+						</thead>
+						<tbody>
+							{#if packages}
+								{#each packages as { id, name, current, dev, version, bugs, homepage, repository }}
+									<tr id={`package_${id}`}>
+										<td>{name}</td>
+										<td>
+											{current}
+											{#if !version}
+												<span class="skeleton" />
+											{:else if current.replace("^", "") === version}
+												<svg
+													class="projectTable__versionCheck"
+													viewBox="0 0 24 24"
+													xmlns="http://www.w3.org/2000/svg"
+												>
+													<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+													<polyline points="22 4 12 14.01 9 11.01" />
+												</svg>
+											{:else}(Latest {version}){/if}
+										</td>
+										<td>
+											{#if dev}dev{/if}
+										</td>
+										<td>
+											{#if !bugs && !homepage && !repository}
+												<span class="skeleton" />
+											{:else}
+												{#if bugs}
+													<a
+														class="projectAction"
+														href={bugs.url}
+														title="Issues"
 													>
-														<path
-															d="M1608 897q65 2 122 27.5t99 68.5 66.5 100.5T1920
+														<svg
+															viewBox="0 0 2048 2048"
+															xmlns="http://www.w3.org/2000/svg"
+														>
+															<path
+																d="M1608 897q65 2 122 27.5t99 68.5 66.5 100.5T1920
                             1216v192h-128v-192q0-32-10.5-61.5t-29-54-44.5-42-57-26.5q6
                             29 9.5 59.5t3.5 60.5v256q0 7-1 13t-2 13l6-6q60 60 92
                             138t32 163-32 162.5-92 137.5l-90-90q42-42
@@ -170,44 +176,44 @@
                             41-162.5 111T553 955t-41 197v256q0 106 40.5 199t110
                             162.5 162.5 110 199 40.5 199-40.5 162.5-110
                             110-162.5 40.5-199v-256z"
-														/>
-													</svg>
-													<span class="tooltipText">Issues</span>
-												</a>
-											{/if}
-											{#if homepage}
+															/>
+														</svg>
+														<span class="tooltipText">Issues</span>
+													</a>
+												{/if}
+												{#if homepage}
+													<a
+														class="projectAction"
+														href={homepage}
+														title="Home Page"
+													>
+														<svg
+															viewBox="0 0 32 32"
+															xmlns="http://www.w3.org/2000/svg"
+														>
+															<path
+																d="M 16 2.59375 L 15.28125 3.28125 L 2.28125
+                            16.28125 L 3.71875 17.71875 L 5 16.4375 L 5 28 L 14
+                            28 L 14 18 L 18 18 L 18 28 L 27 28 L 27 16.4375 L
+                            28.28125 17.71875 L 29.71875 16.28125 L 16.71875
+                            3.28125 Z M 16 5.4375 L 25 14.4375 L 25 26 L 20 26 L
+                            20 16 L 12 16 L 12 26 L 7 26 L 7 14.4375 Z"
+															/>
+														</svg>
+														<span class="tooltipText">Home Page</span>
+													</a>
+												{/if}
 												<a
 													class="projectAction"
-													href={homepage}
-													title="Home Page"
+													href={`https://www.npmjs.com/package/${name}`}
+													title="Npm"
 												>
 													<svg
 														viewBox="0 0 32 32"
 														xmlns="http://www.w3.org/2000/svg"
 													>
 														<path
-															d="M 16 2.59375 L 15.28125 3.28125 L 2.28125
-                            16.28125 L 3.71875 17.71875 L 5 16.4375 L 5 28 L 14
-                            28 L 14 18 L 18 18 L 18 28 L 27 28 L 27 16.4375 L
-                            28.28125 17.71875 L 29.71875 16.28125 L 16.71875
-                            3.28125 Z M 16 5.4375 L 25 14.4375 L 25 26 L 20 26 L
-                            20 16 L 12 16 L 12 26 L 7 26 L 7 14.4375 Z"
-														/>
-													</svg>
-													<span class="tooltipText">Home Page</span>
-												</a>
-											{/if}
-											<a
-												class="projectAction"
-												href={`https://www.npmjs.com/package/${name}`}
-												title="Npm"
-											>
-												<svg
-													viewBox="0 0 32 32"
-													xmlns="http://www.w3.org/2000/svg"
-												>
-													<path
-														d="M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32
+															d="M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32
                             21 L 32 10 L 0 10 z M 1.7773438 11.777344 L
                             8.8886719 11.777344 L 8.890625 11.777344 L 8.890625
                             19.445312 L 7.1113281 19.445312 L 7.1113281
@@ -227,32 +233,32 @@
                             11.777344 z M 14.222656 13.556641 L 14.222656
                             17.667969 L 16 17.667969 L 16 13.556641 L 14.222656
                             13.556641 z"
-													/>
-												</svg>
-												<span class="tooltipText">Npm</span>
-											</a>
-											{#if repository}
-												<a
-													class="projectAction"
-													href={repository.url}
-													title="Repository"
-												>
-													<svg
-														viewBox="0 0 48 47"
-														xmlns="http://www.w3.org/2000/svg"
+														/>
+													</svg>
+													<span class="tooltipText">Npm</span>
+												</a>
+												{#if repository}
+													<a
+														class="projectAction"
+														href={repository.url}
+														title="Repository"
 													>
-														<g
-															fill="none"
-															fillRule="evenodd"
-															stroke="none"
-															strokeWidth="1"
+														<svg
+															viewBox="0 0 48 47"
+															xmlns="http://www.w3.org/2000/svg"
 														>
 															<g
-																fill="#000"
-																transform="translate(-700.000000, -560.000000)"
+																fill="none"
+																fillRule="evenodd"
+																stroke="none"
+																strokeWidth="1"
 															>
-																<path
-																	d="M723.9985,560 C710.746,560 700,570.787092
+																<g
+																	fill="#000"
+																	transform="translate(-700.000000, -560.000000)"
+																>
+																	<path
+																		d="M723.9985,560 C710.746,560 700,570.787092
                                 700,584.096644 C700,594.740671 706.876,603.77183
                                 716.4145,606.958412 C717.6145,607.179786
                                 718.0525,606.435849 718.0525,605.797328
@@ -288,21 +294,22 @@
                                 730.3825,607.191834 731.6005,606.9554
                                 C741.13,603.762794 748,594.737659 748,584.096644
                                 C748,570.787092 737.254,560 723.9985,560"
-																/>
+																	/>
+																</g>
 															</g>
-														</g>
-													</svg>
-													<span class="tooltipText">Repository</span>
-												</a>
+														</svg>
+														<span class="tooltipText">Repository</span>
+													</a>
+												{/if}
 											{/if}
-										{/if}
-									</td>
-								</tr>
-							{/each}
-						{/if}
-					</tbody>
-				</table>
-			</section>
+										</td>
+									</tr>
+								{/each}
+							{/if}
+						</tbody>
+					</table>
+				</section>
+			{/key}
 		{/if}
 	</SimpleBar>
 </div>

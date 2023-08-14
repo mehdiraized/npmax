@@ -6,6 +6,8 @@ var app = (function () {
 	/** @returns {void} */
 	function noop$1() {}
 
+	const identity = (x) => x;
+
 	/**
 	 * @template T
 	 * @template S
@@ -158,6 +160,57 @@ var app = (function () {
 		return -1;
 	}
 
+	/** @param {number | string} value
+	 * @returns {[number, string]}
+	 */
+	function split_css_unit(value) {
+		const split = typeof value === 'string' && value.match(/^\s*(-?[\d.]+)([^\s]*)\s*$/);
+		return split ? [parseFloat(split[1]), split[2] || 'px'] : [/** @type {number} */ (value), 'px'];
+	}
+
+	const is_client = typeof window !== 'undefined';
+
+	/** @type {() => number} */
+	let now$2 = is_client ? () => window.performance.now() : () => Date.now();
+
+	let raf = is_client ? (cb) => requestAnimationFrame(cb) : noop$1;
+
+	const tasks = new Set();
+
+	/**
+	 * @param {number} now
+	 * @returns {void}
+	 */
+	function run_tasks(now) {
+		tasks.forEach((task) => {
+			if (!task.c(now)) {
+				tasks.delete(task);
+				task.f();
+			}
+		});
+		if (tasks.size !== 0) raf(run_tasks);
+	}
+
+	/**
+	 * Creates a new task that runs on each raf frame
+	 * until it returns a falsy value or is aborted
+	 * @param {import('./private.js').TaskCallback} callback
+	 * @returns {import('./private.js').Task}
+	 */
+	function loop(callback) {
+		/** @type {import('./private.js').TaskEntry} */
+		let task;
+		if (tasks.size === 0) raf(run_tasks);
+		return {
+			promise: new Promise((fulfill) => {
+				tasks.add((task = { c: callback, f: fulfill }));
+			}),
+			abort() {
+				tasks.delete(task);
+			}
+		};
+	}
+
 	/**
 	 * @param {Node} target
 	 * @param {Node} node
@@ -165,6 +218,45 @@ var app = (function () {
 	 */
 	function append(target, node) {
 		target.appendChild(node);
+	}
+
+	/**
+	 * @param {Node} node
+	 * @returns {ShadowRoot | Document}
+	 */
+	function get_root_for_style(node) {
+		if (!node) return document;
+		const root = node.getRootNode ? node.getRootNode() : node.ownerDocument;
+		if (root && /** @type {ShadowRoot} */ (root).host) {
+			return /** @type {ShadowRoot} */ (root);
+		}
+		return node.ownerDocument;
+	}
+
+	/**
+	 * @param {Node} node
+	 * @returns {CSSStyleSheet}
+	 */
+	function append_empty_stylesheet(node) {
+		const style_element = element('style');
+		// For transitions to work without 'style-src: unsafe-inline' Content Security Policy,
+		// these empty tags need to be allowed with a hash as a workaround until we move to the Web Animations API.
+		// Using the hash for the empty string (for an empty tag) works in all browsers except Safari.
+		// So as a workaround for the workaround, when we append empty style tags we set their content to /* empty */.
+		// The hash 'sha256-9OlNO0DNEeaVzHL4RZwCLsBHA8WBQ8toBp/4F5XV2nc=' will then work even in Safari.
+		style_element.textContent = '/* empty */';
+		append_stylesheet(get_root_for_style(node), style_element);
+		return style_element.sheet;
+	}
+
+	/**
+	 * @param {ShadowRoot | Document} node
+	 * @param {HTMLStyleElement} style
+	 * @returns {CSSStyleSheet}
+	 */
+	function append_stylesheet(node, style) {
+		append(/** @type {Document} */ (node).head || node, style);
+		return style.sheet;
 	}
 
 	/**
@@ -292,6 +384,13 @@ var app = (function () {
 	}
 
 	/**
+	 * @returns {void}
+	 */
+	function xlink_attr(node, attribute, value) {
+		node.setAttributeNS('http://www.w3.org/1999/xlink', attribute, value);
+	}
+
+	/**
 	 * @param {Element} element
 	 * @returns {ChildNode[]}
 	 */
@@ -327,6 +426,17 @@ var app = (function () {
 		element.classList.toggle(name, !!toggle);
 	}
 
+	/**
+	 * @template T
+	 * @param {string} type
+	 * @param {T} [detail]
+	 * @param {{ bubbles?: boolean, cancelable?: boolean }} [options]
+	 * @returns {CustomEvent<T>}
+	 */
+	function custom_event(type, detail, { bubbles = false, cancelable = false } = {}) {
+		return new CustomEvent(type, { detail, bubbles, cancelable });
+	}
+
 	function construct_svelte_component(component, props) {
 		return new component(props);
 	}
@@ -352,6 +462,103 @@ var app = (function () {
 	 * 	};
 	 * }} ChildNodeArray
 	 */
+
+	// we need to store the information for multiple documents because a Svelte application could also contain iframes
+	// https://github.com/sveltejs/svelte/issues/3624
+	/** @type {Map<Document | ShadowRoot, import('./private.d.ts').StyleInformation>} */
+	const managed_styles = new Map();
+
+	let active = 0;
+
+	// https://github.com/darkskyapp/string-hash/blob/master/index.js
+	/**
+	 * @param {string} str
+	 * @returns {number}
+	 */
+	function hash(str) {
+		let hash = 5381;
+		let i = str.length;
+		while (i--) hash = ((hash << 5) - hash) ^ str.charCodeAt(i);
+		return hash >>> 0;
+	}
+
+	/**
+	 * @param {Document | ShadowRoot} doc
+	 * @param {Element & ElementCSSInlineStyle} node
+	 * @returns {{ stylesheet: any; rules: {}; }}
+	 */
+	function create_style_information(doc, node) {
+		const info = { stylesheet: append_empty_stylesheet(node), rules: {} };
+		managed_styles.set(doc, info);
+		return info;
+	}
+
+	/**
+	 * @param {Element & ElementCSSInlineStyle} node
+	 * @param {number} a
+	 * @param {number} b
+	 * @param {number} duration
+	 * @param {number} delay
+	 * @param {(t: number) => number} ease
+	 * @param {(t: number, u: number) => string} fn
+	 * @param {number} uid
+	 * @returns {string}
+	 */
+	function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
+		const step = 16.666 / duration;
+		let keyframes = '{\n';
+		for (let p = 0; p <= 1; p += step) {
+			const t = a + (b - a) * ease(p);
+			keyframes += p * 100 + `%{${fn(t, 1 - t)}}\n`;
+		}
+		const rule = keyframes + `100% {${fn(b, 1 - b)}}\n}`;
+		const name = `__svelte_${hash(rule)}_${uid}`;
+		const doc = get_root_for_style(node);
+		const { stylesheet, rules } = managed_styles.get(doc) || create_style_information(doc, node);
+		if (!rules[name]) {
+			rules[name] = true;
+			stylesheet.insertRule(`@keyframes ${name} ${rule}`, stylesheet.cssRules.length);
+		}
+		const animation = node.style.animation || '';
+		node.style.animation = `${
+		animation ? `${animation}, ` : ''
+	}${name} ${duration}ms linear ${delay}ms 1 both`;
+		active += 1;
+		return name;
+	}
+
+	/**
+	 * @param {Element & ElementCSSInlineStyle} node
+	 * @param {string} [name]
+	 * @returns {void}
+	 */
+	function delete_rule(node, name) {
+		const previous = (node.style.animation || '').split(', ');
+		const next = previous.filter(
+			name
+				? (anim) => anim.indexOf(name) < 0 // remove specific animation
+				: (anim) => anim.indexOf('__svelte') === -1 // remove all Svelte animations
+		);
+		const deleted = previous.length - next.length;
+		if (deleted) {
+			node.style.animation = next.join(', ');
+			active -= deleted;
+			if (!active) clear_rules();
+		}
+	}
+
+	/** @returns {void} */
+	function clear_rules() {
+		raf(() => {
+			if (active) return;
+			managed_styles.forEach((info) => {
+				const { ownerNode } = info.stylesheet;
+				// there is no ownerNode if it runs on jsdom.
+				if (ownerNode) detach(ownerNode);
+			});
+			managed_styles.clear();
+		});
+	}
 
 	let current_component;
 
@@ -518,6 +725,34 @@ var app = (function () {
 		render_callbacks = filtered;
 	}
 
+	/**
+	 * @type {Promise<void> | null}
+	 */
+	let promise;
+
+	/**
+	 * @returns {Promise<void>}
+	 */
+	function wait() {
+		if (!promise) {
+			promise = Promise.resolve();
+			promise.then(() => {
+				promise = null;
+			});
+		}
+		return promise;
+	}
+
+	/**
+	 * @param {Element} node
+	 * @param {INTRO | OUTRO | boolean} direction
+	 * @param {'start' | 'end'} kind
+	 * @returns {void}
+	 */
+	function dispatch(node, direction, kind) {
+		node.dispatchEvent(custom_event(`${direction ? 'intro' : 'outro'}${kind}`));
+	}
+
 	const outroing = new Set();
 
 	/**
@@ -578,6 +813,175 @@ var app = (function () {
 		} else if (callback) {
 			callback();
 		}
+	}
+
+	/**
+	 * @type {import('../transition/public.js').TransitionConfig}
+	 */
+	const null_transition = { duration: 0 };
+
+	/**
+	 * @param {Element & ElementCSSInlineStyle} node
+	 * @param {TransitionFn} fn
+	 * @param {any} params
+	 * @param {boolean} intro
+	 * @returns {{ run(b: 0 | 1): void; end(): void; }}
+	 */
+	function create_bidirectional_transition(node, fn, params, intro) {
+		/**
+		 * @type {TransitionOptions} */
+		const options = { direction: 'both' };
+		let config = fn(node, params, options);
+		let t = intro ? 0 : 1;
+
+		/**
+		 * @type {Program | null} */
+		let running_program = null;
+
+		/**
+		 * @type {PendingProgram | null} */
+		let pending_program = null;
+		let animation_name = null;
+
+		/** @type {boolean} */
+		let original_inert_value;
+
+		/**
+		 * @returns {void} */
+		function clear_animation() {
+			if (animation_name) delete_rule(node, animation_name);
+		}
+
+		/**
+		 * @param {PendingProgram} program
+		 * @param {number} duration
+		 * @returns {Program}
+		 */
+		function init(program, duration) {
+			const d = /** @type {Program['d']} */ (program.b - t);
+			duration *= Math.abs(d);
+			return {
+				a: t,
+				b: program.b,
+				d,
+				duration,
+				start: program.start,
+				end: program.start + duration,
+				group: program.group
+			};
+		}
+
+		/**
+		 * @param {INTRO | OUTRO} b
+		 * @returns {void}
+		 */
+		function go(b) {
+			const {
+				delay = 0,
+				duration = 300,
+				easing = identity,
+				tick = noop$1,
+				css
+			} = config || null_transition;
+
+			/**
+			 * @type {PendingProgram} */
+			const program = {
+				start: now$2() + delay,
+				b
+			};
+
+			if (!b) {
+				// @ts-ignore todo: improve typings
+				program.group = outros;
+				outros.r += 1;
+			}
+
+			if ('inert' in node) {
+				if (b) {
+					if (original_inert_value !== undefined) {
+						// aborted/reversed outro — restore previous inert value
+						node.inert = original_inert_value;
+					}
+				} else {
+					original_inert_value = /** @type {HTMLElement} */ (node).inert;
+					node.inert = true;
+				}
+			}
+
+			if (running_program || pending_program) {
+				pending_program = program;
+			} else {
+				// if this is an intro, and there's a delay, we need to do
+				// an initial tick and/or apply CSS animation immediately
+				if (css) {
+					clear_animation();
+					animation_name = create_rule(node, t, b, duration, delay, easing, css);
+				}
+				if (b) tick(0, 1);
+				running_program = init(program, duration);
+				add_render_callback(() => dispatch(node, b, 'start'));
+				loop((now) => {
+					if (pending_program && now > pending_program.start) {
+						running_program = init(pending_program, duration);
+						pending_program = null;
+						dispatch(node, running_program.b, 'start');
+						if (css) {
+							clear_animation();
+							animation_name = create_rule(
+								node,
+								t,
+								running_program.b,
+								running_program.duration,
+								0,
+								easing,
+								config.css
+							);
+						}
+					}
+					if (running_program) {
+						if (now >= running_program.end) {
+							tick((t = running_program.b), 1 - t);
+							dispatch(node, running_program.b, 'end');
+							if (!pending_program) {
+								// we're done
+								if (running_program.b) {
+									// intro — we can tidy up immediately
+									clear_animation();
+								} else {
+									// outro — needs to be coordinated
+									if (!--running_program.group.r) run_all(running_program.group.c);
+								}
+							}
+							running_program = null;
+						} else if (now >= running_program.start) {
+							const p = now - running_program.start;
+							t = running_program.a + running_program.d * easing(p / running_program.duration);
+							tick(t, 1 - t);
+						}
+					}
+					return !!(running_program || pending_program);
+				});
+			}
+		}
+		return {
+			run(b) {
+				if (is_function(config)) {
+					wait().then(() => {
+						const opts = { direction: b ? 'in' : 'out' };
+						// @ts-ignore
+						config = config(opts);
+						go(b);
+					});
+				} else {
+					go(b);
+				}
+			},
+			end() {
+				clear_animation();
+				running_program = pending_program = null;
+			}
+		};
 	}
 
 	/** @typedef {1} INTRO */
@@ -2621,7 +3025,7 @@ var app = (function () {
 
 	/* src/components/SimpleBar.svelte generated by Svelte v4.1.2 */
 
-	function create_fragment$b(ctx) {
+	function create_fragment$e(ctx) {
 		let div12;
 		let div7;
 		let div1;
@@ -2791,7 +3195,7 @@ var app = (function () {
 	class SimpleBar_1 extends SvelteComponent {
 		constructor(options) {
 			super();
-			init(this, options, instance$a, create_fragment$b, safe_not_equal, { maxHeight: 0 });
+			init(this, options, instance$a, create_fragment$e, safe_not_equal, { maxHeight: 0 });
 		}
 	}
 
@@ -3035,17 +3439,250 @@ var app = (function () {
 		return true;
 	};
 
+	/* src/icons/npm.svelte generated by Svelte v4.1.2 */
+
+	function create_fragment$d(ctx) {
+		let svg;
+		let path;
+
+		return {
+			c() {
+				svg = svg_element("svg");
+				path = svg_element("path");
+				attr(path, "d", "M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0 10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625 11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281 13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438 19.445312 L 1.7773438 11.777344 z M 10.667969 11.777344 L 17.777344 11.777344 L 17.779297 11.777344 L 17.779297 19.443359 L 14.222656 19.443359 L 14.222656 21.222656 L 10.667969 21.222656 L 10.667969 11.777344 z M 19.556641 11.777344 L 30.222656 11.777344 L 30.224609 11.777344 L 30.224609 19.445312 L 28.445312 19.445312 L 28.445312 13.556641 L 26.667969 13.556641 L 26.667969 19.445312 L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641 L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344 z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16 13.556641 L 14.222656 13.556641 z");
+				attr(svg, "viewBox", "0 0 32 32");
+				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
+			},
+			m(target, anchor) {
+				insert(target, svg, anchor);
+				append(svg, path);
+			},
+			p: noop$1,
+			i: noop$1,
+			o: noop$1,
+			d(detaching) {
+				if (detaching) {
+					detach(svg);
+				}
+			}
+		};
+	}
+
+	class Npm extends SvelteComponent {
+		constructor(options) {
+			super();
+			init(this, options, null, create_fragment$d, safe_not_equal, {});
+		}
+	}
+
+	/* src/icons/pnpm.svelte generated by Svelte v4.1.2 */
+
+	function create_fragment$c(ctx) {
+		let svg;
+		let defs;
+		let path0;
+		let path1;
+		let path2;
+		let path3;
+		let path4;
+		let path5;
+		let path6;
+		let path7;
+		let g8;
+		let g0;
+		let use0;
+		let g1;
+		let use1;
+		let g2;
+		let use2;
+		let g3;
+		let use3;
+		let g4;
+		let use4;
+		let g5;
+		let use5;
+		let g6;
+		let use6;
+		let g7;
+		let use7;
+
+		return {
+			c() {
+				svg = svg_element("svg");
+				defs = svg_element("defs");
+				path0 = svg_element("path");
+				path1 = svg_element("path");
+				path2 = svg_element("path");
+				path3 = svg_element("path");
+				path4 = svg_element("path");
+				path5 = svg_element("path");
+				path6 = svg_element("path");
+				path7 = svg_element("path");
+				g8 = svg_element("g");
+				g0 = svg_element("g");
+				use0 = svg_element("use");
+				g1 = svg_element("g");
+				use1 = svg_element("use");
+				g2 = svg_element("g");
+				use2 = svg_element("use");
+				g3 = svg_element("g");
+				use3 = svg_element("use");
+				g4 = svg_element("g");
+				use4 = svg_element("use");
+				g5 = svg_element("g");
+				use5 = svg_element("use");
+				g6 = svg_element("g");
+				use6 = svg_element("use");
+				g7 = svg_element("g");
+				use7 = svg_element("use");
+				attr(path0, "d", "M237.6 95L187.6 95L187.6 45L237.6 45L237.6 95Z");
+				attr(path0, "id", "bj0tb0Y8q");
+				attr(path1, "d", "M182.59 95L132.59 95L132.59 45L182.59 45L182.59 95Z");
+				attr(path1, "id", "dkDSTzPj3");
+				attr(path2, "d", "M127.59 95L77.59 95L77.59 45L127.59 45L127.59 95Z");
+				attr(path2, "id", "a4vNdcNLpF");
+				attr(path3, "d", "M237.6 150L187.6 150L187.6 100L237.6 100L237.6 150Z");
+				attr(path3, "id", "h2t4Zj1jSU");
+				attr(path4, "d", "M182.59 150L132.59 150L132.59 100L182.59 100L182.59 150Z");
+				attr(path4, "id", "b4t5pngwvT");
+				attr(path5, "d", "M182.59 205L132.59 205L132.59 155L182.59 155L182.59 205Z");
+				attr(path5, "id", "b9s1gd5m2");
+				attr(path6, "d", "M237.6 205L187.6 205L187.6 155L237.6 155L237.6 205Z");
+				attr(path6, "id", "cmt9WLvz7");
+				attr(path7, "d", "M127.59 205L77.59 205L77.59 155L127.59 155L127.59 205Z");
+				attr(path7, "id", "bJUNqgFSg");
+				xlink_attr(use0, "xlink:href", "#bj0tb0Y8q");
+				attr(use0, "opacity", "1");
+				attr(use0, "fill", "#f9ad00");
+				attr(use0, "fill-opacity", "1");
+				xlink_attr(use1, "xlink:href", "#dkDSTzPj3");
+				attr(use1, "opacity", "1");
+				attr(use1, "fill", "#f9ad00");
+				attr(use1, "fill-opacity", "1");
+				xlink_attr(use2, "xlink:href", "#a4vNdcNLpF");
+				attr(use2, "opacity", "1");
+				attr(use2, "fill", "#f9ad00");
+				attr(use2, "fill-opacity", "1");
+				xlink_attr(use3, "xlink:href", "#h2t4Zj1jSU");
+				attr(use3, "opacity", "1");
+				attr(use3, "fill", "#f9ad00");
+				attr(use3, "fill-opacity", "1");
+				xlink_attr(use4, "xlink:href", "#b4t5pngwvT");
+				attr(use4, "opacity", "1");
+				attr(use4, "fill", "#4e4e4e");
+				attr(use4, "fill-opacity", "1");
+				xlink_attr(use5, "xlink:href", "#b9s1gd5m2");
+				attr(use5, "opacity", "1");
+				attr(use5, "fill", "#4e4e4e");
+				attr(use5, "fill-opacity", "1");
+				xlink_attr(use6, "xlink:href", "#cmt9WLvz7");
+				attr(use6, "opacity", "1");
+				attr(use6, "fill", "#4e4e4e");
+				attr(use6, "fill-opacity", "1");
+				xlink_attr(use7, "xlink:href", "#bJUNqgFSg");
+				attr(use7, "opacity", "1");
+				attr(use7, "fill", "#4e4e4e");
+				attr(use7, "fill-opacity", "1");
+				attr(svg, "version", "1.1");
+				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
+				attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
+				attr(svg, "preserveAspectRatio", "xMidYMid meet");
+				attr(svg, "viewBox", "66.09157809474142 33.5 184.5 184.49999999999997");
+			},
+			m(target, anchor) {
+				insert(target, svg, anchor);
+				append(svg, defs);
+				append(defs, path0);
+				append(defs, path1);
+				append(defs, path2);
+				append(defs, path3);
+				append(defs, path4);
+				append(defs, path5);
+				append(defs, path6);
+				append(defs, path7);
+				append(svg, g8);
+				append(g8, g0);
+				append(g0, use0);
+				append(g8, g1);
+				append(g1, use1);
+				append(g8, g2);
+				append(g2, use2);
+				append(g8, g3);
+				append(g3, use3);
+				append(g8, g4);
+				append(g4, use4);
+				append(g8, g5);
+				append(g5, use5);
+				append(g8, g6);
+				append(g6, use6);
+				append(g8, g7);
+				append(g7, use7);
+			},
+			p: noop$1,
+			i: noop$1,
+			o: noop$1,
+			d(detaching) {
+				if (detaching) {
+					detach(svg);
+				}
+			}
+		};
+	}
+
+	class Pnpm extends SvelteComponent {
+		constructor(options) {
+			super();
+			init(this, options, null, create_fragment$c, safe_not_equal, {});
+		}
+	}
+
+	/* src/icons/yarn.svelte generated by Svelte v4.1.2 */
+
+	function create_fragment$b(ctx) {
+		let svg;
+		let path;
+
+		return {
+			c() {
+				svg = svg_element("svg");
+				path = svg_element("path");
+				attr(path, "d", "M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29 23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C 27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M 16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781 10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C 12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C 12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391 12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391 10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391 9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781 10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391 10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391 12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219 12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609 13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13 22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219 22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219 22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609 20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609 19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20 20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781 20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391 16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219 14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391 11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5 17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391 9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984 9.0449219 z");
+				attr(svg, "viewBox", "0 0 32 32");
+				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
+			},
+			m(target, anchor) {
+				insert(target, svg, anchor);
+				append(svg, path);
+			},
+			p: noop$1,
+			i: noop$1,
+			o: noop$1,
+			d(detaching) {
+				if (detaching) {
+					detach(svg);
+				}
+			}
+		};
+	}
+
+	class Yarn extends SvelteComponent {
+		constructor(options) {
+			super();
+			init(this, options, null, create_fragment$b, safe_not_equal, {});
+		}
+	}
+
 	/* src/components/sidebar.svelte generated by Svelte v4.1.2 */
 
 	function get_each_context$2(ctx, list, i) {
 		const child_ctx = ctx.slice();
-		child_ctx[9] = list[i].id;
-		child_ctx[10] = list[i].name;
-		child_ctx[11] = list[i].path;
+		child_ctx[6] = list[i].id;
+		child_ctx[7] = list[i].name;
+		child_ctx[8] = list[i].path;
 		return child_ctx;
 	}
 
-	// (26:3) {#if packages.npm || packages.yarn || packages.pnpm}
+	// (29:3) {#if packages.npm || packages.yarn || packages.pnpm}
 	function create_if_block_4$2(ctx) {
 		let h1;
 
@@ -3053,7 +3690,7 @@ var app = (function () {
 			c() {
 				h1 = element("h1");
 				h1.textContent = "Globals";
-				attr(h1, "class", "sidebarList__title svelte-19uwfgj");
+				attr(h1, "class", "sidebarList__title svelte-15zzfxe");
 			},
 			m(target, anchor) {
 				insert(target, h1, anchor);
@@ -3066,187 +3703,175 @@ var app = (function () {
 		};
 	}
 
-	// (29:3) {#if packages.npm}
+	// (32:3) {#if packages.npm}
 	function create_if_block_3$2(ctx) {
 		let button;
-		let svg;
-		let path_1;
+		let figure;
+		let npmicon;
 		let t0;
 		let span;
 		let t1_value = /*packages*/ ctx[0].npm + "";
 		let t1;
-		let mounted;
-		let dispose;
+		let current;
+		npmicon = new Npm({});
 
 		return {
 			c() {
 				button = element("button");
-				svg = svg_element("svg");
-				path_1 = svg_element("path");
+				figure = element("figure");
+				create_component(npmicon.$$.fragment);
 				t0 = text("\n\t\t\t\t\tNpm\n\t\t\t\t\t");
 				span = element("span");
 				t1 = text(t1_value);
-				attr(path_1, "d", "M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0\n              10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625\n              11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281\n              13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438\n              19.445312 L 1.7773438 11.777344 z M 10.667969 11.777344 L\n              17.777344 11.777344 L 17.779297 11.777344 L 17.779297 19.443359 L\n              14.222656 19.443359 L 14.222656 21.222656 L 10.667969 21.222656 L\n              10.667969 11.777344 z M 19.556641 11.777344 L 30.222656 11.777344\n              L 30.224609 11.777344 L 30.224609 19.445312 L 28.445312 19.445312\n              L 28.445312 13.556641 L 26.667969 13.556641 L 26.667969 19.445312\n              L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641\n              L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344\n              z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16\n              13.556641 L 14.222656 13.556641 z");
-				attr(svg, "class", "ui__iconGlobal svelte-19uwfgj");
-				attr(svg, "viewBox", "0 0 32 32");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "svelte-19uwfgj");
-				attr(button, "class", "sidebarList__item svelte-19uwfgj");
-				toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_1`);
+				attr(figure, "class", "ui__iconGlobal svelte-15zzfxe");
+				attr(span, "class", "svelte-15zzfxe");
+				attr(button, "class", "sidebarList__item svelte-15zzfxe");
 			},
 			m(target, anchor) {
 				insert(target, button, anchor);
-				append(button, svg);
-				append(svg, path_1);
+				append(button, figure);
+				mount_component(npmicon, figure, null);
 				append(button, t0);
 				append(button, span);
 				append(span, t1);
-
-				if (!mounted) {
-					dispose = listen(button, "click", /*click_handler*/ ctx[3]);
-					mounted = true;
-				}
+				current = true;
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 1 && t1_value !== (t1_value = /*packages*/ ctx[0].npm + "")) set_data(t1, t1_value);
-
-				if (dirty & /*$menuActive*/ 2) {
-					toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_1`);
-				}
+				if ((!current || dirty & /*packages*/ 1) && t1_value !== (t1_value = /*packages*/ ctx[0].npm + "")) set_data(t1, t1_value);
+			},
+			i(local) {
+				if (current) return;
+				transition_in(npmicon.$$.fragment, local);
+				current = true;
+			},
+			o(local) {
+				transition_out(npmicon.$$.fragment, local);
+				current = false;
 			},
 			d(detaching) {
 				if (detaching) {
 					detach(button);
 				}
 
-				mounted = false;
-				dispose();
+				destroy_component(npmicon);
 			}
 		};
 	}
 
-	// (63:3) {#if packages.yarn}
+	// (41:3) {#if packages.yarn}
 	function create_if_block_2$2(ctx) {
 		let button;
-		let svg;
-		let path_1;
+		let figure;
+		let yarnicon;
 		let t0;
 		let span;
 		let t1_value = /*packages*/ ctx[0].yarn + "";
 		let t1;
-		let mounted;
-		let dispose;
+		let current;
+		yarnicon = new Yarn({});
 
 		return {
 			c() {
 				button = element("button");
-				svg = svg_element("svg");
-				path_1 = svg_element("path");
+				figure = element("figure");
+				create_component(yarnicon.$$.fragment);
 				t0 = text("\n\t\t\t\t\tYarn\n\t\t\t\t\t");
 				span = element("span");
 				t1 = text(t1_value);
-				attr(path_1, "d", "M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29\n              23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C\n              27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M\n              16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781\n              10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C\n              12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C\n              12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391\n              12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391\n              10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391\n              9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781\n              10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391\n              10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391\n              12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219\n              12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609\n              13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13\n              22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219\n              22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219\n              22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609\n              20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609\n              19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20\n              20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781\n              20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391\n              16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219\n              14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391\n              11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5\n              17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391\n              9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984\n              9.0449219 z");
-				attr(svg, "class", "ui__iconGlobal svelte-19uwfgj");
-				attr(svg, "viewBox", "0 0 32 32");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "svelte-19uwfgj");
-				attr(button, "class", "sidebarList__item svelte-19uwfgj");
-				toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_2`);
+				attr(figure, "class", "ui__iconGlobal svelte-15zzfxe");
+				attr(span, "class", "svelte-15zzfxe");
+				attr(button, "class", "sidebarList__item svelte-15zzfxe");
 			},
 			m(target, anchor) {
 				insert(target, button, anchor);
-				append(button, svg);
-				append(svg, path_1);
+				append(button, figure);
+				mount_component(yarnicon, figure, null);
 				append(button, t0);
 				append(button, span);
 				append(span, t1);
-
-				if (!mounted) {
-					dispose = listen(button, "click", /*click_handler_1*/ ctx[4]);
-					mounted = true;
-				}
+				current = true;
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 1 && t1_value !== (t1_value = /*packages*/ ctx[0].yarn + "")) set_data(t1, t1_value);
-
-				if (dirty & /*$menuActive*/ 2) {
-					toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_2`);
-				}
+				if ((!current || dirty & /*packages*/ 1) && t1_value !== (t1_value = /*packages*/ ctx[0].yarn + "")) set_data(t1, t1_value);
+			},
+			i(local) {
+				if (current) return;
+				transition_in(yarnicon.$$.fragment, local);
+				current = true;
+			},
+			o(local) {
+				transition_out(yarnicon.$$.fragment, local);
+				current = false;
 			},
 			d(detaching) {
 				if (detaching) {
 					detach(button);
 				}
 
-				mounted = false;
-				dispose();
+				destroy_component(yarnicon);
 			}
 		};
 	}
 
-	// (111:3) {#if packages.pnpm}
+	// (50:3) {#if packages.pnpm}
 	function create_if_block_1$2(ctx) {
 		let button;
-		let svg;
-		let path_1;
+		let figure;
+		let pnpmicon;
 		let t0;
 		let span;
 		let t1_value = /*packages*/ ctx[0].pnpm + "";
 		let t1;
-		let mounted;
-		let dispose;
+		let current;
+		pnpmicon = new Pnpm({});
 
 		return {
 			c() {
 				button = element("button");
-				svg = svg_element("svg");
-				path_1 = svg_element("path");
+				figure = element("figure");
+				create_component(pnpmicon.$$.fragment);
 				t0 = text("\n\t\t\t\t\tPnpm\n\t\t\t\t\t");
 				span = element("span");
 				t1 = text(t1_value);
-				attr(path_1, "d", "M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29\n              23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C\n              27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M\n              16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781\n              10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C\n              12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C\n              12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391\n              12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391\n              10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391\n              9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781\n              10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391\n              10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391\n              12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219\n              12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609\n              13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13\n              22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219\n              22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219\n              22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609\n              20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609\n              19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20\n              20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781\n              20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391\n              16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219\n              14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391\n              11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5\n              17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391\n              9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984\n              9.0449219 z");
-				attr(svg, "class", "ui__iconGlobal svelte-19uwfgj");
-				attr(svg, "viewBox", "0 0 32 32");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "svelte-19uwfgj");
-				attr(button, "class", "sidebarList__item svelte-19uwfgj");
-				toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_3`);
+				attr(figure, "class", "ui__iconGlobal svelte-15zzfxe");
+				attr(span, "class", "svelte-15zzfxe");
+				attr(button, "class", "sidebarList__item svelte-15zzfxe");
 			},
 			m(target, anchor) {
 				insert(target, button, anchor);
-				append(button, svg);
-				append(svg, path_1);
+				append(button, figure);
+				mount_component(pnpmicon, figure, null);
 				append(button, t0);
 				append(button, span);
 				append(span, t1);
-
-				if (!mounted) {
-					dispose = listen(button, "click", /*click_handler_2*/ ctx[5]);
-					mounted = true;
-				}
+				current = true;
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 1 && t1_value !== (t1_value = /*packages*/ ctx[0].pnpm + "")) set_data(t1, t1_value);
-
-				if (dirty & /*$menuActive*/ 2) {
-					toggle_class(button, "active", /*$menuActive*/ ctx[1] === `global_3`);
-				}
+				if ((!current || dirty & /*packages*/ 1) && t1_value !== (t1_value = /*packages*/ ctx[0].pnpm + "")) set_data(t1, t1_value);
+			},
+			i(local) {
+				if (current) return;
+				transition_in(pnpmicon.$$.fragment, local);
+				current = true;
+			},
+			o(local) {
+				transition_out(pnpmicon.$$.fragment, local);
+				current = false;
 			},
 			d(detaching) {
 				if (detaching) {
 					detach(button);
 				}
 
-				mounted = false;
-				dispose();
+				destroy_component(pnpmicon);
 			}
 		};
 	}
 
-	// (162:3) {#if $projects}
+	// (62:3) {#if $projects}
 	function create_if_block$5(ctx) {
 		let each_1_anchor;
-		let each_value = ensure_array_like(/*$projects*/ ctx[2]);
+		let each_value = ensure_array_like(/*$projects*/ ctx[1]);
 		let each_blocks = [];
 
 		for (let i = 0; i < each_value.length; i += 1) {
@@ -3272,7 +3897,7 @@ var app = (function () {
 			},
 			p(ctx, dirty) {
 				if (dirty & /*$menuActive, $projects, localStorage, JSON*/ 6) {
-					each_value = ensure_array_like(/*$projects*/ ctx[2]);
+					each_value = ensure_array_like(/*$projects*/ ctx[1]);
 					let i;
 
 					for (i = 0; i < each_value.length; i += 1) {
@@ -3304,13 +3929,13 @@ var app = (function () {
 		};
 	}
 
-	// (163:4) {#each $projects as { id, name, path }}
+	// (63:4) {#each $projects as { id, name, path }}
 	function create_each_block$2(ctx) {
 		let button1;
 		let svg0;
 		let path_1;
 		let t0;
-		let t1_value = /*name*/ ctx[10] + "";
+		let t1_value = /*name*/ ctx[7] + "";
 		let t1;
 		let t2;
 		let button0;
@@ -3318,12 +3943,12 @@ var app = (function () {
 		let mounted;
 		let dispose;
 
-		function click_handler_3() {
-			return /*click_handler_3*/ ctx[6](/*id*/ ctx[9]);
+		function click_handler() {
+			return /*click_handler*/ ctx[3](/*id*/ ctx[6]);
 		}
 
-		function click_handler_4() {
-			return /*click_handler_4*/ ctx[7](/*id*/ ctx[9]);
+		function click_handler_1() {
+			return /*click_handler_1*/ ctx[4](/*id*/ ctx[6]);
 		}
 
 		return {
@@ -3335,15 +3960,15 @@ var app = (function () {
 				t1 = text(t1_value);
 				t2 = space();
 				button0 = element("button");
-				button0.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="svelte-19uwfgj"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg>`;
+				button0.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="svelte-15zzfxe"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg>`;
 				t3 = space();
 				attr(path_1, "d", "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2\n                3h9a2 2 0 0 1 2 2z");
-				attr(svg0, "class", "ui__iconProject svelte-19uwfgj");
+				attr(svg0, "class", "ui__iconProject svelte-15zzfxe");
 				attr(svg0, "viewBox", "0 0 24 24");
 				attr(svg0, "xmlns", "http://www.w3.org/2000/svg");
-				attr(button0, "class", "sidebarList__itemRemove svelte-19uwfgj");
-				attr(button1, "class", "sidebarList__item svelte-19uwfgj");
-				toggle_class(button1, "active", /*$menuActive*/ ctx[1] === `project_${/*id*/ ctx[9]}`);
+				attr(button0, "class", "sidebarList__itemRemove svelte-15zzfxe");
+				attr(button1, "class", "sidebarList__item svelte-15zzfxe");
+				toggle_class(button1, "active", /*$menuActive*/ ctx[2] === `project_${/*id*/ ctx[6]}`);
 			},
 			m(target, anchor) {
 				insert(target, button1, anchor);
@@ -3357,8 +3982,8 @@ var app = (function () {
 
 				if (!mounted) {
 					dispose = [
-						listen(button0, "click", click_handler_3),
-						listen(button1, "click", click_handler_4)
+						listen(button0, "click", click_handler),
+						listen(button1, "click", click_handler_1)
 					];
 
 					mounted = true;
@@ -3366,10 +3991,10 @@ var app = (function () {
 			},
 			p(new_ctx, dirty) {
 				ctx = new_ctx;
-				if (dirty & /*$projects*/ 4 && t1_value !== (t1_value = /*name*/ ctx[10] + "")) set_data(t1, t1_value);
+				if (dirty & /*$projects*/ 2 && t1_value !== (t1_value = /*name*/ ctx[7] + "")) set_data(t1, t1_value);
 
 				if (dirty & /*$menuActive, $projects*/ 6) {
-					toggle_class(button1, "active", /*$menuActive*/ ctx[1] === `project_${/*id*/ ctx[9]}`);
+					toggle_class(button1, "active", /*$menuActive*/ ctx[2] === `project_${/*id*/ ctx[6]}`);
 				}
 			},
 			d(detaching) {
@@ -3383,7 +4008,7 @@ var app = (function () {
 		};
 	}
 
-	// (24:1) <SimpleBar maxHeight={"calc(100vh - 105px)"}>
+	// (27:1) <SimpleBar maxHeight={"calc(100vh - 105px)"}>
 	function create_default_slot$1(ctx) {
 		let section0;
 		let t0;
@@ -3393,11 +4018,12 @@ var app = (function () {
 		let section1;
 		let h1;
 		let t5;
+		let current;
 		let if_block0 = (/*packages*/ ctx[0].npm || /*packages*/ ctx[0].yarn || /*packages*/ ctx[0].pnpm) && create_if_block_4$2();
 		let if_block1 = /*packages*/ ctx[0].npm && create_if_block_3$2(ctx);
 		let if_block2 = /*packages*/ ctx[0].yarn && create_if_block_2$2(ctx);
 		let if_block3 = /*packages*/ ctx[0].pnpm && create_if_block_1$2(ctx);
-		let if_block4 = /*$projects*/ ctx[2] && create_if_block$5(ctx);
+		let if_block4 = /*$projects*/ ctx[1] && create_if_block$5(ctx);
 
 		return {
 			c() {
@@ -3415,9 +4041,9 @@ var app = (function () {
 				h1.textContent = "Projects";
 				t5 = space();
 				if (if_block4) if_block4.c();
-				attr(section0, "class", "sidebarList svelte-19uwfgj");
-				attr(h1, "class", "sidebarList__title svelte-19uwfgj");
-				attr(section1, "class", "sidebarList svelte-19uwfgj");
+				attr(section0, "class", "sidebarList svelte-15zzfxe");
+				attr(h1, "class", "sidebarList__title svelte-15zzfxe");
+				attr(section1, "class", "sidebarList svelte-15zzfxe");
 			},
 			m(target, anchor) {
 				insert(target, section0, anchor);
@@ -3433,6 +4059,7 @@ var app = (function () {
 				append(section1, h1);
 				append(section1, t5);
 				if (if_block4) if_block4.m(section1, null);
+				current = true;
 			},
 			p(ctx, dirty) {
 				if (/*packages*/ ctx[0].npm || /*packages*/ ctx[0].yarn || /*packages*/ ctx[0].pnpm) {
@@ -3449,43 +4076,73 @@ var app = (function () {
 				if (/*packages*/ ctx[0].npm) {
 					if (if_block1) {
 						if_block1.p(ctx, dirty);
+
+						if (dirty & /*packages*/ 1) {
+							transition_in(if_block1, 1);
+						}
 					} else {
 						if_block1 = create_if_block_3$2(ctx);
 						if_block1.c();
+						transition_in(if_block1, 1);
 						if_block1.m(section0, t1);
 					}
 				} else if (if_block1) {
-					if_block1.d(1);
-					if_block1 = null;
+					group_outros();
+
+					transition_out(if_block1, 1, 1, () => {
+						if_block1 = null;
+					});
+
+					check_outros();
 				}
 
 				if (/*packages*/ ctx[0].yarn) {
 					if (if_block2) {
 						if_block2.p(ctx, dirty);
+
+						if (dirty & /*packages*/ 1) {
+							transition_in(if_block2, 1);
+						}
 					} else {
 						if_block2 = create_if_block_2$2(ctx);
 						if_block2.c();
+						transition_in(if_block2, 1);
 						if_block2.m(section0, t2);
 					}
 				} else if (if_block2) {
-					if_block2.d(1);
-					if_block2 = null;
+					group_outros();
+
+					transition_out(if_block2, 1, 1, () => {
+						if_block2 = null;
+					});
+
+					check_outros();
 				}
 
 				if (/*packages*/ ctx[0].pnpm) {
 					if (if_block3) {
 						if_block3.p(ctx, dirty);
+
+						if (dirty & /*packages*/ 1) {
+							transition_in(if_block3, 1);
+						}
 					} else {
 						if_block3 = create_if_block_1$2(ctx);
 						if_block3.c();
+						transition_in(if_block3, 1);
 						if_block3.m(section0, null);
 					}
 				} else if (if_block3) {
-					if_block3.d(1);
-					if_block3 = null;
+					group_outros();
+
+					transition_out(if_block3, 1, 1, () => {
+						if_block3 = null;
+					});
+
+					check_outros();
 				}
 
-				if (/*$projects*/ ctx[2]) {
+				if (/*$projects*/ ctx[1]) {
 					if (if_block4) {
 						if_block4.p(ctx, dirty);
 					} else {
@@ -3497,6 +4154,19 @@ var app = (function () {
 					if_block4.d(1);
 					if_block4 = null;
 				}
+			},
+			i(local) {
+				if (current) return;
+				transition_in(if_block1);
+				transition_in(if_block2);
+				transition_in(if_block3);
+				current = true;
+			},
+			o(local) {
+				transition_out(if_block1);
+				transition_out(if_block2);
+				transition_out(if_block3);
+				current = false;
 			},
 			d(detaching) {
 				if (detaching) {
@@ -3538,8 +4208,8 @@ var app = (function () {
 				t0 = space();
 				button = element("button");
 				button.textContent = "Add Project";
-				attr(button, "class", "addProject svelte-19uwfgj");
-				attr(aside, "class", "sidebar svelte-19uwfgj");
+				attr(button, "class", "addProject svelte-15zzfxe");
+				attr(aside, "class", "sidebar svelte-15zzfxe");
 			},
 			m(target, anchor) {
 				insert(target, aside, anchor);
@@ -3549,14 +4219,14 @@ var app = (function () {
 				current = true;
 
 				if (!mounted) {
-					dispose = listen(button, "click", /*click_handler_5*/ ctx[8]);
+					dispose = listen(button, "click", /*click_handler_2*/ ctx[5]);
 					mounted = true;
 				}
 			},
 			p(ctx, [dirty]) {
 				const simplebar_changes = {};
 
-				if (dirty & /*$$scope, $projects, $menuActive, packages*/ 16391) {
+				if (dirty & /*$$scope, $projects, $menuActive, packages*/ 2055) {
 					simplebar_changes.$$scope = { dirty, ctx };
 				}
 
@@ -3584,10 +4254,10 @@ var app = (function () {
 	}
 
 	function instance$9($$self, $$props, $$invalidate) {
-		let $menuActive;
 		let $projects;
-		component_subscribe($$self, menuActive, $$value => $$invalidate(1, $menuActive = $$value));
-		component_subscribe($$self, projects, $$value => $$invalidate(2, $projects = $$value));
+		let $menuActive;
+		component_subscribe($$self, projects, $$value => $$invalidate(1, $projects = $$value));
+		component_subscribe($$self, menuActive, $$value => $$invalidate(2, $menuActive = $$value));
 		let packages = {};
 
 		onMount(async () => {
@@ -3603,19 +4273,7 @@ var app = (function () {
 			localStorage.setItem("packages", JSON.stringify(packages));
 		});
 
-		const click_handler = () => {
-			menuActive.set(`global_1`);
-		};
-
-		const click_handler_1 = () => {
-			menuActive.set(`global_2`);
-		};
-
-		const click_handler_2 = () => {
-			menuActive.set(`global_3`);
-		};
-
-		const click_handler_3 = id => {
+		const click_handler = id => {
 			const projectFilter = $projects.filter(item => {
 				return item.id !== id;
 			});
@@ -3625,11 +4283,11 @@ var app = (function () {
 			localStorage.setItem("projects", JSON.stringify(projectFilter));
 		};
 
-		const click_handler_4 = id => {
+		const click_handler_1 = id => {
 			menuActive.set(`project_${id}`);
 		};
 
-		const click_handler_5 = () => {
+		const click_handler_2 = () => {
 			openDirectory().then(result => {
 				if (result.length > 0) {
 					const projectPath = result[0];
@@ -3650,20 +4308,17 @@ var app = (function () {
 					localStorage.setItem("projects", JSON.stringify($projects));
 				}
 			}).catch(err => {
-				console.log(err);
+				console.error(err);
 			});
 		};
 
 		return [
 			packages,
-			$menuActive,
 			$projects,
+			$menuActive,
 			click_handler,
 			click_handler_1,
-			click_handler_2,
-			click_handler_3,
-			click_handler_4,
-			click_handler_5
+			click_handler_2
 		];
 	}
 
@@ -3672,6 +4327,45 @@ var app = (function () {
 			super();
 			init(this, options, instance$9, create_fragment$a, safe_not_equal, {});
 		}
+	}
+
+	/*
+	Adapted from https://github.com/mattdesl
+	Distributed under MIT License https://github.com/mattdesl/eases/blob/master/LICENSE.md
+	*/
+
+	/**
+	 * https://svelte.dev/docs/svelte-easing
+	 * @param {number} t
+	 * @returns {number}
+	 */
+	function cubicInOut(t) {
+		return t < 0.5 ? 4.0 * t * t * t : 0.5 * Math.pow(2.0 * t - 2.0, 3.0) + 1.0;
+	}
+
+	/**
+	 * Animates a `blur` filter alongside an element's opacity.
+	 *
+	 * https://svelte.dev/docs/svelte-transition#blur
+	 * @param {Element} node
+	 * @param {import('./public').BlurParams} [params]
+	 * @returns {import('./public').TransitionConfig}
+	 */
+	function blur(
+		node,
+		{ delay = 0, duration = 400, easing = cubicInOut, amount = 5, opacity = 0 } = {}
+	) {
+		const style = getComputedStyle(node);
+		const target_opacity = +style.opacity;
+		const f = style.filter === 'none' ? '' : style.filter;
+		const od = target_opacity * (1 - opacity);
+		const [value, unit] = split_css_unit(amount);
+		return {
+			delay,
+			duration,
+			easing,
+			css: (_t, u) => `opacity: ${target_opacity - od * u}; filter: ${f} blur(${u * value}${unit});`
+		};
 	}
 
 	/**
@@ -8986,73 +9680,51 @@ var app = (function () {
 		return child_ctx;
 	}
 
-	// (102:2) {:else}
+	// (101:2) {:else}
 	function create_else_block(ctx) {
-		let section;
-		let h1;
-		let t0_value = /*currentProject*/ ctx[0].name + "";
-		let t0;
-		let t1;
-		let table;
-		let thead;
-		let t9;
-		let tbody;
-		let if_block = /*packages*/ ctx[1] && create_if_block_1(ctx);
+		let previous_key = /*currentProjectID*/ ctx[0];
+		let key_block_anchor;
+		let key_block = create_key_block(ctx);
 
 		return {
 			c() {
-				section = element("section");
-				h1 = element("h1");
-				t0 = text(t0_value);
-				t1 = space();
-				table = element("table");
-				thead = element("thead");
-				thead.innerHTML = `<tr class="svelte-inm9vu"><td class="svelte-inm9vu">Package</td> <td class="svelte-inm9vu">Version</td> <td class="svelte-inm9vu">env</td> <td class="svelte-inm9vu">Info</td></tr>`;
-				t9 = space();
-				tbody = element("tbody");
-				if (if_block) if_block.c();
-				attr(h1, "class", "projectTable__title svelte-inm9vu");
-				attr(table, "class", "svelte-inm9vu");
-				attr(section, "class", "projectTable svelte-inm9vu");
+				key_block.c();
+				key_block_anchor = empty();
 			},
 			m(target, anchor) {
-				insert(target, section, anchor);
-				append(section, h1);
-				append(h1, t0);
-				append(section, t1);
-				append(section, table);
-				append(table, thead);
-				append(table, t9);
-				append(table, tbody);
-				if (if_block) if_block.m(tbody, null);
+				key_block.m(target, anchor);
+				insert(target, key_block_anchor, anchor);
 			},
 			p(ctx, dirty) {
-				if (dirty & /*currentProject*/ 1 && t0_value !== (t0_value = /*currentProject*/ ctx[0].name + "")) set_data(t0, t0_value);
-
-				if (/*packages*/ ctx[1]) {
-					if (if_block) {
-						if_block.p(ctx, dirty);
-					} else {
-						if_block = create_if_block_1(ctx);
-						if_block.c();
-						if_block.m(tbody, null);
-					}
-				} else if (if_block) {
-					if_block.d(1);
-					if_block = null;
+				if (dirty & /*currentProjectID*/ 1 && safe_not_equal(previous_key, previous_key = /*currentProjectID*/ ctx[0])) {
+					group_outros();
+					transition_out(key_block, 1, 1, noop$1);
+					check_outros();
+					key_block = create_key_block(ctx);
+					key_block.c();
+					transition_in(key_block, 1);
+					key_block.m(key_block_anchor.parentNode, key_block_anchor);
+				} else {
+					key_block.p(ctx, dirty);
 				}
+			},
+			i(local) {
+				transition_in(key_block);
+			},
+			o(local) {
+				transition_out(key_block);
 			},
 			d(detaching) {
 				if (detaching) {
-					detach(section);
+					detach(key_block_anchor);
 				}
 
-				if (if_block) if_block.d();
+				key_block.d(detaching);
 			}
 		};
 	}
 
-	// (68:2) {#if !currentProject}
+	// (67:2) {#if !currentProject}
 	function create_if_block(ctx) {
 		let section;
 		let img;
@@ -9061,6 +9733,8 @@ var app = (function () {
 		let h1;
 		let t2;
 		let button;
+		let section_transition;
+		let current;
 		let mounted;
 		let dispose;
 
@@ -9088,28 +9762,51 @@ var app = (function () {
 				append(section, h1);
 				append(section, t2);
 				append(section, button);
+				current = true;
 
 				if (!mounted) {
-					dispose = listen(button, "click", /*click_handler*/ ctx[3]);
+					dispose = listen(button, "click", /*click_handler*/ ctx[4]);
 					mounted = true;
 				}
 			},
 			p: noop$1,
+			i(local) {
+				if (current) return;
+
+				if (local) {
+					add_render_callback(() => {
+						if (!current) return;
+						if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, true);
+						section_transition.run(1);
+					});
+				}
+
+				current = true;
+			},
+			o(local) {
+				if (local) {
+					if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, false);
+					section_transition.run(0);
+				}
+
+				current = false;
+			},
 			d(detaching) {
 				if (detaching) {
 					detach(section);
 				}
 
+				if (detaching && section_transition) section_transition.end();
 				mounted = false;
 				dispose();
 			}
 		};
 	}
 
-	// (115:6) {#if packages}
+	// (115:7) {#if packages}
 	function create_if_block_1(ctx) {
 		let each_1_anchor;
-		let each_value = ensure_array_like(/*packages*/ ctx[1]);
+		let each_value = ensure_array_like(/*packages*/ ctx[2]);
 		let each_blocks = [];
 
 		for (let i = 0; i < each_value.length; i += 1) {
@@ -9134,8 +9831,8 @@ var app = (function () {
 				insert(target, each_1_anchor, anchor);
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 2) {
-					each_value = ensure_array_like(/*packages*/ ctx[1]);
+				if (dirty & /*packages*/ 4) {
+					each_value = ensure_array_like(/*packages*/ ctx[2]);
 					let i;
 
 					for (i = 0; i < each_value.length; i += 1) {
@@ -9167,7 +9864,7 @@ var app = (function () {
 		};
 	}
 
-	// (132:10) {:else}
+	// (132:11) {:else}
 	function create_else_block_2(ctx) {
 		let t0;
 		let t1_value = /*version*/ ctx[12] + "";
@@ -9186,7 +9883,7 @@ var app = (function () {
 				insert(target, t2, anchor);
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 2 && t1_value !== (t1_value = /*version*/ ctx[12] + "")) set_data(t1, t1_value);
+				if (dirty & /*packages*/ 4 && t1_value !== (t1_value = /*version*/ ctx[12] + "")) set_data(t1, t1_value);
 			},
 			d(detaching) {
 				if (detaching) {
@@ -9198,7 +9895,7 @@ var app = (function () {
 		};
 	}
 
-	// (123:57) 
+	// (123:58) 
 	function create_if_block_8(ctx) {
 		let svg;
 		let path;
@@ -9229,7 +9926,7 @@ var app = (function () {
 		};
 	}
 
-	// (121:10) {#if !version}
+	// (121:11) {#if !version}
 	function create_if_block_7(ctx) {
 		let span;
 
@@ -9250,7 +9947,7 @@ var app = (function () {
 		};
 	}
 
-	// (135:10) {#if dev}
+	// (135:11) {#if dev}
 	function create_if_block_6(ctx) {
 		let t;
 
@@ -9269,7 +9966,7 @@ var app = (function () {
 		};
 	}
 
-	// (140:10) {:else}
+	// (140:11) {:else}
 	function create_else_block_1(ctx) {
 		let t0;
 		let t1;
@@ -9349,7 +10046,7 @@ var app = (function () {
 					if_block1 = null;
 				}
 
-				if (dirty & /*packages*/ 2 && a_href_value !== (a_href_value = `https://www.npmjs.com/package/${/*name*/ ctx[9]}`)) {
+				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = `https://www.npmjs.com/package/${/*name*/ ctx[9]}`)) {
 					attr(a, "href", a_href_value);
 				}
 
@@ -9382,7 +10079,7 @@ var app = (function () {
 		};
 	}
 
-	// (138:10) {#if !bugs && !homepage && !repository}
+	// (138:11) {#if !bugs && !homepage && !repository}
 	function create_if_block_2(ctx) {
 		let span;
 
@@ -9403,7 +10100,7 @@ var app = (function () {
 		};
 	}
 
-	// (141:11) {#if bugs}
+	// (141:12) {#if bugs}
 	function create_if_block_5(ctx) {
 		let a;
 		let svg;
@@ -9436,7 +10133,7 @@ var app = (function () {
 				append(a, span);
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 2 && a_href_value !== (a_href_value = /*bugs*/ ctx[13].url)) {
+				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = /*bugs*/ ctx[13].url)) {
 					attr(a, "href", a_href_value);
 				}
 			},
@@ -9448,7 +10145,7 @@ var app = (function () {
 		};
 	}
 
-	// (180:11) {#if homepage}
+	// (184:12) {#if homepage}
 	function create_if_block_4(ctx) {
 		let a;
 		let svg;
@@ -9481,7 +10178,7 @@ var app = (function () {
 				append(a, span);
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 2 && a_href_value !== (a_href_value = /*homepage*/ ctx[14])) {
+				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = /*homepage*/ ctx[14])) {
 					attr(a, "href", a_href_value);
 				}
 			},
@@ -9493,7 +10190,7 @@ var app = (function () {
 		};
 	}
 
-	// (236:11) {#if repository}
+	// (240:12) {#if repository}
 	function create_if_block_3(ctx) {
 		let a;
 		let svg;
@@ -9538,7 +10235,7 @@ var app = (function () {
 				append(a, span);
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 2 && a_href_value !== (a_href_value = /*repository*/ ctx[15].url)) {
+				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = /*repository*/ ctx[15].url)) {
 					attr(a, "href", a_href_value);
 				}
 			},
@@ -9550,7 +10247,7 @@ var app = (function () {
 		};
 	}
 
-	// (116:7) {#each packages as { id, name, current, dev, version, bugs, homepage, repository }}
+	// (116:8) {#each packages as { id, name, current, dev, version, bugs, homepage, repository }}
 	function create_each_block(ctx) {
 		let tr;
 		let td0;
@@ -9570,7 +10267,7 @@ var app = (function () {
 		let tr_id_value;
 
 		function select_block_type_1(ctx, dirty) {
-			if (dirty & /*packages*/ 2) show_if = null;
+			if (dirty & /*packages*/ 4) show_if = null;
 			if (!/*version*/ ctx[12]) return create_if_block_7;
 			if (show_if == null) show_if = !!(/*current*/ ctx[10].replace("^", "") === /*version*/ ctx[12]);
 			if (show_if) return create_if_block_8;
@@ -9631,8 +10328,8 @@ var app = (function () {
 				append(tr, t6);
 			},
 			p(ctx, dirty) {
-				if (dirty & /*packages*/ 2 && t0_value !== (t0_value = /*name*/ ctx[9] + "")) set_data(t0, t0_value);
-				if (dirty & /*packages*/ 2 && t2_value !== (t2_value = /*current*/ ctx[10] + "")) set_data(t2, t2_value);
+				if (dirty & /*packages*/ 4 && t0_value !== (t0_value = /*name*/ ctx[9] + "")) set_data(t0, t0_value);
+				if (dirty & /*packages*/ 4 && t2_value !== (t2_value = /*current*/ ctx[10] + "")) set_data(t2, t2_value);
 
 				if (current_block_type === (current_block_type = select_block_type_1(ctx, dirty)) && if_block0) {
 					if_block0.p(ctx, dirty);
@@ -9669,7 +10366,7 @@ var app = (function () {
 					}
 				}
 
-				if (dirty & /*packages*/ 2 && tr_id_value !== (tr_id_value = `package_${/*id*/ ctx[8]}`)) {
+				if (dirty & /*packages*/ 4 && tr_id_value !== (tr_id_value = `package_${/*id*/ ctx[8]}`)) {
 					attr(tr, "id", tr_id_value);
 				}
 			},
@@ -9685,17 +10382,112 @@ var app = (function () {
 		};
 	}
 
-	// (67:1) <SimpleBar maxHeight={"calc(100vh - 20px)"}>
+	// (102:3) {#key currentProjectID}
+	function create_key_block(ctx) {
+		let section;
+		let h1;
+		let t0_value = /*currentProject*/ ctx[1].name + "";
+		let t0;
+		let t1;
+		let table;
+		let thead;
+		let t9;
+		let tbody;
+		let section_transition;
+		let current;
+		let if_block = /*packages*/ ctx[2] && create_if_block_1(ctx);
+
+		return {
+			c() {
+				section = element("section");
+				h1 = element("h1");
+				t0 = text(t0_value);
+				t1 = space();
+				table = element("table");
+				thead = element("thead");
+				thead.innerHTML = `<tr class="svelte-inm9vu"><td class="svelte-inm9vu">Package</td> <td class="svelte-inm9vu">Version</td> <td class="svelte-inm9vu">env</td> <td class="svelte-inm9vu">Info</td></tr>`;
+				t9 = space();
+				tbody = element("tbody");
+				if (if_block) if_block.c();
+				attr(h1, "class", "projectTable__title svelte-inm9vu");
+				attr(table, "class", "svelte-inm9vu");
+				attr(section, "class", "projectTable svelte-inm9vu");
+			},
+			m(target, anchor) {
+				insert(target, section, anchor);
+				append(section, h1);
+				append(h1, t0);
+				append(section, t1);
+				append(section, table);
+				append(table, thead);
+				append(table, t9);
+				append(table, tbody);
+				if (if_block) if_block.m(tbody, null);
+				current = true;
+			},
+			p(ctx, dirty) {
+				if ((!current || dirty & /*currentProject*/ 2) && t0_value !== (t0_value = /*currentProject*/ ctx[1].name + "")) set_data(t0, t0_value);
+
+				if (/*packages*/ ctx[2]) {
+					if (if_block) {
+						if_block.p(ctx, dirty);
+					} else {
+						if_block = create_if_block_1(ctx);
+						if_block.c();
+						if_block.m(tbody, null);
+					}
+				} else if (if_block) {
+					if_block.d(1);
+					if_block = null;
+				}
+			},
+			i(local) {
+				if (current) return;
+
+				if (local) {
+					add_render_callback(() => {
+						if (!current) return;
+						if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, true);
+						section_transition.run(1);
+					});
+				}
+
+				current = true;
+			},
+			o(local) {
+				if (local) {
+					if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, false);
+					section_transition.run(0);
+				}
+
+				current = false;
+			},
+			d(detaching) {
+				if (detaching) {
+					detach(section);
+				}
+
+				if (if_block) if_block.d();
+				if (detaching && section_transition) section_transition.end();
+			}
+		};
+	}
+
+	// (66:1) <SimpleBar maxHeight={"calc(100vh - 20px)"}>
 	function create_default_slot(ctx) {
+		let current_block_type_index;
+		let if_block;
 		let if_block_anchor;
+		const if_block_creators = [create_if_block, create_else_block];
+		const if_blocks = [];
 
 		function select_block_type(ctx, dirty) {
-			if (!/*currentProject*/ ctx[0]) return create_if_block;
-			return create_else_block;
+			if (!/*currentProject*/ ctx[1]) return 0;
+			return 1;
 		}
 
-		let current_block_type = select_block_type(ctx);
-		let if_block = current_block_type(ctx);
+		current_block_type_index = select_block_type(ctx);
+		if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
 
 		return {
 			c() {
@@ -9703,20 +10495,34 @@ var app = (function () {
 				if_block_anchor = empty();
 			},
 			m(target, anchor) {
-				if_block.m(target, anchor);
+				if_blocks[current_block_type_index].m(target, anchor);
 				insert(target, if_block_anchor, anchor);
 			},
 			p(ctx, dirty) {
-				if (current_block_type === (current_block_type = select_block_type(ctx)) && if_block) {
-					if_block.p(ctx, dirty);
-				} else {
-					if_block.d(1);
-					if_block = current_block_type(ctx);
+				let previous_block_index = current_block_type_index;
+				current_block_type_index = select_block_type(ctx);
 
-					if (if_block) {
+				if (current_block_type_index === previous_block_index) {
+					if_blocks[current_block_type_index].p(ctx, dirty);
+				} else {
+					group_outros();
+
+					transition_out(if_blocks[previous_block_index], 1, 1, () => {
+						if_blocks[previous_block_index] = null;
+					});
+
+					check_outros();
+					if_block = if_blocks[current_block_type_index];
+
+					if (!if_block) {
+						if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
 						if_block.c();
-						if_block.m(if_block_anchor.parentNode, if_block_anchor);
+					} else {
+						if_block.p(ctx, dirty);
 					}
+
+					transition_in(if_block, 1);
+					if_block.m(if_block_anchor.parentNode, if_block_anchor);
 				}
 			},
 			d(detaching) {
@@ -9724,7 +10530,7 @@ var app = (function () {
 					detach(if_block_anchor);
 				}
 
-				if_block.d(detaching);
+				if_blocks[current_block_type_index].d(detaching);
 			}
 		};
 	}
@@ -9764,7 +10570,7 @@ var app = (function () {
 			p(ctx, [dirty]) {
 				const simplebar_changes = {};
 
-				if (dirty & /*$$scope, $projects, currentProject, packages*/ 262151) {
+				if (dirty & /*$$scope, $projects, currentProject, currentProjectID, packages*/ 262159) {
 					simplebar_changes.$$scope = { dirty, ctx };
 				}
 
@@ -9795,7 +10601,7 @@ var app = (function () {
 
 	function instance($$self, $$props, $$invalidate) {
 		let $projects;
-		component_subscribe($$self, projects, $$value => $$invalidate(2, $projects = $$value));
+		component_subscribe($$self, projects, $$value => $$invalidate(3, $projects = $$value));
 		let currentProjectID = false;
 		let currentProject = {};
 		let project = {};
@@ -9804,18 +10610,16 @@ var app = (function () {
 		let devDependencies = [];
 
 		menuActive.subscribe(async value => {
-			currentProjectID = value ? value.split("_")[1] : false;
+			$$invalidate(0, currentProjectID = value ? value.split("_")[1] : false);
 
-			$$invalidate(0, currentProject = $projects.filter(item => {
+			$$invalidate(1, currentProject = $projects.filter(item => {
 				return item.id === parseInt(currentProjectID);
 			})[0]);
 
 			if (currentProject) {
 				const data = await getProjectPackages(currentProject.path).then(res => res);
-				console.log({ currentProject });
 				project = JSON.parse(data);
-				console.log({ project });
-				$$invalidate(1, packages = []);
+				$$invalidate(2, packages = []);
 
 				dependencies = project.dependencies
 				? Object.entries(project.dependencies)
@@ -9828,7 +10632,7 @@ var app = (function () {
 				let i = 1;
 
 				for await (let item of dependencies) {
-					$$invalidate(1, packages = [
+					$$invalidate(2, packages = [
 						...packages,
 						{
 							id: i,
@@ -9842,7 +10646,7 @@ var app = (function () {
 				}
 
 				for await (let item of devDependencies) {
-					$$invalidate(1, packages = [
+					$$invalidate(2, packages = [
 						...packages,
 						{
 							id: i,
@@ -9859,7 +10663,7 @@ var app = (function () {
 					for await (let pack of packages) {
 						const res = await getPackageInfo(pack.name);
 						const objIndex = packages.findIndex(obj => obj.name === pack.name);
-						$$invalidate(1, packages[objIndex] = { ...packages[objIndex], ...res }, packages);
+						$$invalidate(2, packages[objIndex] = { ...packages[objIndex], ...res }, packages);
 					}
 				} catch(error) {
 					toast("No Internet!", {
@@ -9892,11 +10696,11 @@ var app = (function () {
 					localStorage.setItem("projects", JSON.stringify($projects));
 				}
 			}).catch(err => {
-				console.log(err);
+				console.error(err);
 			});
 		};
 
-		return [currentProject, packages, $projects, click_handler];
+		return [currentProjectID, currentProject, packages, $projects, click_handler];
 	}
 
 	class Main extends SvelteComponent {
