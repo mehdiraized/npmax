@@ -21,9 +21,7 @@
 			const data = await getProjectPackages(currentProject.path).then(
 				(res) => res
 			);
-			console.log({ currentProject });
 			project = JSON.parse(data);
-			console.log({ project });
 			packages = [];
 			dependencies = project.dependencies
 				? Object.entries(project.dependencies)
@@ -92,7 +90,7 @@
 								}
 							})
 							.catch((err) => {
-								console.log(err);
+								console.error(err);
 							});
 					}}
 				>
