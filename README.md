@@ -6,11 +6,17 @@ The Open Source npm desktop GUI.
 
 Runs on Linux, MacOS and Windows..
 
-## Download
+## Download Npmax
 
-**[Download for MacOS Arm](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-arm64.dmg)** &nbsp; | **[Download for MacOS x64](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2.dmg)**
+**[Download for MacOS Arm](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-arm64.dmg)**
 
-**[Download for Linux](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-arm64.AppImage)** &nbsp; | &nbsp;**[Download for Windows](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-win.zip)** &nbsp;
+**[Download for MacOS x64](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2.dmg)**
+
+**[Download for Linux](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-arm64.AppImage)**
+
+**[Download for Windows](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-win.zip)** &nbsp;
+
+[All Releases](https://github.com/mehdiraized/npmax/releases/)
 
 ## Contributing
 
