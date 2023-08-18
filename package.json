@@ -30,6 +30,7 @@
 	"scripts": {
 		"start": "electron .",
 		"dev": "rollup -c -w --bundleConfigAsCjs",
+		"dev-linux": "rollup -c -w --bundleConfigAsCjs --no-sandbox",
 		"build": "rollup -c --bundleConfigAsCjs",
 		"pack": "electron-builder --dir",
 		"dist": "electron-builder",
@@ -75,21 +76,36 @@
 			"description": "npm package manager",
 			"packageCategory": "Utility",
 			"target": [
-				"AppImage"
+				{
+					"target": "AppImage",
+					"arch": [
+						"arm64",
+						"x64"
+					]
+				},
+				{
+					"target": "deb",
+					"arch": [
+						"arm64",
+						"x64"
+					]
+				}
 			]
 		},
 		"win": {
 			"target": [
 				{
-					"target": "zip",
+					"target": "nsis",
 					"arch": [
-						"x64"
+						"x64",
+						"ia32"
 					]
 				},
 				{
 					"target": "portable",
 					"arch": [
-						"x64"
+						"x64",
+						"ia32"
 					]
 				}
 			],
