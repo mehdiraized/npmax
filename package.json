@@ -115,7 +115,7 @@
 		"electron": "^25.8.1",
 		"electron-builder": "^24.6.3",
 		"electron-reload": "2.0.0-alpha.1",
-		"postcss": "^8.4.27",
+		"postcss": "^8.4.31",
 		"rollup": "^3.28.0",
 		"rollup-plugin-filesize": "^10.0.0",
 		"rollup-plugin-livereload": "^2.0.5",
