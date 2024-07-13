@@ -72,11 +72,16 @@
 					on:click={async () => {
 						openDirectory()
 							.then((result) => {
+								console.log("result");
+								console.log(result);
+								console.log($projects);
 								if (result.length > 0) {
 									const projectPath = result[0];
 									const projectPathArray = result[0].split("/");
 									const projectName =
 										projectPathArray[projectPathArray.length - 1];
+									console.log("project");
+									console.log({ projectPath, projectPathArray, projectName });
 									projects.set([
 										...$projects,
 										{

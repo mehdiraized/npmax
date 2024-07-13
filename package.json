@@ -1,7 +1,7 @@
 {
 	"name": "npmax",
 	"description": "Package Manager",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"main": "index.js",
 	"license": "MIT",
 	"homepage": "https://mehd.ir",
@@ -30,6 +30,7 @@
 	"scripts": {
 		"start": "electron .",
 		"dev": "rollup -c -w --bundleConfigAsCjs",
+		"dev-linux": "rollup -c -w --bundleConfigAsCjs --no-sandbox",
 		"build": "rollup -c --bundleConfigAsCjs",
 		"pack": "electron-builder --dir",
 		"dist": "electron-builder",
@@ -75,21 +76,36 @@
 			"description": "npm package manager",
 			"packageCategory": "Utility",
 			"target": [
-				"AppImage"
+				{
+					"target": "AppImage",
+					"arch": [
+						"arm64",
+						"x64"
+					]
+				},
+				{
+					"target": "deb",
+					"arch": [
+						"arm64",
+						"x64"
+					]
+				}
 			]
 		},
 		"win": {
 			"target": [
 				{
-					"target": "zip",
+					"target": "nsis",
 					"arch": [
-						"x64"
+						"x64",
+						"ia32"
 					]
 				},
 				{
 					"target": "portable",
 					"arch": [
-						"x64"
+						"x64",
+						"ia32"
 					]
 				}
 			],
@@ -108,29 +124,29 @@
 		}
 	},
 	"devDependencies": {
-		"@rollup/plugin-commonjs": "^25.0.4",
-		"@rollup/plugin-node-resolve": "^15.1.0",
-		"@rollup/plugin-terser": "^0.4.3",
-		"concurrently": "8.2.0",
-		"electron": "^25.8.4",
-		"electron-builder": "^24.6.3",
+		"@rollup/plugin-commonjs": "^26.0.1",
+		"@rollup/plugin-node-resolve": "^15.2.3",
+		"@rollup/plugin-terser": "^0.4.4",
+		"concurrently": "8.2.2",
+		"electron": "^31.2.0",
+		"electron-builder": "^24.13.3",
 		"electron-reload": "2.0.0-alpha.1",
-		"postcss": "^8.4.31",
-		"rollup": "^3.28.0",
+		"postcss": "^8.4.39",
+		"rollup": "^4.18.1",
 		"rollup-plugin-filesize": "^10.0.0",
 		"rollup-plugin-livereload": "^2.0.5",
 		"rollup-plugin-postcss": "^4.0.2",
-		"rollup-plugin-svelte": "^7.1.6",
-		"sass": "^1.65.1",
-		"svelte": "^4.2.0",
-		"svelte-preprocess": "^5.0.4"
+		"rollup-plugin-svelte": "^7.2.2",
+		"sass": "^1.77.8",
+		"svelte": "^4.2.18",
+		"svelte-preprocess": "^6.0.2"
 	},
 	"dependencies": {
-		"axios": "^1.6.0",
+		"axios": "^1.7.2",
 		"child_process": "^1.0.2",
 		"fix-path": "^4.0.0",
 		"normalize.css": "^8.0.1",
-		"simplebar": "^6.2.5",
+		"simplebar": "^6.2.7",
 		"sirv-cli": "^2.0.2",
 		"svelte-french-toast": "^1.2.0"
 	}
