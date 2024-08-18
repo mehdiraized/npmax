@@ -142,7 +142,7 @@
 		"svelte-preprocess": "^6.0.2"
 	},
 	"dependencies": {
-		"axios": "^1.7.2",
+		"axios": "^1.7.4",
 		"child_process": "^1.0.2",
 		"fix-path": "^4.0.0",
 		"normalize.css": "^8.0.1",
