@@ -128,7 +128,7 @@
 		"@rollup/plugin-node-resolve": "^15.2.3",
 		"@rollup/plugin-terser": "^0.4.4",
 		"concurrently": "8.2.2",
-		"electron": "^31.2.0",
+		"electron": "^35.7.5",
 		"electron-builder": "^24.13.3",
 		"electron-reload": "2.0.0-alpha.1",
 		"postcss": "^8.4.39",
