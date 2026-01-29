@@ -149,5 +149,8 @@
 		"simplebar": "^6.2.7",
 		"sirv-cli": "^2.0.2",
 		"svelte-french-toast": "^1.2.0"
+	},
+	"resolutions": {
+		"tar": "7.5.7"
 	}
 }
