@@ -1,41 +1,23 @@
 
 (function(l, r) { if (!l || l.getElementById('livereloadscript')) return; r = l.createElement('script'); r.async = 1; r.src = '//' + (self.location.host || 'localhost').split(':')[0] + ':35729/livereload.js?snipver=1'; r.id = 'livereloadscript'; l.getElementsByTagName('head')[0].appendChild(r) })(self.document);
-var app = (function () {
+var app = (function (util, fs, path, child_process, electron) {
 	'use strict';
 
-	/** @returns {void} */
-	function noop$1() {}
+	var DEV = true;
 
-	const identity = (x) => x;
-
-	/**
-	 * @template T
-	 * @template S
-	 * @param {T} tar
-	 * @param {S} src
-	 * @returns {T & S}
-	 */
-	function assign(tar, src) {
-		// @ts-ignore
-		for (const k in src) tar[k] = src[k];
-		return /** @type {T & S} */ (tar);
-	}
-
-	function run(fn) {
-		return fn();
-	}
-
-	function blank_object() {
-		return Object.create(null);
-	}
-
-	/**
-	 * @param {Function[]} fns
-	 * @returns {void}
-	 */
-	function run_all(fns) {
-		fns.forEach(run);
-	}
+	// Store the references to globals in case someone tries to monkey patch these, causing the below
+	// to de-opt (this occurs often when using popular extensions).
+	var is_array = Array.isArray;
+	var index_of = Array.prototype.indexOf;
+	var includes = Array.prototype.includes;
+	var array_from = Array.from;
+	var define_property = Object.defineProperty;
+	var get_descriptor = Object.getOwnPropertyDescriptor;
+	var get_descriptors = Object.getOwnPropertyDescriptors;
+	var object_prototype = Object.prototype;
+	var array_prototype = Array.prototype;
+	var get_prototype_of = Object.getPrototypeOf;
+	var is_extensible = Object.isExtensible;
 
 	/**
 	 * @param {any} thing
@@ -45,1337 +27,8953 @@ var app = (function () {
 		return typeof thing === 'function';
 	}
 
-	/** @returns {boolean} */
-	function safe_not_equal(a, b) {
-		return a != a ? b == b : a !== b || (a && typeof a === 'object') || typeof a === 'function';
+	const noop$1 = () => {};
+
+	/** @param {Array<() => void>} arr */
+	function run_all(arr) {
+		for (var i = 0; i < arr.length; i++) {
+			arr[i]();
+		}
 	}
 
-	let src_url_equal_anchor;
+	/**
+	 * TODO replace with Promise.withResolvers once supported widely enough
+	 * @template [T=void]
+	 */
+	function deferred() {
+		/** @type {(value: T) => void} */
+		var resolve;
+
+		/** @type {(reason: any) => void} */
+		var reject;
+
+		/** @type {Promise<T>} */
+		var promise = new Promise((res, rej) => {
+			resolve = res;
+			reject = rej;
+		});
+
+		// @ts-expect-error
+		return { promise, resolve, reject };
+	}
 
 	/**
-	 * @param {string} element_src
-	 * @param {string} url
+	 * When encountering a situation like `let [a, b, c] = $derived(blah())`,
+	 * we need to stash an intermediate value that `a`, `b`, and `c` derive
+	 * from, in case it's an iterable
+	 * @template T
+	 * @param {ArrayLike<T> | Iterable<T>} value
+	 * @param {number} [n]
+	 * @returns {Array<T>}
+	 */
+	function to_array(value, n) {
+		// return arrays unchanged
+		if (Array.isArray(value)) {
+			return value;
+		}
+
+		// if value is not iterable, or `n` is unspecified (indicates a rest
+		// element, which means we're not concerned about unbounded iterables)
+		// convert to an array with `Array.from`
+		if (!(Symbol.iterator in value)) {
+			return Array.from(value);
+		}
+
+		// otherwise, populate an array with `n` values
+
+		/** @type {T[]} */
+		const array = [];
+
+		for (const element of value) {
+			array.push(element);
+			if (array.length === n) break;
+		}
+
+		return array;
+	}
+
+	// General flags
+	const DERIVED = 1 << 1;
+	const EFFECT = 1 << 2;
+	const RENDER_EFFECT = 1 << 3;
+	/**
+	 * An effect that does not destroy its child effects when it reruns.
+	 * Runs as part of render effects, i.e. not eagerly as part of tree traversal or effect flushing.
+	 */
+	const MANAGED_EFFECT = 1 << 24;
+	/**
+	 * An effect that does not destroy its child effects when it reruns (like MANAGED_EFFECT).
+	 * Runs eagerly as part of tree traversal or effect flushing.
+	 */
+	const BLOCK_EFFECT = 1 << 4;
+	const BRANCH_EFFECT = 1 << 5;
+	const ROOT_EFFECT = 1 << 6;
+	const BOUNDARY_EFFECT = 1 << 7;
+	/**
+	 * Indicates that a reaction is connected to an effect root — either it is an effect,
+	 * or it is a derived that is depended on by at least one effect. If a derived has
+	 * no dependents, we can disconnect it from the graph, allowing it to either be
+	 * GC'd or reconnected later if an effect comes to depend on it again
+	 */
+	const CONNECTED = 1 << 9;
+	const CLEAN = 1 << 10;
+	const DIRTY = 1 << 11;
+	const MAYBE_DIRTY = 1 << 12;
+	const INERT = 1 << 13;
+	const DESTROYED = 1 << 14;
+	/** Set once a reaction has run for the first time */
+	const REACTION_RAN = 1 << 15;
+
+	// Flags exclusive to effects
+	/**
+	 * 'Transparent' effects do not create a transition boundary.
+	 * This is on a block effect 99% of the time but may also be on a branch effect if its parent block effect was pruned
+	 */
+	const EFFECT_TRANSPARENT = 1 << 16;
+	const EAGER_EFFECT = 1 << 17;
+	const HEAD_EFFECT = 1 << 18;
+	const EFFECT_PRESERVED = 1 << 19;
+	const USER_EFFECT = 1 << 20;
+	const EFFECT_OFFSCREEN = 1 << 25;
+
+	// Flags exclusive to deriveds
+	/**
+	 * Tells that we marked this derived and its reactions as visited during the "mark as (maybe) dirty"-phase.
+	 * Will be lifted during execution of the derived and during checking its dirty state (both are necessary
+	 * because a derived might be checked but not executed).
+	 */
+	const WAS_MARKED = 1 << 16;
+
+	// Flags used for async
+	const REACTION_IS_UPDATING = 1 << 21;
+	const ASYNC = 1 << 22;
+
+	const ERROR_VALUE = 1 << 23;
+
+	const STATE_SYMBOL = Symbol('$state');
+	const LEGACY_PROPS = Symbol('legacy props');
+	const LOADING_ATTR_SYMBOL = Symbol('');
+	const PROXY_PATH_SYMBOL = Symbol('proxy path');
+
+	/** allow users to ignore aborted signal errors if `reason.name === 'StaleReactionError` */
+	const STALE_REACTION = new (class StaleReactionError extends Error {
+		name = 'StaleReactionError';
+		message = 'The reaction that called `getAbortSignal()` was re-run or destroyed';
+	})();
+
+	const IS_XHTML =
+		// We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+		!!globalThis.document?.contentType &&
+		/* @__PURE__ */ globalThis.document.contentType.includes('xml');
+	const ELEMENT_NODE = 1;
+	const DOCUMENT_FRAGMENT_NODE = 11;
+
+	/* This file is generated by scripts/process-messages/index.js. Do not edit! */
+
+
+	/**
+	 * A snippet function was passed invalid arguments. Snippets should only be instantiated via `{@render ...}`
+	 * @returns {never}
+	 */
+	function invalid_snippet_arguments() {
+		{
+			const error = new Error(`invalid_snippet_arguments\nA snippet function was passed invalid arguments. Snippets should only be instantiated via \`{@render ...}\`\nhttps://svelte.dev/e/invalid_snippet_arguments`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * `%name%(...)` can only be used during component initialisation
+	 * @param {string} name
+	 * @returns {never}
+	 */
+	function lifecycle_outside_component(name) {
+		{
+			const error = new Error(`lifecycle_outside_component\n\`${name}(...)\` can only be used during component initialisation\nhttps://svelte.dev/e/lifecycle_outside_component`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Attempted to render a snippet without a `{@render}` block. This would cause the snippet code to be stringified instead of its content being rendered to the DOM. To fix this, change `{snippet}` to `{@render snippet()}`.
+	 * @returns {never}
+	 */
+	function snippet_without_render_tag() {
+		{
+			const error = new Error(`snippet_without_render_tag\nAttempted to render a snippet without a \`{@render}\` block. This would cause the snippet code to be stringified instead of its content being rendered to the DOM. To fix this, change \`{snippet}\` to \`{@render snippet()}\`.\nhttps://svelte.dev/e/snippet_without_render_tag`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * `%name%` is not a store with a `subscribe` method
+	 * @param {string} name
+	 * @returns {never}
+	 */
+	function store_invalid_shape(name) {
+		{
+			const error = new Error(`store_invalid_shape\n\`${name}\` is not a store with a \`subscribe\` method\nhttps://svelte.dev/e/store_invalid_shape`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/* This file is generated by scripts/process-messages/index.js. Do not edit! */
+
+
+	/**
+	 * Cannot create a `$derived(...)` with an `await` expression outside of an effect tree
+	 * @returns {never}
+	 */
+	function async_derived_orphan() {
+		{
+			const error = new Error(`async_derived_orphan\nCannot create a \`$derived(...)\` with an \`await\` expression outside of an effect tree\nhttps://svelte.dev/e/async_derived_orphan`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Calling `%method%` on a component instance (of %component%) is no longer valid in Svelte 5
+	 * @param {string} method
+	 * @param {string} component
+	 * @returns {never}
+	 */
+	function component_api_changed(method, component) {
+		{
+			const error = new Error(`component_api_changed\nCalling \`${method}\` on a component instance (of ${component}) is no longer valid in Svelte 5\nhttps://svelte.dev/e/component_api_changed`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Attempted to instantiate %component% with `new %name%`, which is no longer valid in Svelte 5. If this component is not under your control, set the `compatibility.componentApi` compiler option to `4` to keep it working.
+	 * @param {string} component
+	 * @param {string} name
+	 * @returns {never}
+	 */
+	function component_api_invalid_new(component, name) {
+		{
+			const error = new Error(`component_api_invalid_new\nAttempted to instantiate ${component} with \`new ${name}\`, which is no longer valid in Svelte 5. If this component is not under your control, set the \`compatibility.componentApi\` compiler option to \`4\` to keep it working.\nhttps://svelte.dev/e/component_api_invalid_new`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * A derived value cannot reference itself recursively
+	 * @returns {never}
+	 */
+	function derived_references_self() {
+		{
+			const error = new Error(`derived_references_self\nA derived value cannot reference itself recursively\nhttps://svelte.dev/e/derived_references_self`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Keyed each block has duplicate key `%value%` at indexes %a% and %b%
+	 * @param {string} a
+	 * @param {string} b
+	 * @param {string | undefined | null} [value]
+	 * @returns {never}
+	 */
+	function each_key_duplicate(a, b, value) {
+		{
+			const error = new Error(`each_key_duplicate\n${value
+			? `Keyed each block has duplicate key \`${value}\` at indexes ${a} and ${b}`
+			: `Keyed each block has duplicate key at indexes ${a} and ${b}`}\nhttps://svelte.dev/e/each_key_duplicate`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Keyed each block has key that is not idempotent — the key for item at index %index% was `%a%` but is now `%b%`. Keys must be the same each time for a given item
+	 * @param {string} index
+	 * @param {string} a
+	 * @param {string} b
+	 * @returns {never}
+	 */
+	function each_key_volatile(index, a, b) {
+		{
+			const error = new Error(`each_key_volatile\nKeyed each block has key that is not idempotent — the key for item at index ${index} was \`${a}\` but is now \`${b}\`. Keys must be the same each time for a given item\nhttps://svelte.dev/e/each_key_volatile`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * `%rune%` cannot be used inside an effect cleanup function
+	 * @param {string} rune
+	 * @returns {never}
+	 */
+	function effect_in_teardown(rune) {
+		{
+			const error = new Error(`effect_in_teardown\n\`${rune}\` cannot be used inside an effect cleanup function\nhttps://svelte.dev/e/effect_in_teardown`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Effect cannot be created inside a `$derived` value that was not itself created inside an effect
+	 * @returns {never}
+	 */
+	function effect_in_unowned_derived() {
+		{
+			const error = new Error(`effect_in_unowned_derived\nEffect cannot be created inside a \`$derived\` value that was not itself created inside an effect\nhttps://svelte.dev/e/effect_in_unowned_derived`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * `%rune%` can only be used inside an effect (e.g. during component initialisation)
+	 * @param {string} rune
+	 * @returns {never}
+	 */
+	function effect_orphan(rune) {
+		{
+			const error = new Error(`effect_orphan\n\`${rune}\` can only be used inside an effect (e.g. during component initialisation)\nhttps://svelte.dev/e/effect_orphan`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Maximum update depth exceeded. This typically indicates that an effect reads and writes the same piece of state
+	 * @returns {never}
+	 */
+	function effect_update_depth_exceeded() {
+		{
+			const error = new Error(`effect_update_depth_exceeded\nMaximum update depth exceeded. This typically indicates that an effect reads and writes the same piece of state\nhttps://svelte.dev/e/effect_update_depth_exceeded`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Could not `{@render}` snippet due to the expression being `null` or `undefined`. Consider using optional chaining `{@render snippet?.()}`
+	 * @returns {never}
+	 */
+	function invalid_snippet() {
+		{
+			const error = new Error(`invalid_snippet\nCould not \`{@render}\` snippet due to the expression being \`null\` or \`undefined\`. Consider using optional chaining \`{@render snippet?.()}\`\nhttps://svelte.dev/e/invalid_snippet`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Cannot do `bind:%key%={undefined}` when `%key%` has a fallback value
+	 * @param {string} key
+	 * @returns {never}
+	 */
+	function props_invalid_value(key) {
+		{
+			const error = new Error(`props_invalid_value\nCannot do \`bind:${key}={undefined}\` when \`${key}\` has a fallback value\nhttps://svelte.dev/e/props_invalid_value`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Rest element properties of `$props()` such as `%property%` are readonly
+	 * @param {string} property
+	 * @returns {never}
+	 */
+	function props_rest_readonly(property) {
+		{
+			const error = new Error(`props_rest_readonly\nRest element properties of \`$props()\` such as \`${property}\` are readonly\nhttps://svelte.dev/e/props_rest_readonly`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * The `%rune%` rune is only available inside `.svelte` and `.svelte.js/ts` files
+	 * @param {string} rune
+	 * @returns {never}
+	 */
+	function rune_outside_svelte(rune) {
+		{
+			const error = new Error(`rune_outside_svelte\nThe \`${rune}\` rune is only available inside \`.svelte\` and \`.svelte.js/ts\` files\nhttps://svelte.dev/e/rune_outside_svelte`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Property descriptors defined on `$state` objects must contain `value` and always be `enumerable`, `configurable` and `writable`.
+	 * @returns {never}
+	 */
+	function state_descriptors_fixed() {
+		{
+			const error = new Error(`state_descriptors_fixed\nProperty descriptors defined on \`$state\` objects must contain \`value\` and always be \`enumerable\`, \`configurable\` and \`writable\`.\nhttps://svelte.dev/e/state_descriptors_fixed`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Cannot set prototype of `$state` object
+	 * @returns {never}
+	 */
+	function state_prototype_fixed() {
+		{
+			const error = new Error(`state_prototype_fixed\nCannot set prototype of \`$state\` object\nhttps://svelte.dev/e/state_prototype_fixed`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * Updating state inside `$derived(...)`, `$inspect(...)` or a template expression is forbidden. If the value should not be reactive, declare it without `$state`
+	 * @returns {never}
+	 */
+	function state_unsafe_mutation() {
+		{
+			const error = new Error(`state_unsafe_mutation\nUpdating state inside \`$derived(...)\`, \`$inspect(...)\` or a template expression is forbidden. If the value should not be reactive, declare it without \`$state\`\nhttps://svelte.dev/e/state_unsafe_mutation`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	/**
+	 * A `<svelte:boundary>` `reset` function cannot be called while an error is still being handled
+	 * @returns {never}
+	 */
+	function svelte_boundary_reset_onerror() {
+		{
+			const error = new Error(`svelte_boundary_reset_onerror\nA \`<svelte:boundary>\` \`reset\` function cannot be called while an error is still being handled\nhttps://svelte.dev/e/svelte_boundary_reset_onerror`);
+
+			error.name = 'Svelte error';
+
+			throw error;
+		}
+	}
+
+	const EACH_ITEM_REACTIVE = 1;
+	const EACH_INDEX_REACTIVE = 1 << 1;
+	/** See EachBlock interface metadata.is_controlled for an explanation what this is */
+	const EACH_IS_CONTROLLED = 1 << 2;
+	const EACH_IS_ANIMATED = 1 << 3;
+	const EACH_ITEM_IMMUTABLE = 1 << 4;
+
+	const PROPS_IS_IMMUTABLE = 1;
+	const PROPS_IS_RUNES = 1 << 1;
+	const PROPS_IS_UPDATED = 1 << 2;
+	const PROPS_IS_BINDABLE = 1 << 3;
+	const PROPS_IS_LAZY_INITIAL = 1 << 4;
+	const TRANSITION_GLOBAL = 1 << 2;
+
+	const TEMPLATE_FRAGMENT = 1;
+	const TEMPLATE_USE_IMPORT_NODE = 1 << 1;
+
+	const UNINITIALIZED = Symbol();
+
+	// Dev-time component properties
+	const FILENAME = Symbol('filename');
+
+	const NAMESPACE_HTML = 'http://www.w3.org/1999/xhtml';
+
+	const ATTACHMENT_KEY = '@attach';
+
+	/* This file is generated by scripts/process-messages/index.js. Do not edit! */
+
+
+	var bold$1 = 'font-weight: bold';
+	var normal$1 = 'font-weight: normal';
+
+	/**
+	 * Your `console.%method%` contained `$state` proxies. Consider using `$inspect(...)` or `$state.snapshot(...)` instead
+	 * @param {string} method
+	 */
+	function console_log_state(method) {
+		{
+			console.warn(`%c[svelte] console_log_state\n%cYour \`console.${method}\` contained \`$state\` proxies. Consider using \`$inspect(...)\` or \`$state.snapshot(...)\` instead\nhttps://svelte.dev/e/console_log_state`, bold$1, normal$1);
+		}
+	}
+
+	/**
+	 * The `value` property of a `<select multiple>` element should be an array, but it received a non-array value. The selection will be kept as is.
+	 */
+	function select_multiple_invalid_value() {
+		{
+			console.warn(`%c[svelte] select_multiple_invalid_value\n%cThe \`value\` property of a \`<select multiple>\` element should be an array, but it received a non-array value. The selection will be kept as is.\nhttps://svelte.dev/e/select_multiple_invalid_value`, bold$1, normal$1);
+		}
+	}
+
+	/**
+	 * Reactive `$state(...)` proxies and the values they proxy have different identities. Because of this, comparisons with `%operator%` will produce unexpected results
+	 * @param {string} operator
+	 */
+	function state_proxy_equality_mismatch(operator) {
+		{
+			console.warn(`%c[svelte] state_proxy_equality_mismatch\n%cReactive \`$state(...)\` proxies and the values they proxy have different identities. Because of this, comparisons with \`${operator}\` will produce unexpected results\nhttps://svelte.dev/e/state_proxy_equality_mismatch`, bold$1, normal$1);
+		}
+	}
+
+	/**
+	 * A `<svelte:boundary>` `reset` function only resets the boundary the first time it is called
+	 */
+	function svelte_boundary_reset_noop() {
+		{
+			console.warn(`%c[svelte] svelte_boundary_reset_noop\n%cA \`<svelte:boundary>\` \`reset\` function only resets the boundary the first time it is called\nhttps://svelte.dev/e/svelte_boundary_reset_noop`, bold$1, normal$1);
+		}
+	}
+
+	/** @import { TemplateNode } from '#client' */
+
+
+	/** @param {TemplateNode} node */
+	function reset(node) {
+		return;
+	}
+
+	/** @import { Equals } from '#client' */
+
+	/** @type {Equals} */
+	function equals(value) {
+		return value === this.v;
+	}
+
+	/**
+	 * @param {unknown} a
+	 * @param {unknown} b
 	 * @returns {boolean}
 	 */
-	function src_url_equal(element_src, url) {
-		if (element_src === url) return true;
-		if (!src_url_equal_anchor) {
-			src_url_equal_anchor = document.createElement('a');
+	function safe_not_equal(a, b) {
+		return a != a
+			? b == b
+			: a !== b || (a !== null && typeof a === 'object') || typeof a === 'function';
+	}
+
+	/** @type {Equals} */
+	function safe_equals(value) {
+		return !safe_not_equal(value, this.v);
+	}
+
+	/** True if experimental.async=true */
+	/** True if we're not certain that we only have Svelte 5 code in the compilation */
+	let legacy_mode_flag = false;
+	/** True if $inspect.trace is used */
+	let tracing_mode_flag = false;
+
+	function enable_legacy_mode_flag() {
+		legacy_mode_flag = true;
+	}
+
+	/* This file is generated by scripts/process-messages/index.js. Do not edit! */
+
+
+	var bold = 'font-weight: bold';
+	var normal = 'font-weight: normal';
+
+	/**
+	 * The following properties cannot be cloned with `$state.snapshot` — the return value contains the originals:
+	 * 
+	 * %properties%
+	 * @param {string | undefined | null} [properties]
+	 */
+	function state_snapshot_uncloneable(properties) {
+		{
+			console.warn(
+				`%c[svelte] state_snapshot_uncloneable\n%c${properties
+				? `The following properties cannot be cloned with \`$state.snapshot\` — the return value contains the originals:
+
+${properties}`
+				: 'Value cannot be cloned with `$state.snapshot` — the original value was returned'}\nhttps://svelte.dev/e/state_snapshot_uncloneable`,
+				bold,
+				normal
+			);
 		}
-		// This is actually faster than doing URL(..).href
-		src_url_equal_anchor.href = url;
-		return element_src === src_url_equal_anchor.href;
 	}
 
-	/** @returns {boolean} */
-	function is_empty(obj) {
-		return Object.keys(obj).length === 0;
-	}
+	/** @import { Snapshot } from './types' */
 
-	function subscribe(store, ...callbacks) {
-		if (store == null) {
-			for (const callback of callbacks) {
-				callback(undefined);
+	/**
+	 * In dev, we keep track of which properties could not be cloned. In prod
+	 * we don't bother, but we keep a dummy array around so that the
+	 * signature stays the same
+	 * @type {string[]}
+	 */
+	const empty = [];
+
+	/**
+	 * @template T
+	 * @param {T} value
+	 * @param {boolean} [skip_warning]
+	 * @param {boolean} [no_tojson]
+	 * @returns {Snapshot<T>}
+	 */
+	function snapshot(value, skip_warning = false, no_tojson = false) {
+		if (!skip_warning) {
+			/** @type {string[]} */
+			const paths = [];
+
+			const copy = clone(value, new Map(), '', paths, null, no_tojson);
+			if (paths.length === 1 && paths[0] === '') {
+				// value could not be cloned
+				state_snapshot_uncloneable();
+			} else if (paths.length > 0) {
+				// some properties could not be cloned
+				const slice = paths.length > 10 ? paths.slice(0, 7) : paths.slice(0, 10);
+				const excess = paths.length - slice.length;
+
+				let uncloned = slice.map((path) => `- <value>${path}`).join('\n');
+				if (excess > 0) uncloned += `\n- ...and ${excess} more`;
+
+				state_snapshot_uncloneable(uncloned);
 			}
-			return noop$1;
+
+			return copy;
 		}
-		const unsub = store.subscribe(...callbacks);
-		return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
+
+		return clone(value, new Map(), '', empty, null, no_tojson);
 	}
 
 	/**
-	 * Get the current value from a store by subscribing and immediately unsubscribing.
-	 *
-	 * https://svelte.dev/docs/svelte-store#get
 	 * @template T
-	 * @param {import('../store/public.js').Readable<T>} store
-	 * @returns {T}
+	 * @param {T} value
+	 * @param {Map<T, Snapshot<T>>} cloned
+	 * @param {string} path
+	 * @param {string[]} paths
+	 * @param {null | T} [original] The original value, if `value` was produced from a `toJSON` call
+	 * @param {boolean} [no_tojson]
+	 * @returns {Snapshot<T>}
 	 */
-	function get_store_value(store) {
-		let value;
-		subscribe(store, (_) => (value = _))();
+	function clone(value, cloned, path, paths, original = null, no_tojson = false) {
+		if (typeof value === 'object' && value !== null) {
+			var unwrapped = cloned.get(value);
+			if (unwrapped !== undefined) return unwrapped;
+
+			if (value instanceof Map) return /** @type {Snapshot<T>} */ (new Map(value));
+			if (value instanceof Set) return /** @type {Snapshot<T>} */ (new Set(value));
+
+			if (is_array(value)) {
+				var copy = /** @type {Snapshot<any>} */ (Array(value.length));
+				cloned.set(value, copy);
+
+				if (original !== null) {
+					cloned.set(original, copy);
+				}
+
+				for (var i = 0; i < value.length; i += 1) {
+					var element = value[i];
+					if (i in value) {
+						copy[i] = clone(element, cloned, `${path}[${i}]` , paths, null, no_tojson);
+					}
+				}
+
+				return copy;
+			}
+
+			if (get_prototype_of(value) === object_prototype) {
+				/** @type {Snapshot<any>} */
+				copy = {};
+				cloned.set(value, copy);
+
+				if (original !== null) {
+					cloned.set(original, copy);
+				}
+
+				for (var key of Object.keys(value)) {
+					copy[key] = clone(
+						// @ts-expect-error
+						value[key],
+						cloned,
+						`${path}.${key}` ,
+						paths,
+						null,
+						no_tojson
+					);
+				}
+
+				return copy;
+			}
+
+			if (value instanceof Date) {
+				return /** @type {Snapshot<T>} */ (structuredClone(value));
+			}
+
+			if (typeof (/** @type {T & { toJSON?: any } } */ (value).toJSON) === 'function' && !no_tojson) {
+				return clone(
+					/** @type {T & { toJSON(): any } } */ (value).toJSON(),
+					cloned,
+					`${path}.toJSON()` ,
+					paths,
+					// Associate the instance with the toJSON clone
+					value
+				);
+			}
+		}
+
+		if (value instanceof EventTarget) {
+			// can't be cloned
+			return /** @type {Snapshot<T>} */ (value);
+		}
+
+		try {
+			return /** @type {Snapshot<T>} */ (structuredClone(value));
+		} catch (e) {
+			{
+				paths.push(path);
+			}
+
+			return /** @type {Snapshot<T>} */ (value);
+		}
+	}
+
+	/** @import { Derived, Reaction, Value } from '#client' */
+
+	/**
+	 * @param {Value} source
+	 * @param {string} label
+	 */
+	function tag(source, label) {
+		source.label = label;
+		tag_proxy(source.v, label);
+
+		return source;
+	}
+
+	/**
+	 * @param {unknown} value
+	 * @param {string} label
+	 */
+	function tag_proxy(value, label) {
+		// @ts-expect-error
+		value?.[PROXY_PATH_SYMBOL]?.(label);
 		return value;
 	}
 
-	/** @returns {void} */
-	function component_subscribe(component, store, callback) {
-		component.$$.on_destroy.push(subscribe(store, callback));
-	}
-
-	function create_slot(definition, ctx, $$scope, fn) {
-		if (definition) {
-			const slot_ctx = get_slot_context(definition, ctx, $$scope, fn);
-			return definition[0](slot_ctx);
-		}
-	}
-
-	function get_slot_context(definition, ctx, $$scope, fn) {
-		return definition[1] && fn ? assign($$scope.ctx.slice(), definition[1](fn(ctx))) : $$scope.ctx;
-	}
-
-	function get_slot_changes(definition, $$scope, dirty, fn) {
-		if (definition[2] && fn) {
-			const lets = definition[2](fn(dirty));
-			if ($$scope.dirty === undefined) {
-				return lets;
-			}
-			if (typeof lets === 'object') {
-				const merged = [];
-				const len = Math.max($$scope.dirty.length, lets.length);
-				for (let i = 0; i < len; i += 1) {
-					merged[i] = $$scope.dirty[i] | lets[i];
-				}
-				return merged;
-			}
-			return $$scope.dirty | lets;
-		}
-		return $$scope.dirty;
-	}
-
-	/** @returns {void} */
-	function update_slot_base(
-		slot,
-		slot_definition,
-		ctx,
-		$$scope,
-		slot_changes,
-		get_slot_context_fn
-	) {
-		if (slot_changes) {
-			const slot_context = get_slot_context(slot_definition, ctx, $$scope, get_slot_context_fn);
-			slot.p(slot_context, slot_changes);
-		}
-	}
-
-	/** @returns {any[] | -1} */
-	function get_all_dirty_from_scope($$scope) {
-		if ($$scope.ctx.length > 32) {
-			const dirty = [];
-			const length = $$scope.ctx.length / 32;
-			for (let i = 0; i < length; i++) {
-				dirty[i] = -1;
-			}
-			return dirty;
-		}
-		return -1;
-	}
-
-	/** @param {number | string} value
-	 * @returns {[number, string]}
+	/**
+	 * @param {string} label
+	 * @returns {Error & { stack: string } | null}
 	 */
-	function split_css_unit(value) {
-		const split = typeof value === 'string' && value.match(/^\s*(-?[\d.]+)([^\s]*)\s*$/);
-		return split ? [parseFloat(split[1]), split[2] || 'px'] : [/** @type {number} */ (value), 'px'];
+	function get_error(label) {
+		const error = new Error();
+		const stack = get_stack();
+
+		if (stack.length === 0) {
+			return null;
+		}
+
+		stack.unshift('\n');
+
+		define_property(error, 'stack', {
+			value: stack.join('\n')
+		});
+
+		define_property(error, 'name', {
+			value: label
+		});
+
+		return /** @type {Error & { stack: string }} */ (error);
 	}
-
-	const is_client = typeof window !== 'undefined';
-
-	/** @type {() => number} */
-	let now$2 = is_client ? () => window.performance.now() : () => Date.now();
-
-	let raf = is_client ? (cb) => requestAnimationFrame(cb) : noop$1;
-
-	const tasks = new Set();
 
 	/**
-	 * @param {number} now
+	 * @returns {string[]}
+	 */
+	function get_stack() {
+		// @ts-ignore - doesn't exist everywhere
+		const limit = Error.stackTraceLimit;
+		// @ts-ignore - doesn't exist everywhere
+		Error.stackTraceLimit = Infinity;
+		const stack = new Error().stack;
+		// @ts-ignore - doesn't exist everywhere
+		Error.stackTraceLimit = limit;
+
+		if (!stack) return [];
+
+		const lines = stack.split('\n');
+		const new_lines = [];
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			const posixified = line.replaceAll('\\', '/');
+
+			if (line.trim() === 'Error') {
+				continue;
+			}
+
+			if (line.includes('validate_each_keys')) {
+				return [];
+			}
+
+			if (posixified.includes('svelte/src/internal') || posixified.includes('node_modules/.vite')) {
+				continue;
+			}
+
+			new_lines.push(line);
+		}
+
+		return new_lines;
+	}
+
+	/** @import { ComponentContext, DevStackEntry, Effect } from '#client' */
+
+	/** @type {ComponentContext | null} */
+	let component_context = null;
+
+	/** @param {ComponentContext | null} context */
+	function set_component_context(context) {
+		component_context = context;
+	}
+
+	/** @type {DevStackEntry | null} */
+	let dev_stack = null;
+
+	/** @param {DevStackEntry | null} stack */
+	function set_dev_stack(stack) {
+		dev_stack = stack;
+	}
+
+	/**
+	 * Execute a callback with a new dev stack entry
+	 * @param {() => any} callback - Function to execute
+	 * @param {DevStackEntry['type']} type - Type of block/component
+	 * @param {any} component - Component function
+	 * @param {number} line - Line number
+	 * @param {number} column - Column number
+	 * @param {Record<string, any>} [additional] - Any additional properties to add to the dev stack entry
+	 * @returns {any}
+	 */
+	function add_svelte_meta(callback, type, component, line, column, additional) {
+		const parent = dev_stack;
+
+		dev_stack = {
+			type,
+			file: component[FILENAME],
+			line,
+			column,
+			parent,
+			...additional
+		};
+
+		try {
+			return callback();
+		} finally {
+			dev_stack = parent;
+		}
+	}
+
+	/**
+	 * The current component function. Different from current component context:
+	 * ```html
+	 * <!-- App.svelte -->
+	 * <Foo>
+	 *   <Bar /> <!-- context == Foo.svelte, function == App.svelte -->
+	 * </Foo>
+	 * ```
+	 * @type {ComponentContext['function']}
+	 */
+	let dev_current_component_function = null;
+
+	/** @param {ComponentContext['function']} fn */
+	function set_dev_current_component_function(fn) {
+		dev_current_component_function = fn;
+	}
+
+	/**
+	 * Retrieves the context that belongs to the closest parent component with the specified `key`.
+	 * Must be called during component initialisation.
+	 *
+	 * [`createContext`](https://svelte.dev/docs/svelte/svelte#createContext) is a type-safe alternative.
+	 *
+	 * @template T
+	 * @param {any} key
+	 * @returns {T}
+	 */
+	function getContext(key) {
+		const context_map = get_or_init_context_map('getContext');
+		const result = /** @type {T} */ (context_map.get(key));
+		return result;
+	}
+
+	/**
+	 * Associates an arbitrary `context` object with the current component and the specified `key`
+	 * and returns that object. The context is then available to children of the component
+	 * (including slotted content) with `getContext`.
+	 *
+	 * Like lifecycle functions, this must be called during component initialisation.
+	 *
+	 * [`createContext`](https://svelte.dev/docs/svelte/svelte#createContext) is a type-safe alternative.
+	 *
+	 * @template T
+	 * @param {any} key
+	 * @param {T} context
+	 * @returns {T}
+	 */
+	function setContext(key, context) {
+		const context_map = get_or_init_context_map('setContext');
+
+		context_map.set(key, context);
+		return context;
+	}
+
+	/**
+	 * Checks whether a given `key` has been set in the context of a parent component.
+	 * Must be called during component initialisation.
+	 *
+	 * @param {any} key
+	 * @returns {boolean}
+	 */
+	function hasContext(key) {
+		const context_map = get_or_init_context_map('hasContext');
+		return context_map.has(key);
+	}
+
+	/**
+	 * @param {Record<string, unknown>} props
+	 * @param {any} runes
+	 * @param {Function} [fn]
 	 * @returns {void}
 	 */
-	function run_tasks(now) {
-		tasks.forEach((task) => {
+	function push(props, runes = false, fn) {
+		component_context = {
+			p: component_context,
+			i: false,
+			c: null,
+			e: null,
+			s: props,
+			x: null,
+			l: legacy_mode_flag && !runes ? { s: null, u: null, $: [] } : null
+		};
+
+		{
+			// component function
+			component_context.function = fn;
+			dev_current_component_function = fn;
+		}
+	}
+
+	/**
+	 * @template {Record<string, any>} T
+	 * @param {T} [component]
+	 * @returns {T}
+	 */
+	function pop(component) {
+		var context = /** @type {ComponentContext} */ (component_context);
+		var effects = context.e;
+
+		if (effects !== null) {
+			context.e = null;
+
+			for (var fn of effects) {
+				create_user_effect(fn);
+			}
+		}
+
+		if (component !== undefined) {
+			context.x = component;
+		}
+
+		context.i = true;
+
+		component_context = context.p;
+
+		{
+			dev_current_component_function = component_context?.function ?? null;
+		}
+
+		return component ?? /** @type {T} */ ({});
+	}
+
+	/** @returns {boolean} */
+	function is_runes() {
+		return !legacy_mode_flag || (component_context !== null && component_context.l === null);
+	}
+
+	/**
+	 * @param {string} name
+	 * @returns {Map<unknown, unknown>}
+	 */
+	function get_or_init_context_map(name) {
+		if (component_context === null) {
+			lifecycle_outside_component(name);
+		}
+
+		return (component_context.c ??= new Map(get_parent_context(component_context) || undefined));
+	}
+
+	/**
+	 * @param {ComponentContext} component_context
+	 * @returns {Map<unknown, unknown> | null}
+	 */
+	function get_parent_context(component_context) {
+		let parent = component_context.p;
+		while (parent !== null) {
+			const context_map = parent.c;
+			if (context_map !== null) {
+				return context_map;
+			}
+			parent = parent.p;
+		}
+		return null;
+	}
+
+	/** @type {Array<() => void>} */
+	let micro_tasks = [];
+
+	function run_micro_tasks() {
+		var tasks = micro_tasks;
+		micro_tasks = [];
+		run_all(tasks);
+	}
+
+	/**
+	 * @param {() => void} fn
+	 */
+	function queue_micro_task(fn) {
+		if (micro_tasks.length === 0 && true) {
+			var tasks = micro_tasks;
+			queueMicrotask(() => {
+				// If this is false, a flushSync happened in the meantime. Do _not_ run new scheduled microtasks in that case
+				// as the ordering of microtasks would be broken at that point - consider this case:
+				// - queue_micro_task schedules microtask A to flush task X
+				// - synchronously after, flushSync runs, processing task X
+				// - synchronously after, some other microtask B is scheduled, but not through queue_micro_task but for example a Promise.resolve() in user code
+				// - synchronously after, queue_micro_task schedules microtask C to flush task Y
+				// - one tick later, microtask A now resolves, flushing task Y before microtask B, which is incorrect
+				// This if check prevents that race condition (that realistically will only happen in tests)
+				if (tasks === micro_tasks) run_micro_tasks();
+			});
+		}
+
+		micro_tasks.push(fn);
+	}
+
+	/** @import { Derived, Effect } from '#client' */
+	/** @import { Boundary } from './dom/blocks/boundary.js' */
+
+	const adjustments = new WeakMap();
+
+	/**
+	 * @param {unknown} error
+	 */
+	function handle_error(error) {
+		var effect = active_effect;
+
+		// for unowned deriveds, don't throw until we read the value
+		if (effect === null) {
+			/** @type {Derived} */ (active_reaction).f |= ERROR_VALUE;
+			return error;
+		}
+
+		if (error instanceof Error && !adjustments.has(error)) {
+			adjustments.set(error, get_adjustments(error, effect));
+		}
+
+		// if the error occurred while creating this subtree, we let it
+		// bubble up until it hits a boundary that can handle it, unless
+		// it's an $effect in which case it doesn't run immediately
+		if ((effect.f & REACTION_RAN) === 0 && (effect.f & EFFECT) === 0) {
+			if (!effect.parent && error instanceof Error) {
+				apply_adjustments(error);
+			}
+
+			throw error;
+		}
+
+		// otherwise we bubble up the effect tree ourselves
+		invoke_error_boundary(error, effect);
+	}
+
+	/**
+	 * @param {unknown} error
+	 * @param {Effect | null} effect
+	 */
+	function invoke_error_boundary(error, effect) {
+		while (effect !== null) {
+			if ((effect.f & BOUNDARY_EFFECT) !== 0) {
+				if ((effect.f & REACTION_RAN) === 0) {
+					// we are still creating the boundary effect
+					throw error;
+				}
+
+				try {
+					/** @type {Boundary} */ (effect.b).error(error);
+					return;
+				} catch (e) {
+					error = e;
+				}
+			}
+
+			effect = effect.parent;
+		}
+
+		if (error instanceof Error) {
+			apply_adjustments(error);
+		}
+
+		throw error;
+	}
+
+	/**
+	 * Add useful information to the error message/stack in development
+	 * @param {Error} error
+	 * @param {Effect} effect
+	 */
+	function get_adjustments(error, effect) {
+		const message_descriptor = get_descriptor(error, 'message');
+
+		// if the message was already changed and it's not configurable we can't change it
+		// or it will throw a different error swallowing the original error
+		if (message_descriptor && !message_descriptor.configurable) return;
+
+		var indent = is_firefox ? '  ' : '\t';
+		var component_stack = `\n${indent}in ${effect.fn?.name || '<unknown>'}`;
+		var context = effect.ctx;
+
+		while (context !== null) {
+			component_stack += `\n${indent}in ${context.function?.[FILENAME].split('/').pop()}`;
+			context = context.p;
+		}
+
+		return {
+			message: error.message + `\n${component_stack}\n`,
+			stack: error.stack
+				?.split('\n')
+				.filter((line) => !line.includes('svelte/src/internal'))
+				.join('\n')
+		};
+	}
+
+	/**
+	 * @param {Error} error
+	 */
+	function apply_adjustments(error) {
+		const adjusted = adjustments.get(error);
+
+		if (adjusted) {
+			define_property(error, 'message', {
+				value: adjusted.message
+			});
+
+			define_property(error, 'stack', {
+				value: adjusted.stack
+			});
+		}
+	}
+
+	/** @import { Derived, Signal } from '#client' */
+
+	const STATUS_MASK = -7169;
+
+	/**
+	 * @param {Signal} signal
+	 * @param {number} status
+	 */
+	function set_signal_status(signal, status) {
+		signal.f = (signal.f & STATUS_MASK) | status;
+	}
+
+	/**
+	 * Set a derived's status to CLEAN or MAYBE_DIRTY based on its connection state.
+	 * @param {Derived} derived
+	 */
+	function update_derived_status(derived) {
+		// Only mark as MAYBE_DIRTY if disconnected and has dependencies.
+		if ((derived.f & CONNECTED) !== 0 || derived.deps === null) {
+			set_signal_status(derived, CLEAN);
+		} else {
+			set_signal_status(derived, MAYBE_DIRTY);
+		}
+	}
+
+	/** @import { Derived, Effect, Value } from '#client' */
+
+	/**
+	 * @param {Value[] | null} deps
+	 */
+	function clear_marked(deps) {
+		if (deps === null) return;
+
+		for (const dep of deps) {
+			if ((dep.f & DERIVED) === 0 || (dep.f & WAS_MARKED) === 0) {
+				continue;
+			}
+
+			dep.f ^= WAS_MARKED;
+
+			clear_marked(/** @type {Derived} */ (dep).deps);
+		}
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @param {Set<Effect>} dirty_effects
+	 * @param {Set<Effect>} maybe_dirty_effects
+	 */
+	function defer_effect(effect, dirty_effects, maybe_dirty_effects) {
+		if ((effect.f & DIRTY) !== 0) {
+			dirty_effects.add(effect);
+		} else if ((effect.f & MAYBE_DIRTY) !== 0) {
+			maybe_dirty_effects.add(effect);
+		}
+
+		// Since we're not executing these effects now, we need to clear any WAS_MARKED flags
+		// so that other batches can correctly reach these effects during their own traversal
+		clear_marked(effect.deps);
+
+		// mark as clean so they get scheduled if they depend on pending async state
+		set_signal_status(effect, CLEAN);
+	}
+
+	/** @import { Fork } from 'svelte' */
+	/** @import { Derived, Effect, Reaction, Source, Value } from '#client' */
+
+	/** @type {Set<Batch>} */
+	const batches = new Set();
+
+	/** @type {Batch | null} */
+	let current_batch = null;
+
+	/**
+	 * When time travelling (i.e. working in one batch, while other batches
+	 * still have ongoing work), we ignore the real values of affected
+	 * signals in favour of their values within the batch
+	 * @type {Map<Value, any> | null}
+	 */
+	let batch_values = null;
+
+	// TODO this should really be a property of `batch`
+	/** @type {Effect[]} */
+	let queued_root_effects = [];
+
+	/** @type {Effect | null} */
+	let last_scheduled_effect = null;
+
+	/**
+	 * During traversal, this is an array. Newly created effects are (if not immediately
+	 * executed) pushed to this array, rather than going through the scheduling
+	 * rigamarole that would cause another turn of the flush loop.
+	 * @type {Effect[] | null}
+	 */
+	let collected_effects = null;
+
+	let uid = 1;
+
+	class Batch {
+		// for debugging. TODO remove once async is stable
+		id = uid++;
+
+		/**
+		 * The current values of any sources that are updated in this batch
+		 * They keys of this map are identical to `this.#previous`
+		 * @type {Map<Source, any>}
+		 */
+		current = new Map();
+
+		/**
+		 * The values of any sources that are updated in this batch _before_ those updates took place.
+		 * They keys of this map are identical to `this.#current`
+		 * @type {Map<Source, any>}
+		 */
+		previous = new Map();
+
+		/**
+		 * When the batch is committed (and the DOM is updated), we need to remove old branches
+		 * and append new ones by calling the functions added inside (if/each/key/etc) blocks
+		 * @type {Set<(batch: Batch) => void>}
+		 */
+		#commit_callbacks = new Set();
+
+		/**
+		 * If a fork is discarded, we need to destroy any effects that are no longer needed
+		 * @type {Set<(batch: Batch) => void>}
+		 */
+		#discard_callbacks = new Set();
+
+		/**
+		 * The number of async effects that are currently in flight
+		 */
+		#pending = 0;
+
+		/**
+		 * The number of async effects that are currently in flight, _not_ inside a pending boundary
+		 */
+		#blocking_pending = 0;
+
+		/**
+		 * A deferred that resolves when the batch is committed, used with `settled()`
+		 * TODO replace with Promise.withResolvers once supported widely enough
+		 * @type {{ promise: Promise<void>, resolve: (value?: any) => void, reject: (reason: unknown) => void } | null}
+		 */
+		#deferred = null;
+
+		/**
+		 * Deferred effects (which run after async work has completed) that are DIRTY
+		 * @type {Set<Effect>}
+		 */
+		#dirty_effects = new Set();
+
+		/**
+		 * Deferred effects that are MAYBE_DIRTY
+		 * @type {Set<Effect>}
+		 */
+		#maybe_dirty_effects = new Set();
+
+		/**
+		 * A map of branches that still exist, but will be destroyed when this batch
+		 * is committed — we skip over these during `process`.
+		 * The value contains child effects that were dirty/maybe_dirty before being reset,
+		 * so they can be rescheduled if the branch survives.
+		 * @type {Map<Effect, { d: Effect[], m: Effect[] }>}
+		 */
+		#skipped_branches = new Map();
+
+		is_fork = false;
+
+		#decrement_queued = false;
+
+		#is_deferred() {
+			return this.is_fork || this.#blocking_pending > 0;
+		}
+
+		/**
+		 * Add an effect to the #skipped_branches map and reset its children
+		 * @param {Effect} effect
+		 */
+		skip_effect(effect) {
+			if (!this.#skipped_branches.has(effect)) {
+				this.#skipped_branches.set(effect, { d: [], m: [] });
+			}
+		}
+
+		/**
+		 * Remove an effect from the #skipped_branches map and reschedule
+		 * any tracked dirty/maybe_dirty child effects
+		 * @param {Effect} effect
+		 */
+		unskip_effect(effect) {
+			var tracked = this.#skipped_branches.get(effect);
+			if (tracked) {
+				this.#skipped_branches.delete(effect);
+
+				for (var e of tracked.d) {
+					set_signal_status(e, DIRTY);
+					schedule_effect(e);
+				}
+
+				for (e of tracked.m) {
+					set_signal_status(e, MAYBE_DIRTY);
+					schedule_effect(e);
+				}
+			}
+		}
+
+		/**
+		 *
+		 * @param {Effect[]} root_effects
+		 */
+		process(root_effects) {
+			queued_root_effects = [];
+
+			this.apply();
+
+			/** @type {Effect[]} */
+			var effects = (collected_effects = []);
+
+			/** @type {Effect[]} */
+			var render_effects = [];
+
+			for (const root of root_effects) {
+				this.#traverse_effect_tree(root, effects, render_effects);
+				// Note: #traverse_effect_tree runs block effects eagerly, which can schedule effects,
+				// which means queued_root_effects now may be filled again.
+
+				// Helpful for debugging reactivity loss that has to do with branches being skipped:
+				// log_inconsistent_branches(root);
+			}
+
+			collected_effects = null;
+
+			if (this.#is_deferred()) {
+				this.#defer_effects(render_effects);
+				this.#defer_effects(effects);
+
+				for (const [e, t] of this.#skipped_branches) {
+					reset_branch(e, t);
+				}
+			} else {
+				current_batch = null;
+
+				// append/remove branches
+				for (const fn of this.#commit_callbacks) fn(this);
+				this.#commit_callbacks.clear();
+
+				if (this.#pending === 0) {
+					this.#commit();
+				}
+
+				flush_queued_effects(render_effects);
+				flush_queued_effects(effects);
+
+				// Clear effects. Those that are still needed will be rescheduled through unskipping the skipped branches.
+				this.#dirty_effects.clear();
+				this.#maybe_dirty_effects.clear();
+
+				this.#deferred?.resolve();
+			}
+
+			batch_values = null;
+		}
+
+		/**
+		 * Traverse the effect tree, executing effects or stashing
+		 * them for later execution as appropriate
+		 * @param {Effect} root
+		 * @param {Effect[]} effects
+		 * @param {Effect[]} render_effects
+		 */
+		#traverse_effect_tree(root, effects, render_effects) {
+			root.f ^= CLEAN;
+
+			var effect = root.first;
+
+			while (effect !== null) {
+				var flags = effect.f;
+				var is_branch = (flags & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
+				var is_skippable_branch = is_branch && (flags & CLEAN) !== 0;
+
+				var inert = (flags & INERT) !== 0;
+				var skip = is_skippable_branch || this.#skipped_branches.has(effect);
+
+				if (!skip && effect.fn !== null) {
+					if (is_branch) {
+						if (!inert) effect.f ^= CLEAN;
+					} else if ((flags & EFFECT) !== 0) {
+						effects.push(effect);
+					} else if ((flags & (RENDER_EFFECT | MANAGED_EFFECT)) !== 0 && (inert)) {
+						render_effects.push(effect);
+					} else if (is_dirty(effect)) {
+						update_effect(effect);
+
+						if ((flags & BLOCK_EFFECT) !== 0) {
+							this.#maybe_dirty_effects.add(effect);
+
+							// if this is inside an outroing block, ensure that the block
+							// re-runs if the outro is later aborted
+							if (inert) set_signal_status(effect, DIRTY);
+						}
+					}
+
+					var child = effect.first;
+
+					if (child !== null) {
+						effect = child;
+						continue;
+					}
+				}
+
+				while (effect !== null) {
+					var next = effect.next;
+
+					if (next !== null) {
+						effect = next;
+						break;
+					}
+
+					effect = effect.parent;
+				}
+			}
+		}
+
+		/**
+		 * @param {Effect[]} effects
+		 */
+		#defer_effects(effects) {
+			for (var i = 0; i < effects.length; i += 1) {
+				defer_effect(effects[i], this.#dirty_effects, this.#maybe_dirty_effects);
+			}
+		}
+
+		/**
+		 * Associate a change to a given source with the current
+		 * batch, noting its previous and current values
+		 * @param {Source} source
+		 * @param {any} value
+		 */
+		capture(source, value) {
+			if (value !== UNINITIALIZED && !this.previous.has(source)) {
+				this.previous.set(source, value);
+			}
+
+			// Don't save errors in `batch_values`, or they won't be thrown in `runtime.js#get`
+			if ((source.f & ERROR_VALUE) === 0) {
+				this.current.set(source, source.v);
+				batch_values?.set(source, source.v);
+			}
+		}
+
+		activate() {
+			current_batch = this;
+			this.apply();
+		}
+
+		deactivate() {
+			// If we're not the current batch, don't deactivate,
+			// else we could create zombie batches that are never flushed
+			if (current_batch !== this) return;
+
+			current_batch = null;
+			batch_values = null;
+		}
+
+		flush() {
+			if (queued_root_effects.length > 0) {
+				current_batch = this;
+				flush_effects();
+			} else if (this.#pending === 0 && !this.is_fork) {
+				// append/remove branches
+				for (const fn of this.#commit_callbacks) fn(this);
+				this.#commit_callbacks.clear();
+
+				this.#commit();
+				this.#deferred?.resolve();
+			}
+
+			this.deactivate();
+		}
+
+		discard() {
+			for (const fn of this.#discard_callbacks) fn(this);
+			this.#discard_callbacks.clear();
+		}
+
+		#commit() {
+			// If there are other pending batches, they now need to be 'rebased' —
+			// in other words, we re-run block/async effects with the newly
+			// committed state, unless the batch in question has a more
+			// recent value for a given source
+			if (batches.size > 1) {
+				this.previous.clear();
+
+				var previous_batch = current_batch;
+				var previous_batch_values = batch_values;
+				var is_earlier = true;
+
+				for (const batch of batches) {
+					if (batch === this) {
+						is_earlier = false;
+						continue;
+					}
+
+					/** @type {Source[]} */
+					const sources = [];
+
+					for (const [source, value] of this.current) {
+						if (batch.current.has(source)) {
+							if (is_earlier && value !== batch.current.get(source)) {
+								// bring the value up to date
+								batch.current.set(source, value);
+							} else {
+								// same value or later batch has more recent value,
+								// no need to re-run these effects
+								continue;
+							}
+						}
+
+						sources.push(source);
+					}
+
+					if (sources.length === 0) {
+						continue;
+					}
+
+					// Re-run async/block effects that depend on distinct values changed in both batches
+					const others = [...batch.current.keys()].filter((s) => !this.current.has(s));
+					if (others.length > 0) {
+						// Avoid running queued root effects on the wrong branch
+						var prev_queued_root_effects = queued_root_effects;
+						queued_root_effects = [];
+
+						/** @type {Set<Value>} */
+						const marked = new Set();
+						/** @type {Map<Reaction, boolean>} */
+						const checked = new Map();
+						for (const source of sources) {
+							mark_effects(source, others, marked, checked);
+						}
+
+						if (queued_root_effects.length > 0) {
+							current_batch = batch;
+							batch.apply();
+
+							for (const root of queued_root_effects) {
+								batch.#traverse_effect_tree(root, [], []);
+							}
+
+							// TODO do we need to do anything with the dummy effect arrays?
+
+							batch.deactivate();
+						}
+
+						queued_root_effects = prev_queued_root_effects;
+					}
+				}
+
+				current_batch = previous_batch;
+				batch_values = previous_batch_values;
+			}
+
+			this.#skipped_branches.clear();
+			batches.delete(this);
+		}
+
+		/**
+		 *
+		 * @param {boolean} blocking
+		 */
+		increment(blocking) {
+			this.#pending += 1;
+			if (blocking) this.#blocking_pending += 1;
+		}
+
+		/**
+		 *
+		 * @param {boolean} blocking
+		 */
+		decrement(blocking) {
+			this.#pending -= 1;
+			if (blocking) this.#blocking_pending -= 1;
+
+			if (this.#decrement_queued) return;
+			this.#decrement_queued = true;
+
+			queue_micro_task(() => {
+				this.#decrement_queued = false;
+
+				if (!this.#is_deferred()) {
+					// we only reschedule previously-deferred effects if we expect
+					// to be able to run them after processing the batch
+					this.revive();
+				} else if (queued_root_effects.length > 0) {
+					// if other effects are scheduled, process the batch _without_
+					// rescheduling the previously-deferred effects
+					this.flush();
+				}
+			});
+		}
+
+		revive() {
+			for (const e of this.#dirty_effects) {
+				this.#maybe_dirty_effects.delete(e);
+				set_signal_status(e, DIRTY);
+				schedule_effect(e);
+			}
+
+			for (const e of this.#maybe_dirty_effects) {
+				set_signal_status(e, MAYBE_DIRTY);
+				schedule_effect(e);
+			}
+
+			this.flush();
+		}
+
+		/** @param {(batch: Batch) => void} fn */
+		oncommit(fn) {
+			this.#commit_callbacks.add(fn);
+		}
+
+		/** @param {(batch: Batch) => void} fn */
+		ondiscard(fn) {
+			this.#discard_callbacks.add(fn);
+		}
+
+		settled() {
+			return (this.#deferred ??= deferred()).promise;
+		}
+
+		static ensure() {
+			if (current_batch === null) {
+				const batch = (current_batch = new Batch());
+				batches.add(current_batch);
+
+				{
+					queue_micro_task(() => {
+						if (current_batch !== batch) {
+							// a flushSync happened in the meantime
+							return;
+						}
+
+						batch.flush();
+					});
+				}
+			}
+
+			return current_batch;
+		}
+
+		apply() {
+			return;
+		}
+	}
+
+	function flush_effects() {
+		var source_stacks = new Set() ;
+
+		try {
+			var flush_count = 0;
+
+			while (queued_root_effects.length > 0) {
+				var batch = Batch.ensure();
+
+				if (flush_count++ > 1000) {
+					if (DEV) {
+						var updates = new Map();
+
+						for (const source of batch.current.keys()) {
+							for (const [stack, update] of source.updated ?? []) {
+								var entry = updates.get(stack);
+
+								if (!entry) {
+									entry = { error: update.error, count: 0 };
+									updates.set(stack, entry);
+								}
+
+								entry.count += update.count;
+							}
+						}
+
+						for (const update of updates.values()) {
+							if (update.error) {
+								// eslint-disable-next-line no-console
+								console.error(update.error);
+							}
+						}
+					}
+
+					infinite_loop_guard();
+				}
+
+				batch.process(queued_root_effects);
+				old_values.clear();
+
+				if (DEV) {
+					for (const source of batch.current.keys()) {
+						/** @type {Set<Source>} */ (source_stacks).add(source);
+					}
+				}
+			}
+		} finally {
+			queued_root_effects = [];
+
+			last_scheduled_effect = null;
+			collected_effects = null;
+
+			{
+				for (const source of /** @type {Set<Source>} */ (source_stacks)) {
+					source.updated = null;
+				}
+			}
+		}
+	}
+
+	function infinite_loop_guard() {
+		try {
+			effect_update_depth_exceeded();
+		} catch (error) {
+			{
+				// stack contains no useful information, replace it
+				define_property(error, 'stack', { value: '' });
+			}
+
+			// Best effort: invoke the boundary nearest the most recent
+			// effect and hope that it's relevant to the infinite loop
+			invoke_error_boundary(error, last_scheduled_effect);
+		}
+	}
+
+	/** @type {Set<Effect> | null} */
+	let eager_block_effects = null;
+
+	/**
+	 * @param {Array<Effect>} effects
+	 * @returns {void}
+	 */
+	function flush_queued_effects(effects) {
+		var length = effects.length;
+		if (length === 0) return;
+
+		var i = 0;
+
+		while (i < length) {
+			var effect = effects[i++];
+
+			if ((effect.f & (DESTROYED | INERT)) === 0 && is_dirty(effect)) {
+				eager_block_effects = new Set();
+
+				update_effect(effect);
+
+				// Effects with no dependencies or teardown do not get added to the effect tree.
+				// Deferred effects (e.g. `$effect(...)`) _are_ added to the tree because we
+				// don't know if we need to keep them until they are executed. Doing the check
+				// here (rather than in `update_effect`) allows us to skip the work for
+				// immediate effects.
+				if (
+					effect.deps === null &&
+					effect.first === null &&
+					effect.nodes === null &&
+					effect.teardown === null &&
+					effect.ac === null
+				) {
+					// remove this effect from the graph
+					unlink_effect(effect);
+				}
+
+				// If update_effect() has a flushSync() in it, we may have flushed another flush_queued_effects(),
+				// which already handled this logic and did set eager_block_effects to null.
+				if (eager_block_effects?.size > 0) {
+					old_values.clear();
+
+					for (const e of eager_block_effects) {
+						// Skip eager effects that have already been unmounted
+						if ((e.f & (DESTROYED | INERT)) !== 0) continue;
+
+						// Run effects in order from ancestor to descendant, else we could run into nullpointers
+						/** @type {Effect[]} */
+						const ordered_effects = [e];
+						let ancestor = e.parent;
+						while (ancestor !== null) {
+							if (eager_block_effects.has(ancestor)) {
+								eager_block_effects.delete(ancestor);
+								ordered_effects.push(ancestor);
+							}
+							ancestor = ancestor.parent;
+						}
+
+						for (let j = ordered_effects.length - 1; j >= 0; j--) {
+							const e = ordered_effects[j];
+							// Skip eager effects that have already been unmounted
+							if ((e.f & (DESTROYED | INERT)) !== 0) continue;
+							update_effect(e);
+						}
+					}
+
+					eager_block_effects.clear();
+				}
+			}
+		}
+
+		eager_block_effects = null;
+	}
+
+	/**
+	 * This is similar to `mark_reactions`, but it only marks async/block effects
+	 * depending on `value` and at least one of the other `sources`, so that
+	 * these effects can re-run after another batch has been committed
+	 * @param {Value} value
+	 * @param {Source[]} sources
+	 * @param {Set<Value>} marked
+	 * @param {Map<Reaction, boolean>} checked
+	 */
+	function mark_effects(value, sources, marked, checked) {
+		if (marked.has(value)) return;
+		marked.add(value);
+
+		if (value.reactions !== null) {
+			for (const reaction of value.reactions) {
+				const flags = reaction.f;
+
+				if ((flags & DERIVED) !== 0) {
+					mark_effects(/** @type {Derived} */ (reaction), sources, marked, checked);
+				} else if (
+					(flags & (ASYNC | BLOCK_EFFECT)) !== 0 &&
+					(flags & DIRTY) === 0 &&
+					depends_on(reaction, sources, checked)
+				) {
+					set_signal_status(reaction, DIRTY);
+					schedule_effect(/** @type {Effect} */ (reaction));
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param {Reaction} reaction
+	 * @param {Source[]} sources
+	 * @param {Map<Reaction, boolean>} checked
+	 */
+	function depends_on(reaction, sources, checked) {
+		const depends = checked.get(reaction);
+		if (depends !== undefined) return depends;
+
+		if (reaction.deps !== null) {
+			for (const dep of reaction.deps) {
+				if (includes.call(sources, dep)) {
+					return true;
+				}
+
+				if ((dep.f & DERIVED) !== 0 && depends_on(/** @type {Derived} */ (dep), sources, checked)) {
+					checked.set(/** @type {Derived} */ (dep), true);
+					return true;
+				}
+			}
+		}
+
+		checked.set(reaction, false);
+
+		return false;
+	}
+
+	/**
+	 * @param {Effect} signal
+	 * @returns {void}
+	 */
+	function schedule_effect(signal) {
+		var effect = (last_scheduled_effect = signal);
+
+		var boundary = effect.b;
+
+		// defer render effects inside a pending boundary
+		// TODO the `REACTION_RAN` check is only necessary because of legacy `$:` effects AFAICT — we can remove later
+		if (
+			boundary?.is_pending &&
+			(signal.f & (EFFECT | RENDER_EFFECT | MANAGED_EFFECT)) !== 0 &&
+			(signal.f & REACTION_RAN) === 0
+		) {
+			boundary.defer_effect(signal);
+			return;
+		}
+
+		while (effect.parent !== null) {
+			effect = effect.parent;
+			var flags = effect.f;
+
+			// if the effect is being scheduled because a parent (each/await/etc) block
+			// updated an internal source, or because a branch is being unskipped,
+			// bail out or we'll cause a second flush
+			if (collected_effects !== null && effect === active_effect) {
+				// in sync mode, render effects run during traversal. in an extreme edge case
+				// they can be made dirty after they have already been visited, in which
+				// case we shouldn't bail out
+				if ((signal.f & RENDER_EFFECT) === 0) {
+					return;
+				}
+			}
+
+			if ((flags & (ROOT_EFFECT | BRANCH_EFFECT)) !== 0) {
+				if ((flags & CLEAN) === 0) {
+					// branch is already dirty, bail
+					return;
+				}
+
+				effect.f ^= CLEAN;
+			}
+		}
+
+		queued_root_effects.push(effect);
+	}
+
+	/**
+	 * Mark all the effects inside a skipped branch CLEAN, so that
+	 * they can be correctly rescheduled later. Tracks dirty and maybe_dirty
+	 * effects so they can be rescheduled if the branch survives.
+	 * @param {Effect} effect
+	 * @param {{ d: Effect[], m: Effect[] }} tracked
+	 */
+	function reset_branch(effect, tracked) {
+		// clean branch = nothing dirty inside, no need to traverse further
+		if ((effect.f & BRANCH_EFFECT) !== 0 && (effect.f & CLEAN) !== 0) {
+			return;
+		}
+
+		if ((effect.f & DIRTY) !== 0) {
+			tracked.d.push(effect);
+		} else if ((effect.f & MAYBE_DIRTY) !== 0) {
+			tracked.m.push(effect);
+		}
+
+		set_signal_status(effect, CLEAN);
+
+		var e = effect.first;
+		while (e !== null) {
+			reset_branch(e, tracked);
+			e = e.next;
+		}
+	}
+
+	/**
+	 * Returns a `subscribe` function that integrates external event-based systems with Svelte's reactivity.
+	 * It's particularly useful for integrating with web APIs like `MediaQuery`, `IntersectionObserver`, or `WebSocket`.
+	 *
+	 * If `subscribe` is called inside an effect (including indirectly, for example inside a getter),
+	 * the `start` callback will be called with an `update` function. Whenever `update` is called, the effect re-runs.
+	 *
+	 * If `start` returns a cleanup function, it will be called when the effect is destroyed.
+	 *
+	 * If `subscribe` is called in multiple effects, `start` will only be called once as long as the effects
+	 * are active, and the returned teardown function will only be called when all effects are destroyed.
+	 *
+	 * It's best understood with an example. Here's an implementation of [`MediaQuery`](https://svelte.dev/docs/svelte/svelte-reactivity#MediaQuery):
+	 *
+	 * ```js
+	 * import { createSubscriber } from 'svelte/reactivity';
+	 * import { on } from 'svelte/events';
+	 *
+	 * export class MediaQuery {
+	 * 	#query;
+	 * 	#subscribe;
+	 *
+	 * 	constructor(query) {
+	 * 		this.#query = window.matchMedia(`(${query})`);
+	 *
+	 * 		this.#subscribe = createSubscriber((update) => {
+	 * 			// when the `change` event occurs, re-run any effects that read `this.current`
+	 * 			const off = on(this.#query, 'change', update);
+	 *
+	 * 			// stop listening when all the effects are destroyed
+	 * 			return () => off();
+	 * 		});
+	 * 	}
+	 *
+	 * 	get current() {
+	 * 		// This makes the getter reactive, if read in an effect
+	 * 		this.#subscribe();
+	 *
+	 * 		// Return the current state of the query, whether or not we're in an effect
+	 * 		return this.#query.matches;
+	 * 	}
+	 * }
+	 * ```
+	 * @param {(update: () => void) => (() => void) | void} start
+	 * @since 5.7.0
+	 */
+	function createSubscriber(start) {
+		let subscribers = 0;
+		let version = source(0);
+		/** @type {(() => void) | void} */
+		let stop;
+
+		{
+			tag(version, 'createSubscriber version');
+		}
+
+		return () => {
+			if (effect_tracking()) {
+				get$1(version);
+
+				render_effect(() => {
+					if (subscribers === 0) {
+						stop = untrack(() => start(() => increment(version)));
+					}
+
+					subscribers += 1;
+
+					return () => {
+						queue_micro_task(() => {
+							// Only count down after a microtask, else we would reach 0 before our own render effect reruns,
+							// but reach 1 again when the tick callback of the prior teardown runs. That would mean we
+							// re-subcribe unnecessarily and create a memory leak because the old subscription is never cleaned up.
+							subscribers -= 1;
+
+							if (subscribers === 0) {
+								stop?.();
+								stop = undefined;
+								// Increment the version to ensure any dependent deriveds are marked dirty when the subscription is picked up again later.
+								// If we didn't do this then the comparison of write versions would determine that the derived has a later version than
+								// the subscriber, and it would not be re-run.
+								increment(version);
+							}
+						});
+					};
+				});
+			}
+		};
+	}
+
+	/** @import { Effect, Source, TemplateNode, } from '#client' */
+
+	/**
+	 * @typedef {{
+	 * 	 onerror?: (error: unknown, reset: () => void) => void;
+	 *   failed?: (anchor: Node, error: () => unknown, reset: () => () => void) => void;
+	 *   pending?: (anchor: Node) => void;
+	 * }} BoundaryProps
+	 */
+
+	var flags = EFFECT_TRANSPARENT | EFFECT_PRESERVED;
+
+	/**
+	 * @param {TemplateNode} node
+	 * @param {BoundaryProps} props
+	 * @param {((anchor: Node) => void)} children
+	 * @param {((error: unknown) => unknown) | undefined} [transform_error]
+	 * @returns {void}
+	 */
+	function boundary(node, props, children, transform_error) {
+		new Boundary(node, props, children, transform_error);
+	}
+
+	class Boundary {
+		/** @type {Boundary | null} */
+		parent;
+
+		is_pending = false;
+
+		/**
+		 * API-level transformError transform function. Transforms errors before they reach the `failed` snippet.
+		 * Inherited from parent boundary, or defaults to identity.
+		 * @type {(error: unknown) => unknown}
+		 */
+		transform_error;
+
+		/** @type {TemplateNode} */
+		#anchor;
+
+		/** @type {TemplateNode | null} */
+		#hydrate_open = null;
+
+		/** @type {BoundaryProps} */
+		#props;
+
+		/** @type {((anchor: Node) => void)} */
+		#children;
+
+		/** @type {Effect} */
+		#effect;
+
+		/** @type {Effect | null} */
+		#main_effect = null;
+
+		/** @type {Effect | null} */
+		#pending_effect = null;
+
+		/** @type {Effect | null} */
+		#failed_effect = null;
+
+		/** @type {DocumentFragment | null} */
+		#offscreen_fragment = null;
+
+		#local_pending_count = 0;
+		#pending_count = 0;
+		#pending_count_update_queued = false;
+
+		/** @type {Set<Effect>} */
+		#dirty_effects = new Set();
+
+		/** @type {Set<Effect>} */
+		#maybe_dirty_effects = new Set();
+
+		/**
+		 * A source containing the number of pending async deriveds/expressions.
+		 * Only created if `$effect.pending()` is used inside the boundary,
+		 * otherwise updating the source results in needless `Batch.ensure()`
+		 * calls followed by no-op flushes
+		 * @type {Source<number> | null}
+		 */
+		#effect_pending = null;
+
+		#effect_pending_subscriber = createSubscriber(() => {
+			this.#effect_pending = source(this.#local_pending_count);
+
+			{
+				tag(this.#effect_pending, '$effect.pending()');
+			}
+
+			return () => {
+				this.#effect_pending = null;
+			};
+		});
+
+		/**
+		 * @param {TemplateNode} node
+		 * @param {BoundaryProps} props
+		 * @param {((anchor: Node) => void)} children
+		 * @param {((error: unknown) => unknown) | undefined} [transform_error]
+		 */
+		constructor(node, props, children, transform_error) {
+			this.#anchor = node;
+			this.#props = props;
+
+			this.#children = (anchor) => {
+				var effect = /** @type {Effect} */ (active_effect);
+
+				effect.b = this;
+				effect.f |= BOUNDARY_EFFECT;
+
+				children(anchor);
+			};
+
+			this.parent = /** @type {Effect} */ (active_effect).b;
+
+			// Inherit transform_error from parent boundary, or use the provided one, or default to identity
+			this.transform_error = transform_error ?? this.parent?.transform_error ?? ((e) => e);
+
+			this.#effect = block(() => {
+				{
+					this.#render();
+				}
+			}, flags);
+		}
+
+		#hydrate_resolved_content() {
+			try {
+				this.#main_effect = branch(() => this.#children(this.#anchor));
+			} catch (error) {
+				this.error(error);
+			}
+		}
+
+		/**
+		 * @param {unknown} error The deserialized error from the server's hydration comment
+		 */
+		#hydrate_failed_content(error) {
+			const failed = this.#props.failed;
+			if (!failed) return;
+
+			this.#failed_effect = branch(() => {
+				failed(
+					this.#anchor,
+					() => error,
+					() => () => {}
+				);
+			});
+		}
+
+		#hydrate_pending_content() {
+			const pending = this.#props.pending;
+			if (!pending) return;
+
+			this.is_pending = true;
+			this.#pending_effect = branch(() => pending(this.#anchor));
+
+			queue_micro_task(() => {
+				var fragment = (this.#offscreen_fragment = document.createDocumentFragment());
+				var anchor = create_text();
+
+				fragment.append(anchor);
+
+				this.#main_effect = this.#run(() => {
+					Batch.ensure();
+					return branch(() => this.#children(anchor));
+				});
+
+				if (this.#pending_count === 0) {
+					this.#anchor.before(fragment);
+					this.#offscreen_fragment = null;
+
+					pause_effect(/** @type {Effect} */ (this.#pending_effect), () => {
+						this.#pending_effect = null;
+					});
+
+					this.#resolve();
+				}
+			});
+		}
+
+		#render() {
+			try {
+				this.is_pending = this.has_pending_snippet();
+				this.#pending_count = 0;
+				this.#local_pending_count = 0;
+
+				this.#main_effect = branch(() => {
+					this.#children(this.#anchor);
+				});
+
+				if (this.#pending_count > 0) {
+					var fragment = (this.#offscreen_fragment = document.createDocumentFragment());
+					move_effect(this.#main_effect, fragment);
+
+					const pending = /** @type {(anchor: Node) => void} */ (this.#props.pending);
+					this.#pending_effect = branch(() => pending(this.#anchor));
+				} else {
+					this.#resolve();
+				}
+			} catch (error) {
+				this.error(error);
+			}
+		}
+
+		#resolve() {
+			this.is_pending = false;
+
+			// any effects that were previously deferred should be rescheduled —
+			// after the next traversal (which will happen immediately, due to the
+			// same update that brought us here) the effects will be flushed
+			for (const e of this.#dirty_effects) {
+				set_signal_status(e, DIRTY);
+				schedule_effect(e);
+			}
+
+			for (const e of this.#maybe_dirty_effects) {
+				set_signal_status(e, MAYBE_DIRTY);
+				schedule_effect(e);
+			}
+
+			this.#dirty_effects.clear();
+			this.#maybe_dirty_effects.clear();
+		}
+
+		/**
+		 * Defer an effect inside a pending boundary until the boundary resolves
+		 * @param {Effect} effect
+		 */
+		defer_effect(effect) {
+			defer_effect(effect, this.#dirty_effects, this.#maybe_dirty_effects);
+		}
+
+		/**
+		 * Returns `false` if the effect exists inside a boundary whose pending snippet is shown
+		 * @returns {boolean}
+		 */
+		is_rendered() {
+			return !this.is_pending && (!this.parent || this.parent.is_rendered());
+		}
+
+		has_pending_snippet() {
+			return !!this.#props.pending;
+		}
+
+		/**
+		 * @template T
+		 * @param {() => T} fn
+		 */
+		#run(fn) {
+			var previous_effect = active_effect;
+			var previous_reaction = active_reaction;
+			var previous_ctx = component_context;
+
+			set_active_effect(this.#effect);
+			set_active_reaction(this.#effect);
+			set_component_context(this.#effect.ctx);
+
+			try {
+				return fn();
+			} catch (e) {
+				handle_error(e);
+				return null;
+			} finally {
+				set_active_effect(previous_effect);
+				set_active_reaction(previous_reaction);
+				set_component_context(previous_ctx);
+			}
+		}
+
+		/**
+		 * Updates the pending count associated with the currently visible pending snippet,
+		 * if any, such that we can replace the snippet with content once work is done
+		 * @param {1 | -1} d
+		 */
+		#update_pending_count(d) {
+			if (!this.has_pending_snippet()) {
+				if (this.parent) {
+					this.parent.#update_pending_count(d);
+				}
+
+				// if there's no parent, we're in a scope with no pending snippet
+				return;
+			}
+
+			this.#pending_count += d;
+
+			if (this.#pending_count === 0) {
+				this.#resolve();
+
+				if (this.#pending_effect) {
+					pause_effect(this.#pending_effect, () => {
+						this.#pending_effect = null;
+					});
+				}
+
+				if (this.#offscreen_fragment) {
+					this.#anchor.before(this.#offscreen_fragment);
+					this.#offscreen_fragment = null;
+				}
+			}
+		}
+
+		/**
+		 * Update the source that powers `$effect.pending()` inside this boundary,
+		 * and controls when the current `pending` snippet (if any) is removed.
+		 * Do not call from inside the class
+		 * @param {1 | -1} d
+		 */
+		update_pending_count(d) {
+			this.#update_pending_count(d);
+
+			this.#local_pending_count += d;
+
+			if (!this.#effect_pending || this.#pending_count_update_queued) return;
+			this.#pending_count_update_queued = true;
+
+			queue_micro_task(() => {
+				this.#pending_count_update_queued = false;
+				if (this.#effect_pending) {
+					internal_set(this.#effect_pending, this.#local_pending_count);
+				}
+			});
+		}
+
+		get_effect_pending() {
+			this.#effect_pending_subscriber();
+			return get$1(/** @type {Source<number>} */ (this.#effect_pending));
+		}
+
+		/** @param {unknown} error */
+		error(error) {
+			var onerror = this.#props.onerror;
+			let failed = this.#props.failed;
+
+			// If we have nothing to capture the error, or if we hit an error while
+			// rendering the fallback, re-throw for another boundary to handle
+			if (!onerror && !failed) {
+				throw error;
+			}
+
+			if (this.#main_effect) {
+				destroy_effect(this.#main_effect);
+				this.#main_effect = null;
+			}
+
+			if (this.#pending_effect) {
+				destroy_effect(this.#pending_effect);
+				this.#pending_effect = null;
+			}
+
+			if (this.#failed_effect) {
+				destroy_effect(this.#failed_effect);
+				this.#failed_effect = null;
+			}
+
+			var did_reset = false;
+			var calling_on_error = false;
+
+			const reset = () => {
+				if (did_reset) {
+					svelte_boundary_reset_noop();
+					return;
+				}
+
+				did_reset = true;
+
+				if (calling_on_error) {
+					svelte_boundary_reset_onerror();
+				}
+
+				if (this.#failed_effect !== null) {
+					pause_effect(this.#failed_effect, () => {
+						this.#failed_effect = null;
+					});
+				}
+
+				this.#run(() => {
+					// If the failure happened while flushing effects, current_batch can be null
+					Batch.ensure();
+
+					this.#render();
+				});
+			};
+
+			/** @param {unknown} transformed_error */
+			const handle_error_result = (transformed_error) => {
+				try {
+					calling_on_error = true;
+					onerror?.(transformed_error, reset);
+					calling_on_error = false;
+				} catch (error) {
+					invoke_error_boundary(error, this.#effect && this.#effect.parent);
+				}
+
+				if (failed) {
+					this.#failed_effect = this.#run(() => {
+						Batch.ensure();
+
+						try {
+							return branch(() => {
+								// errors in `failed` snippets cause the boundary to error again
+								// TODO Svelte 6: revisit this decision, most likely better to go to parent boundary instead
+								var effect = /** @type {Effect} */ (active_effect);
+
+								effect.b = this;
+								effect.f |= BOUNDARY_EFFECT;
+
+								failed(
+									this.#anchor,
+									() => transformed_error,
+									() => reset
+								);
+							});
+						} catch (error) {
+							invoke_error_boundary(error, /** @type {Effect} */ (this.#effect.parent));
+							return null;
+						}
+					});
+				}
+			};
+
+			queue_micro_task(() => {
+				// Run the error through the API-level transformError transform (e.g. SvelteKit's handleError)
+				/** @type {unknown} */
+				var result;
+				try {
+					result = this.transform_error(error);
+				} catch (e) {
+					invoke_error_boundary(e, this.#effect && this.#effect.parent);
+					return;
+				}
+
+				if (
+					result !== null &&
+					typeof result === 'object' &&
+					typeof (/** @type {any} */ (result).then) === 'function'
+				) {
+					// transformError returned a Promise — wait for it
+					/** @type {any} */ (result).then(
+						handle_error_result,
+						/** @param {unknown} e */
+						(e) => invoke_error_boundary(e, this.#effect && this.#effect.parent)
+					);
+				} else {
+					// Synchronous result — handle immediately
+					handle_error_result(result);
+				}
+			});
+		}
+	}
+
+	/** @import { Blocker, Effect, Value } from '#client' */
+
+	/**
+	 * @param {Blocker[]} blockers
+	 * @param {Array<() => any>} sync
+	 * @param {Array<() => Promise<any>>} async
+	 * @param {(values: Value[]) => any} fn
+	 */
+	function flatten(blockers, sync, async, fn) {
+		const d = is_runes() ? derived : derived_safe_equal;
+
+		// Filter out already-settled blockers - no need to wait for them
+		var pending = blockers.filter((b) => !b.settled);
+
+		if (async.length === 0 && pending.length === 0) {
+			fn(sync.map(d));
+			return;
+		}
+		var parent = /** @type {Effect} */ (active_effect);
+
+		var restore = capture();
+		var blocker_promise =
+			pending.length === 1
+				? pending[0].promise
+				: pending.length > 1
+					? Promise.all(pending.map((b) => b.promise))
+					: null;
+
+		/** @param {Value[]} values */
+		function finish(values) {
+			restore();
+
+			try {
+				fn(values);
+			} catch (error) {
+				if ((parent.f & DESTROYED) === 0) {
+					invoke_error_boundary(error, parent);
+				}
+			}
+
+			unset_context();
+		}
+
+		// Fast path: blockers but no async expressions
+		if (async.length === 0) {
+			/** @type {Promise<any>} */ (blocker_promise).then(() => finish(sync.map(d)));
+			return;
+		}
+
+		// Full path: has async expressions
+		function run() {
+			restore();
+			Promise.all(async.map((expression) => async_derived(expression)))
+				.then((result) => finish([...sync.map(d), ...result]))
+				.catch((error) => invoke_error_boundary(error, parent));
+		}
+
+		if (blocker_promise) {
+			blocker_promise.then(run);
+		} else {
+			run();
+		}
+	}
+
+	/**
+	 * Captures the current effect context so that we can restore it after
+	 * some asynchronous work has happened (so that e.g. `await a + b`
+	 * causes `b` to be registered as a dependency).
+	 */
+	function capture() {
+		var previous_effect = active_effect;
+		var previous_reaction = active_reaction;
+		var previous_component_context = component_context;
+		var previous_batch = current_batch;
+
+		{
+			var previous_dev_stack = dev_stack;
+		}
+
+		return function restore(activate_batch = true) {
+			set_active_effect(previous_effect);
+			set_active_reaction(previous_reaction);
+			set_component_context(previous_component_context);
+			if (activate_batch) previous_batch?.activate();
+
+			{
+				set_dev_stack(previous_dev_stack);
+			}
+		};
+	}
+
+	/**
+	 * Reset `current_async_effect` after the `promise` resolves, so
+	 * that we can emit `await_reactivity_loss` warnings
+	 * @template T
+	 * @param {Promise<T>} promise
+	 * @returns {Promise<() => T>}
+	 */
+	async function track_reactivity_loss(promise) {
+		var value = await promise;
+
+		return () => {
+			return value;
+		};
+	}
+
+	function unset_context(deactivate_batch = true) {
+		set_active_effect(null);
+		set_active_reaction(null);
+		set_component_context(null);
+		if (deactivate_batch) current_batch?.deactivate();
+
+		{
+			set_dev_stack(null);
+		}
+	}
+
+	function increment_pending() {
+		var boundary = /** @type {Boundary} */ (/** @type {Effect} */ (active_effect).b);
+		var batch = /** @type {Batch} */ (current_batch);
+		var blocking = boundary.is_rendered();
+
+		boundary.update_pending_count(1);
+		batch.increment(blocking);
+
+		return () => {
+			boundary.update_pending_count(-1);
+			batch.decrement(blocking);
+		};
+	}
+
+	/** @import { Derived, Effect, Source } from '#client' */
+	/** @import { Batch } from './batch.js'; */
+
+	const recent_async_deriveds = new Set();
+
+	/**
+	 * @template V
+	 * @param {() => V} fn
+	 * @returns {Derived<V>}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function derived(fn) {
+		var flags = DERIVED | DIRTY;
+		var parent_derived =
+			active_reaction !== null && (active_reaction.f & DERIVED) !== 0
+				? /** @type {Derived} */ (active_reaction)
+				: null;
+
+		if (active_effect !== null) {
+			// Since deriveds are evaluated lazily, any effects created inside them are
+			// created too late to ensure that the parent effect is added to the tree
+			active_effect.f |= EFFECT_PRESERVED;
+		}
+
+		/** @type {Derived<V>} */
+		const signal = {
+			ctx: component_context,
+			deps: null,
+			effects: null,
+			equals,
+			f: flags,
+			fn,
+			reactions: null,
+			rv: 0,
+			v: /** @type {V} */ (UNINITIALIZED),
+			wv: 0,
+			parent: parent_derived ?? active_effect,
+			ac: null
+		};
+
+		return signal;
+	}
+
+	/**
+	 * @template V
+	 * @param {() => V | Promise<V>} fn
+	 * @param {string} [label]
+	 * @param {string} [location] If provided, print a warning if the value is not read immediately after update
+	 * @returns {Promise<Source<V>>}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function async_derived(fn, label, location) {
+		let parent = /** @type {Effect | null} */ (active_effect);
+
+		if (parent === null) {
+			async_derived_orphan();
+		}
+
+		var promise = /** @type {Promise<V>} */ (/** @type {unknown} */ (undefined));
+		var signal = source(/** @type {V} */ (UNINITIALIZED));
+
+		signal.label = label;
+
+		// only suspend in async deriveds created on initialisation
+		var should_suspend = !active_reaction;
+
+		/** @type {Map<Batch, ReturnType<typeof deferred<V>>>} */
+		var deferreds = new Map();
+
+		async_effect(() => {
+
+			/** @type {ReturnType<typeof deferred<V>>} */
+			var d = deferred();
+			promise = d.promise;
+
+			try {
+				// If this code is changed at some point, make sure to still access the then property
+				// of fn() to read any signals it might access, so that we track them as dependencies.
+				// We call `unset_context` to undo any `save` calls that happen inside `fn()`
+				Promise.resolve(fn()).then(d.resolve, d.reject).finally(unset_context);
+			} catch (error) {
+				d.reject(error);
+				unset_context();
+			}
+
+			var batch = /** @type {Batch} */ (current_batch);
+
+			if (should_suspend) {
+				var decrement_pending = increment_pending();
+
+				deferreds.get(batch)?.reject(STALE_REACTION);
+				deferreds.delete(batch); // delete to ensure correct order in Map iteration below
+				deferreds.set(batch, d);
+			}
+
+			/**
+			 * @param {any} value
+			 * @param {unknown} error
+			 */
+			const handler = (value, error = undefined) => {
+
+				batch.activate();
+
+				if (error) {
+					if (error !== STALE_REACTION) {
+						signal.f |= ERROR_VALUE;
+
+						// @ts-expect-error the error is the wrong type, but we don't care
+						internal_set(signal, error);
+					}
+				} else {
+					if ((signal.f & ERROR_VALUE) !== 0) {
+						signal.f ^= ERROR_VALUE;
+					}
+
+					internal_set(signal, value);
+
+					// All prior async derived runs are now stale
+					for (const [b, d] of deferreds) {
+						deferreds.delete(b);
+						if (b === batch) break;
+						d.reject(STALE_REACTION);
+					}
+				}
+
+				if (decrement_pending) {
+					decrement_pending();
+				}
+			};
+
+			d.promise.then(handler, (e) => handler(null, e || 'unknown'));
+		});
+
+		teardown(() => {
+			for (const d of deferreds.values()) {
+				d.reject(STALE_REACTION);
+			}
+		});
+
+		{
+			// add a flag that lets this be printed as a derived
+			// when using `$inspect.trace()`
+			signal.f |= ASYNC;
+		}
+
+		return new Promise((fulfil) => {
+			/** @param {Promise<V>} p */
+			function next(p) {
+				function go() {
+					if (p === promise) {
+						fulfil(signal);
+					} else {
+						// if the effect re-runs before the initial promise
+						// resolves, delay resolution until we have a value
+						next(promise);
+					}
+				}
+
+				p.then(go, go);
+			}
+
+			next(promise);
+		});
+	}
+
+	/**
+	 * @template V
+	 * @param {() => V} fn
+	 * @returns {Derived<V>}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function user_derived(fn) {
+		const d = derived(fn);
+
+		push_reaction_value(d);
+
+		return d;
+	}
+
+	/**
+	 * @template V
+	 * @param {() => V} fn
+	 * @returns {Derived<V>}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function derived_safe_equal(fn) {
+		const signal = derived(fn);
+		signal.equals = safe_equals;
+		return signal;
+	}
+
+	/**
+	 * @param {Derived} derived
+	 * @returns {void}
+	 */
+	function destroy_derived_effects(derived) {
+		var effects = derived.effects;
+
+		if (effects !== null) {
+			derived.effects = null;
+
+			for (var i = 0; i < effects.length; i += 1) {
+				destroy_effect(/** @type {Effect} */ (effects[i]));
+			}
+		}
+	}
+
+	/**
+	 * The currently updating deriveds, used to detect infinite recursion
+	 * in dev mode and provide a nicer error than 'too much recursion'
+	 * @type {Derived[]}
+	 */
+	let stack = [];
+
+	/**
+	 * @param {Derived} derived
+	 * @returns {Effect | null}
+	 */
+	function get_derived_parent_effect(derived) {
+		var parent = derived.parent;
+		while (parent !== null) {
+			if ((parent.f & DERIVED) === 0) {
+				// The original parent effect might've been destroyed but the derived
+				// is used elsewhere now - do not return the destroyed effect in that case
+				return (parent.f & DESTROYED) === 0 ? /** @type {Effect} */ (parent) : null;
+			}
+			parent = parent.parent;
+		}
+		return null;
+	}
+
+	/**
+	 * @template T
+	 * @param {Derived} derived
+	 * @returns {T}
+	 */
+	function execute_derived(derived) {
+		var value;
+		var prev_active_effect = active_effect;
+
+		set_active_effect(get_derived_parent_effect(derived));
+
+		{
+			let prev_eager_effects = eager_effects;
+			set_eager_effects(new Set());
+			try {
+				if (includes.call(stack, derived)) {
+					derived_references_self();
+				}
+
+				stack.push(derived);
+
+				derived.f &= ~WAS_MARKED;
+				destroy_derived_effects(derived);
+				value = update_reaction(derived);
+			} finally {
+				set_active_effect(prev_active_effect);
+				set_eager_effects(prev_eager_effects);
+				stack.pop();
+			}
+		}
+
+		return value;
+	}
+
+	/**
+	 * @param {Derived} derived
+	 * @returns {void}
+	 */
+	function update_derived(derived) {
+		var value = execute_derived(derived);
+
+		if (!derived.equals(value)) {
+			derived.wv = increment_write_version();
+
+			// in a fork, we don't update the underlying value, just `batch_values`.
+			// the underlying value will be updated when the fork is committed.
+			// otherwise, the next time we get here after a 'real world' state
+			// change, `derived.equals` may incorrectly return `true`
+			if (!current_batch?.is_fork || derived.deps === null) {
+				derived.v = value;
+
+				// deriveds without dependencies should never be recomputed
+				if (derived.deps === null) {
+					set_signal_status(derived, CLEAN);
+					return;
+				}
+			}
+		}
+
+		// don't mark derived clean if we're reading it inside a
+		// cleanup function, or it will cache a stale value
+		if (is_destroying_effect) {
+			return;
+		}
+
+		// During time traveling we don't want to reset the status so that
+		// traversal of the graph in the other batches still happens
+		if (batch_values !== null) {
+			// only cache the value if we're in a tracking context, otherwise we won't
+			// clear the cache in `mark_reactions` when dependencies are updated
+			if (effect_tracking() || current_batch?.is_fork) {
+				batch_values.set(derived, value);
+			}
+		} else {
+			update_derived_status(derived);
+		}
+	}
+
+	/**
+	 * @param {Derived} derived
+	 */
+	function freeze_derived_effects(derived) {
+		if (derived.effects === null) return;
+
+		for (const e of derived.effects) {
+			// if the effect has a teardown function or abort signal, call it
+			if (e.teardown || e.ac) {
+				e.teardown?.();
+				e.ac?.abort(STALE_REACTION);
+
+				// make it a noop so it doesn't get called again if the derived
+				// is unfrozen. we don't set it to `null`, because the existence
+				// of a teardown function is what determines whether the
+				// effect runs again during unfreezing
+				e.teardown = noop$1;
+				e.ac = null;
+
+				remove_reactions(e, 0);
+				destroy_effect_children(e);
+			}
+		}
+	}
+
+	/**
+	 * @param {Derived} derived
+	 */
+	function unfreeze_derived_effects(derived) {
+		if (derived.effects === null) return;
+
+		for (const e of derived.effects) {
+			// if the effect was previously frozen — indicated by the presence
+			// of a teardown function — unfreeze it
+			if (e.teardown) {
+				update_effect(e);
+			}
+		}
+	}
+
+	/** @import { Derived, Effect, Source, Value } from '#client' */
+
+	/** @type {Set<any>} */
+	let eager_effects = new Set();
+
+	/** @type {Map<Source, any>} */
+	const old_values = new Map();
+
+	/**
+	 * @param {Set<any>} v
+	 */
+	function set_eager_effects(v) {
+		eager_effects = v;
+	}
+
+	let eager_effects_deferred = false;
+
+	function set_eager_effects_deferred() {
+		eager_effects_deferred = true;
+	}
+
+	/**
+	 * @template V
+	 * @param {V} v
+	 * @param {Error | null} [stack]
+	 * @returns {Source<V>}
+	 */
+	// TODO rename this to `state` throughout the codebase
+	function source(v, stack) {
+		/** @type {Value} */
+		var signal = {
+			f: 0, // TODO ideally we could skip this altogether, but it causes type errors
+			v,
+			reactions: null,
+			equals,
+			rv: 0,
+			wv: 0
+		};
+
+		return signal;
+	}
+
+	/**
+	 * @template V
+	 * @param {V} v
+	 * @param {Error | null} [stack]
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function state(v, stack) {
+		const s = source(v);
+
+		push_reaction_value(s);
+
+		return s;
+	}
+
+	/**
+	 * @template V
+	 * @param {V} initial_value
+	 * @param {boolean} [immutable]
+	 * @returns {Source<V>}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function mutable_source(initial_value, immutable = false, trackable = true) {
+		const s = source(initial_value);
+		if (!immutable) {
+			s.equals = safe_equals;
+		}
+
+		// bind the signal to the component context, in case we need to
+		// track updates to trigger beforeUpdate/afterUpdate callbacks
+		if (legacy_mode_flag && trackable && component_context !== null && component_context.l !== null) {
+			(component_context.l.s ??= []).push(s);
+		}
+
+		return s;
+	}
+
+	/**
+	 * @template V
+	 * @param {Source<V>} source
+	 * @param {V} value
+	 * @param {boolean} [should_proxy]
+	 * @returns {V}
+	 */
+	function set(source, value, should_proxy = false) {
+		if (
+			active_reaction !== null &&
+			// since we are untracking the function inside `$inspect.with` we need to add this check
+			// to ensure we error if state is set inside an inspect effect
+			(!untracking || (active_reaction.f & EAGER_EFFECT) !== 0) &&
+			is_runes() &&
+			(active_reaction.f & (DERIVED | BLOCK_EFFECT | ASYNC | EAGER_EFFECT)) !== 0 &&
+			(current_sources === null || !includes.call(current_sources, source))
+		) {
+			state_unsafe_mutation();
+		}
+
+		let new_value = should_proxy ? proxy(value) : value;
+
+		{
+			tag_proxy(new_value, /** @type {string} */ (source.label));
+		}
+
+		return internal_set(source, new_value);
+	}
+
+	/**
+	 * @template V
+	 * @param {Source<V>} source
+	 * @param {V} value
+	 * @returns {V}
+	 */
+	function internal_set(source, value) {
+		if (!source.equals(value)) {
+			var old_value = source.v;
+
+			if (is_destroying_effect) {
+				old_values.set(source, value);
+			} else {
+				old_values.set(source, old_value);
+			}
+
+			source.v = value;
+
+			var batch = Batch.ensure();
+			batch.capture(source, old_value);
+
+			{
+				if (active_effect !== null) {
+					source.updated ??= new Map();
+
+					// For performance reasons, when not using $inspect.trace, we only start collecting stack traces
+					// after the same source has been updated more than 5 times in the same flush cycle.
+					const count = (source.updated.get('')?.count ?? 0) + 1;
+					source.updated.set('', { error: /** @type {any} */ (null), count });
+
+					if (count > 5) {
+						const error = get_error('updated at');
+
+						if (error !== null) {
+							let entry = source.updated.get(error.stack);
+
+							if (!entry) {
+								entry = { error, count: 0 };
+								source.updated.set(error.stack, entry);
+							}
+
+							entry.count++;
+						}
+					}
+				}
+
+				if (active_effect !== null) {
+					source.set_during_effect = true;
+				}
+			}
+
+			if ((source.f & DERIVED) !== 0) {
+				const derived = /** @type {Derived} */ (source);
+
+				// if we are assigning to a dirty derived we set it to clean/maybe dirty but we also eagerly execute it to track the dependencies
+				if ((source.f & DIRTY) !== 0) {
+					execute_derived(derived);
+				}
+
+				update_derived_status(derived);
+			}
+
+			source.wv = increment_write_version();
+
+			// For debugging, in case you want to know which reactions are being scheduled:
+			// log_reactions(source);
+			mark_reactions(source, DIRTY);
+
+			// It's possible that the current reaction might not have up-to-date dependencies
+			// whilst it's actively running. So in the case of ensuring it registers the reaction
+			// properly for itself, we need to ensure the current effect actually gets
+			// scheduled. i.e: `$effect(() => x++)`
+			if (
+				is_runes() &&
+				active_effect !== null &&
+				(active_effect.f & CLEAN) !== 0 &&
+				(active_effect.f & (BRANCH_EFFECT | ROOT_EFFECT)) === 0
+			) {
+				if (untracked_writes === null) {
+					set_untracked_writes([source]);
+				} else {
+					untracked_writes.push(source);
+				}
+			}
+
+			if (!batch.is_fork && eager_effects.size > 0 && !eager_effects_deferred) {
+				flush_eager_effects();
+			}
+		}
+
+		return value;
+	}
+
+	function flush_eager_effects() {
+		eager_effects_deferred = false;
+
+		for (const effect of eager_effects) {
+			// Mark clean inspect-effects as maybe dirty and then check their dirtiness
+			// instead of just updating the effects - this way we avoid overfiring.
+			if ((effect.f & CLEAN) !== 0) {
+				set_signal_status(effect, MAYBE_DIRTY);
+			}
+
+			if (is_dirty(effect)) {
+				update_effect(effect);
+			}
+		}
+
+		eager_effects.clear();
+	}
+
+	/**
+	 * Silently (without using `get`) increment a source
+	 * @param {Source<number>} source
+	 */
+	function increment(source) {
+		set(source, source.v + 1);
+	}
+
+	/**
+	 * @param {Value} signal
+	 * @param {number} status should be DIRTY or MAYBE_DIRTY
+	 * @returns {void}
+	 */
+	function mark_reactions(signal, status) {
+		var reactions = signal.reactions;
+		if (reactions === null) return;
+
+		var runes = is_runes();
+		var length = reactions.length;
+
+		for (var i = 0; i < length; i++) {
+			var reaction = reactions[i];
+			var flags = reaction.f;
+
+			// In legacy mode, skip the current effect to prevent infinite loops
+			if (!runes && reaction === active_effect) continue;
+
+			// Inspect effects need to run immediately, so that the stack trace makes sense
+			if ((flags & EAGER_EFFECT) !== 0) {
+				eager_effects.add(reaction);
+				continue;
+			}
+
+			var not_dirty = (flags & DIRTY) === 0;
+
+			// don't set a DIRTY reaction to MAYBE_DIRTY
+			if (not_dirty) {
+				set_signal_status(reaction, status);
+			}
+
+			if ((flags & DERIVED) !== 0) {
+				var derived = /** @type {Derived} */ (reaction);
+
+				batch_values?.delete(derived);
+
+				if ((flags & WAS_MARKED) === 0) {
+					// Only connected deriveds can be reliably unmarked right away
+					if (flags & CONNECTED) {
+						reaction.f |= WAS_MARKED;
+					}
+
+					mark_reactions(derived, MAYBE_DIRTY);
+				}
+			} else if (not_dirty) {
+				if ((flags & BLOCK_EFFECT) !== 0 && eager_block_effects !== null) {
+					eager_block_effects.add(/** @type {Effect} */ (reaction));
+				}
+
+				schedule_effect(/** @type {Effect} */ (reaction));
+			}
+		}
+	}
+
+	/** @import { Source } from '#client' */
+
+	// TODO move all regexes into shared module?
+	const regex_is_valid_identifier = /^[a-zA-Z_$][a-zA-Z_$0-9]*$/;
+
+	/**
+	 * @template T
+	 * @param {T} value
+	 * @returns {T}
+	 */
+	function proxy(value) {
+		// if non-proxyable, or is already a proxy, return `value`
+		if (typeof value !== 'object' || value === null || STATE_SYMBOL in value) {
+			return value;
+		}
+
+		const prototype = get_prototype_of(value);
+
+		if (prototype !== object_prototype && prototype !== array_prototype) {
+			return value;
+		}
+
+		/** @type {Map<any, Source<any>>} */
+		var sources = new Map();
+		var is_proxied_array = is_array(value);
+		var version = state(0);
+		var parent_version = update_version;
+
+		/**
+		 * Executes the proxy in the context of the reaction it was originally created in, if any
+		 * @template T
+		 * @param {() => T} fn
+		 */
+		var with_parent = (fn) => {
+			if (update_version === parent_version) {
+				return fn();
+			}
+
+			// child source is being created after the initial proxy —
+			// prevent it from being associated with the current reaction
+			var reaction = active_reaction;
+			var version = update_version;
+
+			set_active_reaction(null);
+			set_update_version(parent_version);
+
+			var result = fn();
+
+			set_active_reaction(reaction);
+			set_update_version(version);
+
+			return result;
+		};
+
+		if (is_proxied_array) {
+			// We need to create the length source eagerly to ensure that
+			// mutations to the array are properly synced with our proxy
+			sources.set('length', state(/** @type {any[]} */ (value).length));
+			{
+				value = /** @type {any} */ (inspectable_array(/** @type {any[]} */ (value)));
+			}
+		}
+
+		/** Used in dev for $inspect.trace() */
+		var path = '';
+		let updating = false;
+		/** @param {string} new_path */
+		function update_path(new_path) {
+			if (updating) return;
+			updating = true;
+			path = new_path;
+
+			tag(version, `${path} version`);
+
+			// rename all child sources and child proxies
+			for (const [prop, source] of sources) {
+				tag(source, get_label(path, prop));
+			}
+			updating = false;
+		}
+
+		return new Proxy(/** @type {any} */ (value), {
+			defineProperty(_, prop, descriptor) {
+				if (
+					!('value' in descriptor) ||
+					descriptor.configurable === false ||
+					descriptor.enumerable === false ||
+					descriptor.writable === false
+				) {
+					// we disallow non-basic descriptors, because unless they are applied to the
+					// target object — which we avoid, so that state can be forked — we will run
+					// afoul of the various invariants
+					// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy/Proxy/getOwnPropertyDescriptor#invariants
+					state_descriptors_fixed();
+				}
+				var s = sources.get(prop);
+				if (s === undefined) {
+					with_parent(() => {
+						var s = state(descriptor.value);
+						sources.set(prop, s);
+						if (typeof prop === 'string') {
+							tag(s, get_label(path, prop));
+						}
+						return s;
+					});
+				} else {
+					set(s, descriptor.value, true);
+				}
+
+				return true;
+			},
+
+			deleteProperty(target, prop) {
+				var s = sources.get(prop);
+
+				if (s === undefined) {
+					if (prop in target) {
+						const s = with_parent(() => state(UNINITIALIZED));
+						sources.set(prop, s);
+						increment(version);
+
+						{
+							tag(s, get_label(path, prop));
+						}
+					}
+				} else {
+					set(s, UNINITIALIZED);
+					increment(version);
+				}
+
+				return true;
+			},
+
+			get(target, prop, receiver) {
+				if (prop === STATE_SYMBOL) {
+					return value;
+				}
+
+				if (prop === PROXY_PATH_SYMBOL) {
+					return update_path;
+				}
+
+				var s = sources.get(prop);
+				var exists = prop in target;
+
+				// create a source, but only if it's an own property and not a prototype property
+				if (s === undefined && (!exists || get_descriptor(target, prop)?.writable)) {
+					s = with_parent(() => {
+						var p = proxy(exists ? target[prop] : UNINITIALIZED);
+						var s = state(p);
+
+						{
+							tag(s, get_label(path, prop));
+						}
+
+						return s;
+					});
+
+					sources.set(prop, s);
+				}
+
+				if (s !== undefined) {
+					var v = get$1(s);
+					return v === UNINITIALIZED ? undefined : v;
+				}
+
+				return Reflect.get(target, prop, receiver);
+			},
+
+			getOwnPropertyDescriptor(target, prop) {
+				var descriptor = Reflect.getOwnPropertyDescriptor(target, prop);
+
+				if (descriptor && 'value' in descriptor) {
+					var s = sources.get(prop);
+					if (s) descriptor.value = get$1(s);
+				} else if (descriptor === undefined) {
+					var source = sources.get(prop);
+					var value = source?.v;
+
+					if (source !== undefined && value !== UNINITIALIZED) {
+						return {
+							enumerable: true,
+							configurable: true,
+							value,
+							writable: true
+						};
+					}
+				}
+
+				return descriptor;
+			},
+
+			has(target, prop) {
+				if (prop === STATE_SYMBOL) {
+					return true;
+				}
+
+				var s = sources.get(prop);
+				var has = (s !== undefined && s.v !== UNINITIALIZED) || Reflect.has(target, prop);
+
+				if (
+					s !== undefined ||
+					(active_effect !== null && (!has || get_descriptor(target, prop)?.writable))
+				) {
+					if (s === undefined) {
+						s = with_parent(() => {
+							var p = has ? proxy(target[prop]) : UNINITIALIZED;
+							var s = state(p);
+
+							{
+								tag(s, get_label(path, prop));
+							}
+
+							return s;
+						});
+
+						sources.set(prop, s);
+					}
+
+					var value = get$1(s);
+					if (value === UNINITIALIZED) {
+						return false;
+					}
+				}
+
+				return has;
+			},
+
+			set(target, prop, value, receiver) {
+				var s = sources.get(prop);
+				var has = prop in target;
+
+				// variable.length = value -> clear all signals with index >= value
+				if (is_proxied_array && prop === 'length') {
+					for (var i = value; i < /** @type {Source<number>} */ (s).v; i += 1) {
+						var other_s = sources.get(i + '');
+						if (other_s !== undefined) {
+							set(other_s, UNINITIALIZED);
+						} else if (i in target) {
+							// If the item exists in the original, we need to create an uninitialized source,
+							// else a later read of the property would result in a source being created with
+							// the value of the original item at that index.
+							other_s = with_parent(() => state(UNINITIALIZED));
+							sources.set(i + '', other_s);
+
+							{
+								tag(other_s, get_label(path, i));
+							}
+						}
+					}
+				}
+
+				// If we haven't yet created a source for this property, we need to ensure
+				// we do so otherwise if we read it later, then the write won't be tracked and
+				// the heuristics of effects will be different vs if we had read the proxied
+				// object property before writing to that property.
+				if (s === undefined) {
+					if (!has || get_descriptor(target, prop)?.writable) {
+						s = with_parent(() => state(undefined));
+
+						{
+							tag(s, get_label(path, prop));
+						}
+						set(s, proxy(value));
+
+						sources.set(prop, s);
+					}
+				} else {
+					has = s.v !== UNINITIALIZED;
+
+					var p = with_parent(() => proxy(value));
+					set(s, p);
+				}
+
+				var descriptor = Reflect.getOwnPropertyDescriptor(target, prop);
+
+				// Set the new value before updating any signals so that any listeners get the new value
+				if (descriptor?.set) {
+					descriptor.set.call(receiver, value);
+				}
+
+				if (!has) {
+					// If we have mutated an array directly, we might need to
+					// signal that length has also changed. Do it before updating metadata
+					// to ensure that iterating over the array as a result of a metadata update
+					// will not cause the length to be out of sync.
+					if (is_proxied_array && typeof prop === 'string') {
+						var ls = /** @type {Source<number>} */ (sources.get('length'));
+						var n = Number(prop);
+
+						if (Number.isInteger(n) && n >= ls.v) {
+							set(ls, n + 1);
+						}
+					}
+
+					increment(version);
+				}
+
+				return true;
+			},
+
+			ownKeys(target) {
+				get$1(version);
+
+				var own_keys = Reflect.ownKeys(target).filter((key) => {
+					var source = sources.get(key);
+					return source === undefined || source.v !== UNINITIALIZED;
+				});
+
+				for (var [key, source] of sources) {
+					if (source.v !== UNINITIALIZED && !(key in target)) {
+						own_keys.push(key);
+					}
+				}
+
+				return own_keys;
+			},
+
+			setPrototypeOf() {
+				state_prototype_fixed();
+			}
+		});
+	}
+
+	/**
+	 * @param {string} path
+	 * @param {string | symbol} prop
+	 */
+	function get_label(path, prop) {
+		if (typeof prop === 'symbol') return `${path}[Symbol(${prop.description ?? ''})]`;
+		if (regex_is_valid_identifier.test(prop)) return `${path}.${prop}`;
+		return /^\d+$/.test(prop) ? `${path}[${prop}]` : `${path}['${prop}']`;
+	}
+
+	/**
+	 * @param {any} value
+	 */
+	function get_proxied_value(value) {
+		try {
+			if (value !== null && typeof value === 'object' && STATE_SYMBOL in value) {
+				return value[STATE_SYMBOL];
+			}
+		} catch {
+			// the above if check can throw an error if the value in question
+			// is the contentWindow of an iframe on another domain, in which
+			// case we want to just return the value (because it's definitely
+			// not a proxied value) so we don't break any JavaScript interacting
+			// with that iframe (such as various payment companies client side
+			// JavaScript libraries interacting with their iframes on the same
+			// domain)
+		}
+
+		return value;
+	}
+
+	/**
+	 * @param {any} a
+	 * @param {any} b
+	 */
+	function is(a, b) {
+		return Object.is(get_proxied_value(a), get_proxied_value(b));
+	}
+
+	const ARRAY_MUTATING_METHODS = new Set([
+		'copyWithin',
+		'fill',
+		'pop',
+		'push',
+		'reverse',
+		'shift',
+		'sort',
+		'splice',
+		'unshift'
+	]);
+
+	/**
+	 * Wrap array mutating methods so $inspect is triggered only once and
+	 * to prevent logging an array in intermediate state (e.g. with an empty slot)
+	 * @param {any[]} array
+	 */
+	function inspectable_array(array) {
+		return new Proxy(array, {
+			get(target, prop, receiver) {
+				var value = Reflect.get(target, prop, receiver);
+				if (!ARRAY_MUTATING_METHODS.has(/** @type {string} */ (prop))) {
+					return value;
+				}
+
+				/**
+				 * @this {any[]}
+				 * @param {any[]} args
+				 */
+				return function (...args) {
+					set_eager_effects_deferred();
+					var result = value.apply(this, args);
+					flush_eager_effects();
+					return result;
+				};
+			}
+		});
+	}
+
+	function init_array_prototype_warnings() {
+		const array_prototype = Array.prototype;
+		// The REPL ends up here over and over, and this prevents it from adding more and more patches
+		// of the same kind to the prototype, which would slow down everything over time.
+		// @ts-expect-error
+		const cleanup = Array.__svelte_cleanup;
+		if (cleanup) {
+			cleanup();
+		}
+
+		const { indexOf, lastIndexOf, includes } = array_prototype;
+
+		array_prototype.indexOf = function (item, from_index) {
+			const index = indexOf.call(this, item, from_index);
+
+			if (index === -1) {
+				for (let i = from_index ?? 0; i < this.length; i += 1) {
+					if (get_proxied_value(this[i]) === item) {
+						state_proxy_equality_mismatch('array.indexOf(...)');
+						break;
+					}
+				}
+			}
+
+			return index;
+		};
+
+		array_prototype.lastIndexOf = function (item, from_index) {
+			// we need to specify this.length - 1 because it's probably using something like
+			// `arguments` inside so passing undefined is different from not passing anything
+			const index = lastIndexOf.call(this, item, from_index ?? this.length - 1);
+
+			if (index === -1) {
+				for (let i = 0; i <= (from_index ?? this.length - 1); i += 1) {
+					if (get_proxied_value(this[i]) === item) {
+						state_proxy_equality_mismatch('array.lastIndexOf(...)');
+						break;
+					}
+				}
+			}
+
+			return index;
+		};
+
+		array_prototype.includes = function (item, from_index) {
+			const has = includes.call(this, item, from_index);
+
+			if (!has) {
+				for (let i = 0; i < this.length; i += 1) {
+					if (get_proxied_value(this[i]) === item) {
+						state_proxy_equality_mismatch('array.includes(...)');
+						break;
+					}
+				}
+			}
+
+			return has;
+		};
+
+		// @ts-expect-error
+		Array.__svelte_cleanup = () => {
+			array_prototype.indexOf = indexOf;
+			array_prototype.lastIndexOf = lastIndexOf;
+			array_prototype.includes = includes;
+		};
+	}
+
+	/**
+	 * @param {any} a
+	 * @param {any} b
+	 * @param {boolean} equal
+	 * @returns {boolean}
+	 */
+	function strict_equals(a, b, equal = true) {
+		// try-catch needed because this tries to read properties of `a` and `b`,
+		// which could be disallowed for example in a secure context
+		try {
+			if ((a === b) !== (get_proxied_value(a) === get_proxied_value(b))) {
+				state_proxy_equality_mismatch(equal ? '===' : '!==');
+			}
+		} catch {}
+
+		return (a === b) === equal;
+	}
+
+	/** @import { Effect, TemplateNode } from '#client' */
+
+	// export these for reference in the compiled code, making global name deduplication unnecessary
+	/** @type {Window} */
+	var $window;
+
+	/** @type {boolean} */
+	var is_firefox;
+
+	/** @type {() => Node | null} */
+	var first_child_getter;
+	/** @type {() => Node | null} */
+	var next_sibling_getter;
+
+	/**
+	 * Initialize these lazily to avoid issues when using the runtime in a server context
+	 * where these globals are not available while avoiding a separate server entry point
+	 */
+	function init_operations() {
+		if ($window !== undefined) {
+			return;
+		}
+
+		$window = window;
+		is_firefox = /Firefox/.test(navigator.userAgent);
+
+		var element_prototype = Element.prototype;
+		var node_prototype = Node.prototype;
+		var text_prototype = Text.prototype;
+
+		// @ts-ignore
+		first_child_getter = get_descriptor(node_prototype, 'firstChild').get;
+		// @ts-ignore
+		next_sibling_getter = get_descriptor(node_prototype, 'nextSibling').get;
+
+		if (is_extensible(element_prototype)) {
+			// the following assignments improve perf of lookups on DOM nodes
+			// @ts-expect-error
+			element_prototype.__click = undefined;
+			// @ts-expect-error
+			element_prototype.__className = undefined;
+			// @ts-expect-error
+			element_prototype.__attributes = null;
+			// @ts-expect-error
+			element_prototype.__style = undefined;
+			// @ts-expect-error
+			element_prototype.__e = undefined;
+		}
+
+		if (is_extensible(text_prototype)) {
+			// @ts-expect-error
+			text_prototype.__t = undefined;
+		}
+
+		{
+			// @ts-expect-error
+			element_prototype.__svelte_meta = null;
+
+			init_array_prototype_warnings();
+		}
+	}
+
+	/**
+	 * @param {string} value
+	 * @returns {Text}
+	 */
+	function create_text(value = '') {
+		return document.createTextNode(value);
+	}
+
+	/**
+	 * @template {Node} N
+	 * @param {N} node
+	 */
+	/*@__NO_SIDE_EFFECTS__*/
+	function get_first_child(node) {
+		return /** @type {TemplateNode | null} */ (first_child_getter.call(node));
+	}
+
+	/**
+	 * @template {Node} N
+	 * @param {N} node
+	 */
+	/*@__NO_SIDE_EFFECTS__*/
+	function get_next_sibling(node) {
+		return /** @type {TemplateNode | null} */ (next_sibling_getter.call(node));
+	}
+
+	/**
+	 * Don't mark this as side-effect-free, hydration needs to walk all nodes
+	 * @template {Node} N
+	 * @param {N} node
+	 * @param {boolean} is_text
+	 * @returns {TemplateNode | null}
+	 */
+	function child(node, is_text) {
+		{
+			return get_first_child(node);
+		}
+	}
+
+	/**
+	 * Don't mark this as side-effect-free, hydration needs to walk all nodes
+	 * @param {TemplateNode} node
+	 * @param {boolean} [is_text]
+	 * @returns {TemplateNode | null}
+	 */
+	function first_child(node, is_text = false) {
+		{
+			var first = get_first_child(node);
+
+			// TODO prevent user comments with the empty string when preserveComments is true
+			if (first instanceof Comment && first.data === '') return get_next_sibling(first);
+
+			return first;
+		}
+	}
+
+	/**
+	 * Don't mark this as side-effect-free, hydration needs to walk all nodes
+	 * @param {TemplateNode} node
+	 * @param {number} count
+	 * @param {boolean} is_text
+	 * @returns {TemplateNode | null}
+	 */
+	function sibling(node, count = 1, is_text = false) {
+		let next_sibling = node;
+
+		while (count--) {
+			next_sibling = /** @type {TemplateNode} */ (get_next_sibling(next_sibling));
+		}
+
+		{
+			return next_sibling;
+		}
+	}
+
+	/**
+	 * @template {Node} N
+	 * @param {N} node
+	 * @returns {void}
+	 */
+	function clear_text_content(node) {
+		node.textContent = '';
+	}
+
+	/**
+	 * Returns `true` if we're updating the current block, for example `condition` in
+	 * an `{#if condition}` block just changed. In this case, the branch should be
+	 * appended (or removed) at the same time as other updates within the
+	 * current `<svelte:boundary>`
+	 */
+	function should_defer_append() {
+		return false;
+	}
+
+	/**
+	 * @template {keyof HTMLElementTagNameMap | string} T
+	 * @param {T} tag
+	 * @param {string} [namespace]
+	 * @param {string} [is]
+	 * @returns {T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : Element}
+	 */
+	function create_element(tag, namespace, is) {
+		let options = undefined;
+		return /** @type {T extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[T] : Element} */ (
+			document.createElementNS(NAMESPACE_HTML, tag, options)
+		);
+	}
+
+	/**
+	 * @param {HTMLElement} dom
+	 * @param {boolean} value
+	 * @returns {void}
+	 */
+	function autofocus(dom, value) {
+		if (value) {
+			const body = document.body;
+			dom.autofocus = true;
+
+			queue_micro_task(() => {
+				if (document.activeElement === body) {
+					dom.focus();
+				}
+			});
+		}
+	}
+
+	/**
+	 * @template T
+	 * @param {() => T} fn
+	 */
+	function without_reactive_context(fn) {
+		var previous_reaction = active_reaction;
+		var previous_effect = active_effect;
+		set_active_reaction(null);
+		set_active_effect(null);
+		try {
+			return fn();
+		} finally {
+			set_active_reaction(previous_reaction);
+			set_active_effect(previous_effect);
+		}
+	}
+
+	/** @import { Blocker, ComponentContext, ComponentContextLegacy, Derived, Effect, TemplateNode, TransitionManager } from '#client' */
+
+	/**
+	 * @param {'$effect' | '$effect.pre' | '$inspect'} rune
+	 */
+	function validate_effect(rune) {
+		if (active_effect === null) {
+			if (active_reaction === null) {
+				effect_orphan(rune);
+			}
+
+			effect_in_unowned_derived();
+		}
+
+		if (is_destroying_effect) {
+			effect_in_teardown(rune);
+		}
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @param {Effect} parent_effect
+	 */
+	function push_effect(effect, parent_effect) {
+		var parent_last = parent_effect.last;
+		if (parent_last === null) {
+			parent_effect.last = parent_effect.first = effect;
+		} else {
+			parent_last.next = effect;
+			effect.prev = parent_last;
+			parent_effect.last = effect;
+		}
+	}
+
+	/**
+	 * @param {number} type
+	 * @param {null | (() => void | (() => void))} fn
+	 * @returns {Effect}
+	 */
+	function create_effect(type, fn) {
+		var parent = active_effect;
+
+		{
+			// Ensure the parent is never an inspect effect
+			while (parent !== null && (parent.f & EAGER_EFFECT) !== 0) {
+				parent = parent.parent;
+			}
+		}
+
+		if (parent !== null && (parent.f & INERT) !== 0) {
+			type |= INERT;
+		}
+
+		/** @type {Effect} */
+		var effect = {
+			ctx: component_context,
+			deps: null,
+			nodes: null,
+			f: type | DIRTY | CONNECTED,
+			first: null,
+			fn,
+			last: null,
+			next: null,
+			parent,
+			b: parent && parent.b,
+			prev: null,
+			teardown: null,
+			wv: 0,
+			ac: null
+		};
+
+		{
+			effect.component_function = dev_current_component_function;
+		}
+
+		/** @type {Effect | null} */
+		var e = effect;
+
+		if ((type & EFFECT) !== 0) {
+			if (collected_effects !== null) {
+				// created during traversal — collect and run afterwards
+				collected_effects.push(effect);
+			} else {
+				// schedule for later
+				schedule_effect(effect);
+			}
+		} else if (fn !== null) {
+			try {
+				update_effect(effect);
+			} catch (e) {
+				destroy_effect(effect);
+				throw e;
+			}
+
+			// if an effect doesn't need to be kept in the tree (because it
+			// won't re-run, has no DOM, and has no teardown etc)
+			// then we skip it and go to its child (if any)
+			if (
+				e.deps === null &&
+				e.teardown === null &&
+				e.nodes === null &&
+				e.first === e.last && // either `null`, or a singular child
+				(e.f & EFFECT_PRESERVED) === 0
+			) {
+				e = e.first;
+				if ((type & BLOCK_EFFECT) !== 0 && (type & EFFECT_TRANSPARENT) !== 0 && e !== null) {
+					e.f |= EFFECT_TRANSPARENT;
+				}
+			}
+		}
+
+		if (e !== null) {
+			e.parent = parent;
+
+			if (parent !== null) {
+				push_effect(e, parent);
+			}
+
+			// if we're in a derived, add the effect there too
+			if (
+				active_reaction !== null &&
+				(active_reaction.f & DERIVED) !== 0 &&
+				(type & ROOT_EFFECT) === 0
+			) {
+				var derived = /** @type {Derived} */ (active_reaction);
+				(derived.effects ??= []).push(e);
+			}
+		}
+
+		return effect;
+	}
+
+	/**
+	 * Internal representation of `$effect.tracking()`
+	 * @returns {boolean}
+	 */
+	function effect_tracking() {
+		return active_reaction !== null && !untracking;
+	}
+
+	/**
+	 * @param {() => void} fn
+	 */
+	function teardown(fn) {
+		const effect = create_effect(RENDER_EFFECT, null);
+		set_signal_status(effect, CLEAN);
+		effect.teardown = fn;
+		return effect;
+	}
+
+	/**
+	 * Internal representation of `$effect(...)`
+	 * @param {() => void | (() => void)} fn
+	 */
+	function user_effect(fn) {
+		validate_effect('$effect');
+
+		{
+			define_property(fn, 'name', {
+				value: '$effect'
+			});
+		}
+
+		// Non-nested `$effect(...)` in a component should be deferred
+		// until the component is mounted
+		var flags = /** @type {Effect} */ (active_effect).f;
+		var defer = !active_reaction && (flags & BRANCH_EFFECT) !== 0 && (flags & REACTION_RAN) === 0;
+
+		if (defer) {
+			// Top-level `$effect(...)` in an unmounted component — defer until mount
+			var context = /** @type {ComponentContext} */ (component_context);
+			(context.e ??= []).push(fn);
+		} else {
+			// Everything else — create immediately
+			return create_user_effect(fn);
+		}
+	}
+
+	/**
+	 * @param {() => void | (() => void)} fn
+	 */
+	function create_user_effect(fn) {
+		return create_effect(EFFECT | USER_EFFECT, fn);
+	}
+
+	/**
+	 * An effect root whose children can transition out
+	 * @param {() => void} fn
+	 * @returns {(options?: { outro?: boolean }) => Promise<void>}
+	 */
+	function component_root(fn) {
+		Batch.ensure();
+		const effect = create_effect(ROOT_EFFECT | EFFECT_PRESERVED, fn);
+
+		return (options = {}) => {
+			return new Promise((fulfil) => {
+				if (options.outro) {
+					pause_effect(effect, () => {
+						destroy_effect(effect);
+						fulfil(undefined);
+					});
+				} else {
+					destroy_effect(effect);
+					fulfil(undefined);
+				}
+			});
+		};
+	}
+
+	/**
+	 * @param {() => void | (() => void)} fn
+	 * @returns {Effect}
+	 */
+	function effect(fn) {
+		return create_effect(EFFECT, fn);
+	}
+
+	/**
+	 * @param {() => void | (() => void)} fn
+	 * @returns {Effect}
+	 */
+	function async_effect(fn) {
+		return create_effect(ASYNC | EFFECT_PRESERVED, fn);
+	}
+
+	/**
+	 * @param {() => void | (() => void)} fn
+	 * @returns {Effect}
+	 */
+	function render_effect(fn, flags = 0) {
+		return create_effect(RENDER_EFFECT | flags, fn);
+	}
+
+	/**
+	 * @param {(...expressions: any) => void | (() => void)} fn
+	 * @param {Array<() => any>} sync
+	 * @param {Array<() => Promise<any>>} async
+	 * @param {Blocker[]} blockers
+	 */
+	function template_effect(fn, sync = [], async = [], blockers = []) {
+		flatten(blockers, sync, async, (values) => {
+			create_effect(RENDER_EFFECT, () => fn(...values.map(get$1)));
+		});
+	}
+
+	/**
+	 * @param {(() => void)} fn
+	 * @param {number} flags
+	 */
+	function block(fn, flags = 0) {
+		var effect = create_effect(BLOCK_EFFECT | flags, fn);
+		{
+			effect.dev_stack = dev_stack;
+		}
+		return effect;
+	}
+
+	/**
+	 * @param {(() => void)} fn
+	 * @param {number} flags
+	 */
+	function managed(fn, flags = 0) {
+		var effect = create_effect(MANAGED_EFFECT | flags, fn);
+		{
+			effect.dev_stack = dev_stack;
+		}
+		return effect;
+	}
+
+	/**
+	 * @param {(() => void)} fn
+	 */
+	function branch(fn) {
+		return create_effect(BRANCH_EFFECT | EFFECT_PRESERVED, fn);
+	}
+
+	/**
+	 * @param {Effect} effect
+	 */
+	function execute_effect_teardown(effect) {
+		var teardown = effect.teardown;
+		if (teardown !== null) {
+			const previously_destroying_effect = is_destroying_effect;
+			const previous_reaction = active_reaction;
+			set_is_destroying_effect(true);
+			set_active_reaction(null);
+			try {
+				teardown.call(null);
+			} finally {
+				set_is_destroying_effect(previously_destroying_effect);
+				set_active_reaction(previous_reaction);
+			}
+		}
+	}
+
+	/**
+	 * @param {Effect} signal
+	 * @param {boolean} remove_dom
+	 * @returns {void}
+	 */
+	function destroy_effect_children(signal, remove_dom = false) {
+		var effect = signal.first;
+		signal.first = signal.last = null;
+
+		while (effect !== null) {
+			const controller = effect.ac;
+
+			if (controller !== null) {
+				without_reactive_context(() => {
+					controller.abort(STALE_REACTION);
+				});
+			}
+
+			var next = effect.next;
+
+			if ((effect.f & ROOT_EFFECT) !== 0) {
+				// this is now an independent root
+				effect.parent = null;
+			} else {
+				destroy_effect(effect, remove_dom);
+			}
+
+			effect = next;
+		}
+	}
+
+	/**
+	 * @param {Effect} signal
+	 * @returns {void}
+	 */
+	function destroy_block_effect_children(signal) {
+		var effect = signal.first;
+
+		while (effect !== null) {
+			var next = effect.next;
+			if ((effect.f & BRANCH_EFFECT) === 0) {
+				destroy_effect(effect);
+			}
+			effect = next;
+		}
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @param {boolean} [remove_dom]
+	 * @returns {void}
+	 */
+	function destroy_effect(effect, remove_dom = true) {
+		var removed = false;
+
+		if (
+			(remove_dom || (effect.f & HEAD_EFFECT) !== 0) &&
+			effect.nodes !== null &&
+			effect.nodes.end !== null
+		) {
+			remove_effect_dom(effect.nodes.start, /** @type {TemplateNode} */ (effect.nodes.end));
+			removed = true;
+		}
+
+		destroy_effect_children(effect, remove_dom && !removed);
+		remove_reactions(effect, 0);
+		set_signal_status(effect, DESTROYED);
+
+		var transitions = effect.nodes && effect.nodes.t;
+
+		if (transitions !== null) {
+			for (const transition of transitions) {
+				transition.stop();
+			}
+		}
+
+		execute_effect_teardown(effect);
+
+		var parent = effect.parent;
+
+		// If the parent doesn't have any children, then skip this work altogether
+		if (parent !== null && parent.first !== null) {
+			unlink_effect(effect);
+		}
+
+		{
+			effect.component_function = null;
+		}
+
+		// `first` and `child` are nulled out in destroy_effect_children
+		// we don't null out `parent` so that error propagation can work correctly
+		effect.next =
+			effect.prev =
+			effect.teardown =
+			effect.ctx =
+			effect.deps =
+			effect.fn =
+			effect.nodes =
+			effect.ac =
+				null;
+	}
+
+	/**
+	 *
+	 * @param {TemplateNode | null} node
+	 * @param {TemplateNode} end
+	 */
+	function remove_effect_dom(node, end) {
+		while (node !== null) {
+			/** @type {TemplateNode | null} */
+			var next = node === end ? null : get_next_sibling(node);
+
+			node.remove();
+			node = next;
+		}
+	}
+
+	/**
+	 * Detach an effect from the effect tree, freeing up memory and
+	 * reducing the amount of work that happens on subsequent traversals
+	 * @param {Effect} effect
+	 */
+	function unlink_effect(effect) {
+		var parent = effect.parent;
+		var prev = effect.prev;
+		var next = effect.next;
+
+		if (prev !== null) prev.next = next;
+		if (next !== null) next.prev = prev;
+
+		if (parent !== null) {
+			if (parent.first === effect) parent.first = next;
+			if (parent.last === effect) parent.last = prev;
+		}
+	}
+
+	/**
+	 * When a block effect is removed, we don't immediately destroy it or yank it
+	 * out of the DOM, because it might have transitions. Instead, we 'pause' it.
+	 * It stays around (in memory, and in the DOM) until outro transitions have
+	 * completed, and if the state change is reversed then we _resume_ it.
+	 * A paused effect does not update, and the DOM subtree becomes inert.
+	 * @param {Effect} effect
+	 * @param {() => void} [callback]
+	 * @param {boolean} [destroy]
+	 */
+	function pause_effect(effect, callback, destroy = true) {
+		/** @type {TransitionManager[]} */
+		var transitions = [];
+
+		pause_children(effect, transitions, true);
+
+		var fn = () => {
+			if (destroy) destroy_effect(effect);
+			if (callback) callback();
+		};
+
+		var remaining = transitions.length;
+		if (remaining > 0) {
+			var check = () => --remaining || fn();
+			for (var transition of transitions) {
+				transition.out(check);
+			}
+		} else {
+			fn();
+		}
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @param {TransitionManager[]} transitions
+	 * @param {boolean} local
+	 */
+	function pause_children(effect, transitions, local) {
+		if ((effect.f & INERT) !== 0) return;
+		effect.f ^= INERT;
+
+		var t = effect.nodes && effect.nodes.t;
+
+		if (t !== null) {
+			for (const transition of t) {
+				if (transition.is_global || local) {
+					transitions.push(transition);
+				}
+			}
+		}
+
+		var child = effect.first;
+
+		while (child !== null) {
+			var sibling = child.next;
+			var transparent =
+				(child.f & EFFECT_TRANSPARENT) !== 0 ||
+				// If this is a branch effect without a block effect parent,
+				// it means the parent block effect was pruned. In that case,
+				// transparency information was transferred to the branch effect.
+				((child.f & BRANCH_EFFECT) !== 0 && (effect.f & BLOCK_EFFECT) !== 0);
+			// TODO we don't need to call pause_children recursively with a linked list in place
+			// it's slightly more involved though as we have to account for `transparent` changing
+			// through the tree.
+			pause_children(child, transitions, transparent ? local : false);
+			child = sibling;
+		}
+	}
+
+	/**
+	 * The opposite of `pause_effect`. We call this if (for example)
+	 * `x` becomes falsy then truthy: `{#if x}...{/if}`
+	 * @param {Effect} effect
+	 */
+	function resume_effect(effect) {
+		resume_children(effect, true);
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @param {boolean} local
+	 */
+	function resume_children(effect, local) {
+		if ((effect.f & INERT) === 0) return;
+		effect.f ^= INERT;
+
+		var child = effect.first;
+
+		while (child !== null) {
+			var sibling = child.next;
+			var transparent = (child.f & EFFECT_TRANSPARENT) !== 0 || (child.f & BRANCH_EFFECT) !== 0;
+			// TODO we don't need to call resume_children recursively with a linked list in place
+			// it's slightly more involved though as we have to account for `transparent` changing
+			// through the tree.
+			resume_children(child, transparent ? local : false);
+			child = sibling;
+		}
+
+		var t = effect.nodes && effect.nodes.t;
+
+		if (t !== null) {
+			for (const transition of t) {
+				if (transition.is_global || local) {
+					transition.in();
+				}
+			}
+		}
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @param {DocumentFragment} fragment
+	 */
+	function move_effect(effect, fragment) {
+		if (!effect.nodes) return;
+
+		/** @type {TemplateNode | null} */
+		var node = effect.nodes.start;
+		var end = effect.nodes.end;
+
+		while (node !== null) {
+			/** @type {TemplateNode | null} */
+			var next = node === end ? null : get_next_sibling(node);
+
+			fragment.append(node);
+			node = next;
+		}
+	}
+
+	/** @import { Derived, Effect, Reaction, Source, Value } from '#client' */
+
+	let is_updating_effect = false;
+
+	let is_destroying_effect = false;
+
+	/** @param {boolean} value */
+	function set_is_destroying_effect(value) {
+		is_destroying_effect = value;
+	}
+
+	/** @type {null | Reaction} */
+	let active_reaction = null;
+
+	let untracking = false;
+
+	/** @param {null | Reaction} reaction */
+	function set_active_reaction(reaction) {
+		active_reaction = reaction;
+	}
+
+	/** @type {null | Effect} */
+	let active_effect = null;
+
+	/** @param {null | Effect} effect */
+	function set_active_effect(effect) {
+		active_effect = effect;
+	}
+
+	/**
+	 * When sources are created within a reaction, reading and writing
+	 * them within that reaction should not cause a re-run
+	 * @type {null | Source[]}
+	 */
+	let current_sources = null;
+
+	/** @param {Value} value */
+	function push_reaction_value(value) {
+		if (active_reaction !== null && (true)) {
+			if (current_sources === null) {
+				current_sources = [value];
+			} else {
+				current_sources.push(value);
+			}
+		}
+	}
+
+	/**
+	 * The dependencies of the reaction that is currently being executed. In many cases,
+	 * the dependencies are unchanged between runs, and so this will be `null` unless
+	 * and until a new dependency is accessed — we track this via `skipped_deps`
+	 * @type {null | Value[]}
+	 */
+	let new_deps = null;
+
+	let skipped_deps = 0;
+
+	/**
+	 * Tracks writes that the effect it's executed in doesn't listen to yet,
+	 * so that the dependency can be added to the effect later on if it then reads it
+	 * @type {null | Source[]}
+	 */
+	let untracked_writes = null;
+
+	/** @param {null | Source[]} value */
+	function set_untracked_writes(value) {
+		untracked_writes = value;
+	}
+
+	/**
+	 * @type {number} Used by sources and deriveds for handling updates.
+	 * Version starts from 1 so that unowned deriveds differentiate between a created effect and a run one for tracing
+	 **/
+	let write_version = 1;
+
+	/** @type {number} Used to version each read of a source of derived to avoid duplicating depedencies inside a reaction */
+	let read_version = 0;
+
+	let update_version = read_version;
+
+	/** @param {number} value */
+	function set_update_version(value) {
+		update_version = value;
+	}
+
+	function increment_write_version() {
+		return ++write_version;
+	}
+
+	/**
+	 * Determines whether a derived or effect is dirty.
+	 * If it is MAYBE_DIRTY, will set the status to CLEAN
+	 * @param {Reaction} reaction
+	 * @returns {boolean}
+	 */
+	function is_dirty(reaction) {
+		var flags = reaction.f;
+
+		if ((flags & DIRTY) !== 0) {
+			return true;
+		}
+
+		if (flags & DERIVED) {
+			reaction.f &= ~WAS_MARKED;
+		}
+
+		if ((flags & MAYBE_DIRTY) !== 0) {
+			var dependencies = /** @type {Value[]} */ (reaction.deps);
+			var length = dependencies.length;
+
+			for (var i = 0; i < length; i++) {
+				var dependency = dependencies[i];
+
+				if (is_dirty(/** @type {Derived} */ (dependency))) {
+					update_derived(/** @type {Derived} */ (dependency));
+				}
+
+				if (dependency.wv > reaction.wv) {
+					return true;
+				}
+			}
+
+			if (
+				(flags & CONNECTED) !== 0 &&
+				// During time traveling we don't want to reset the status so that
+				// traversal of the graph in the other batches still happens
+				batch_values === null
+			) {
+				set_signal_status(reaction, CLEAN);
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * @param {Value} signal
+	 * @param {Effect} effect
+	 * @param {boolean} [root]
+	 */
+	function schedule_possible_effect_self_invalidation(signal, effect, root = true) {
+		var reactions = signal.reactions;
+		if (reactions === null) return;
+
+		if (current_sources !== null && includes.call(current_sources, signal)) {
+			return;
+		}
+
+		for (var i = 0; i < reactions.length; i++) {
+			var reaction = reactions[i];
+
+			if ((reaction.f & DERIVED) !== 0) {
+				schedule_possible_effect_self_invalidation(/** @type {Derived} */ (reaction), effect, false);
+			} else if (effect === reaction) {
+				if (root) {
+					set_signal_status(reaction, DIRTY);
+				} else if ((reaction.f & CLEAN) !== 0) {
+					set_signal_status(reaction, MAYBE_DIRTY);
+				}
+				schedule_effect(/** @type {Effect} */ (reaction));
+			}
+		}
+	}
+
+	/** @param {Reaction} reaction */
+	function update_reaction(reaction) {
+		var previous_deps = new_deps;
+		var previous_skipped_deps = skipped_deps;
+		var previous_untracked_writes = untracked_writes;
+		var previous_reaction = active_reaction;
+		var previous_sources = current_sources;
+		var previous_component_context = component_context;
+		var previous_untracking = untracking;
+		var previous_update_version = update_version;
+
+		var flags = reaction.f;
+
+		new_deps = /** @type {null | Value[]} */ (null);
+		skipped_deps = 0;
+		untracked_writes = null;
+		active_reaction = (flags & (BRANCH_EFFECT | ROOT_EFFECT)) === 0 ? reaction : null;
+
+		current_sources = null;
+		set_component_context(reaction.ctx);
+		untracking = false;
+		update_version = ++read_version;
+
+		if (reaction.ac !== null) {
+			without_reactive_context(() => {
+				/** @type {AbortController} */ (reaction.ac).abort(STALE_REACTION);
+			});
+
+			reaction.ac = null;
+		}
+
+		try {
+			reaction.f |= REACTION_IS_UPDATING;
+			var fn = /** @type {Function} */ (reaction.fn);
+			var result = fn();
+			reaction.f |= REACTION_RAN;
+			var deps = reaction.deps;
+
+			// Don't remove reactions during fork;
+			// they must remain for when fork is discarded
+			var is_fork = current_batch?.is_fork;
+
+			if (new_deps !== null) {
+				var i;
+
+				if (!is_fork) {
+					remove_reactions(reaction, skipped_deps);
+				}
+
+				if (deps !== null && skipped_deps > 0) {
+					deps.length = skipped_deps + new_deps.length;
+					for (i = 0; i < new_deps.length; i++) {
+						deps[skipped_deps + i] = new_deps[i];
+					}
+				} else {
+					reaction.deps = deps = new_deps;
+				}
+
+				if (effect_tracking() && (reaction.f & CONNECTED) !== 0) {
+					for (i = skipped_deps; i < deps.length; i++) {
+						(deps[i].reactions ??= []).push(reaction);
+					}
+				}
+			} else if (!is_fork && deps !== null && skipped_deps < deps.length) {
+				remove_reactions(reaction, skipped_deps);
+				deps.length = skipped_deps;
+			}
+
+			// If we're inside an effect and we have untracked writes, then we need to
+			// ensure that if any of those untracked writes result in re-invalidation
+			// of the current effect, then that happens accordingly
+			if (
+				is_runes() &&
+				untracked_writes !== null &&
+				!untracking &&
+				deps !== null &&
+				(reaction.f & (DERIVED | MAYBE_DIRTY | DIRTY)) === 0
+			) {
+				for (i = 0; i < /** @type {Source[]} */ (untracked_writes).length; i++) {
+					schedule_possible_effect_self_invalidation(
+						untracked_writes[i],
+						/** @type {Effect} */ (reaction)
+					);
+				}
+			}
+
+			// If we are returning to an previous reaction then
+			// we need to increment the read version to ensure that
+			// any dependencies in this reaction aren't marked with
+			// the same version
+			if (previous_reaction !== null && previous_reaction !== reaction) {
+				read_version++;
+
+				// update the `rv` of the previous reaction's deps — both existing and new —
+				// so that they are not added again
+				if (previous_reaction.deps !== null) {
+					for (let i = 0; i < previous_skipped_deps; i += 1) {
+						previous_reaction.deps[i].rv = read_version;
+					}
+				}
+
+				if (previous_deps !== null) {
+					for (const dep of previous_deps) {
+						dep.rv = read_version;
+					}
+				}
+
+				if (untracked_writes !== null) {
+					if (previous_untracked_writes === null) {
+						previous_untracked_writes = untracked_writes;
+					} else {
+						previous_untracked_writes.push(.../** @type {Source[]} */ (untracked_writes));
+					}
+				}
+			}
+
+			if ((reaction.f & ERROR_VALUE) !== 0) {
+				reaction.f ^= ERROR_VALUE;
+			}
+
+			return result;
+		} catch (error) {
+			return handle_error(error);
+		} finally {
+			reaction.f ^= REACTION_IS_UPDATING;
+			new_deps = previous_deps;
+			skipped_deps = previous_skipped_deps;
+			untracked_writes = previous_untracked_writes;
+			active_reaction = previous_reaction;
+			current_sources = previous_sources;
+			set_component_context(previous_component_context);
+			untracking = previous_untracking;
+			update_version = previous_update_version;
+		}
+	}
+
+	/**
+	 * @template V
+	 * @param {Reaction} signal
+	 * @param {Value<V>} dependency
+	 * @returns {void}
+	 */
+	function remove_reaction(signal, dependency) {
+		let reactions = dependency.reactions;
+		if (reactions !== null) {
+			var index = index_of.call(reactions, signal);
+			if (index !== -1) {
+				var new_length = reactions.length - 1;
+				if (new_length === 0) {
+					reactions = dependency.reactions = null;
+				} else {
+					// Swap with last element and then remove.
+					reactions[index] = reactions[new_length];
+					reactions.pop();
+				}
+			}
+		}
+
+		// If the derived has no reactions, then we can disconnect it from the graph,
+		// allowing it to either reconnect in the future, or be GC'd by the VM.
+		if (
+			reactions === null &&
+			(dependency.f & DERIVED) !== 0 &&
+			// Destroying a child effect while updating a parent effect can cause a dependency to appear
+			// to be unused, when in fact it is used by the currently-updating parent. Checking `new_deps`
+			// allows us to skip the expensive work of disconnecting and immediately reconnecting it
+			(new_deps === null || !includes.call(new_deps, dependency))
+		) {
+			var derived = /** @type {Derived} */ (dependency);
+
+			// If we are working with a derived that is owned by an effect, then mark it as being
+			// disconnected and remove the mark flag, as it cannot be reliably removed otherwise
+			if ((derived.f & CONNECTED) !== 0) {
+				derived.f ^= CONNECTED;
+				derived.f &= ~WAS_MARKED;
+			}
+
+			update_derived_status(derived);
+
+			// freeze any effects inside this derived
+			freeze_derived_effects(derived);
+
+			// Disconnect any reactions owned by this reaction
+			remove_reactions(derived, 0);
+		}
+	}
+
+	/**
+	 * @param {Reaction} signal
+	 * @param {number} start_index
+	 * @returns {void}
+	 */
+	function remove_reactions(signal, start_index) {
+		var dependencies = signal.deps;
+		if (dependencies === null) return;
+
+		for (var i = start_index; i < dependencies.length; i++) {
+			remove_reaction(signal, dependencies[i]);
+		}
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @returns {void}
+	 */
+	function update_effect(effect) {
+		var flags = effect.f;
+
+		if ((flags & DESTROYED) !== 0) {
+			return;
+		}
+
+		set_signal_status(effect, CLEAN);
+
+		var previous_effect = active_effect;
+		var was_updating_effect = is_updating_effect;
+
+		active_effect = effect;
+		is_updating_effect = true;
+
+		{
+			var previous_component_fn = dev_current_component_function;
+			set_dev_current_component_function(effect.component_function);
+			var previous_stack = /** @type {any} */ (dev_stack);
+			// only block effects have a dev stack, keep the current one otherwise
+			set_dev_stack(effect.dev_stack ?? dev_stack);
+		}
+
+		try {
+			if ((flags & (BLOCK_EFFECT | MANAGED_EFFECT)) !== 0) {
+				destroy_block_effect_children(effect);
+			} else {
+				destroy_effect_children(effect);
+			}
+
+			execute_effect_teardown(effect);
+			var teardown = update_reaction(effect);
+			effect.teardown = typeof teardown === 'function' ? teardown : null;
+			effect.wv = write_version;
+
+			// In DEV, increment versions of any sources that were written to during the effect,
+			// so that they are correctly marked as dirty when the effect re-runs
+			var dep; if (DEV && tracing_mode_flag && (effect.f & DIRTY) !== 0 && effect.deps !== null) ;
+		} finally {
+			is_updating_effect = was_updating_effect;
+			active_effect = previous_effect;
+
+			{
+				set_dev_current_component_function(previous_component_fn);
+				set_dev_stack(previous_stack);
+			}
+		}
+	}
+
+	/**
+	 * @template V
+	 * @param {Value<V>} signal
+	 * @returns {V}
+	 */
+	function get$1(signal) {
+		var flags = signal.f;
+		var is_derived = (flags & DERIVED) !== 0;
+
+		// Register the dependency on the current reaction signal.
+		if (active_reaction !== null && !untracking) {
+			// if we're in a derived that is being read inside an _async_ derived,
+			// it's possible that the effect was already destroyed. In this case,
+			// we don't add the dependency, because that would create a memory leak
+			var destroyed = active_effect !== null && (active_effect.f & DESTROYED) !== 0;
+
+			if (!destroyed && (current_sources === null || !includes.call(current_sources, signal))) {
+				var deps = active_reaction.deps;
+
+				if ((active_reaction.f & REACTION_IS_UPDATING) !== 0) {
+					// we're in the effect init/update cycle
+					if (signal.rv < read_version) {
+						signal.rv = read_version;
+
+						// If the signal is accessing the same dependencies in the same
+						// order as it did last time, increment `skipped_deps`
+						// rather than updating `new_deps`, which creates GC cost
+						if (new_deps === null && deps !== null && deps[skipped_deps] === signal) {
+							skipped_deps++;
+						} else if (new_deps === null) {
+							new_deps = [signal];
+						} else {
+							new_deps.push(signal);
+						}
+					}
+				} else {
+					// we're adding a dependency outside the init/update cycle
+					// (i.e. after an `await`)
+					(active_reaction.deps ??= []).push(signal);
+
+					var reactions = signal.reactions;
+
+					if (reactions === null) {
+						signal.reactions = [active_reaction];
+					} else if (!includes.call(reactions, active_reaction)) {
+						reactions.push(active_reaction);
+					}
+				}
+			}
+		}
+
+		{
+			// TODO reinstate this, but make it actually work
+			// if (current_async_effect) {
+			// 	var tracking = (current_async_effect.f & REACTION_IS_UPDATING) !== 0;
+			// 	var was_read = current_async_effect.deps?.includes(signal);
+
+			// 	if (!tracking && !untracking && !was_read) {
+			// 		w.await_reactivity_loss(/** @type {string} */ (signal.label));
+
+			// 		var trace = get_error('traced at');
+			// 		// eslint-disable-next-line no-console
+			// 		if (trace) console.warn(trace);
+			// 	}
+			// }
+
+			recent_async_deriveds.delete(signal);
+		}
+
+		if (is_destroying_effect && old_values.has(signal)) {
+			return old_values.get(signal);
+		}
+
+		if (is_derived) {
+			var derived = /** @type {Derived} */ (signal);
+
+			if (is_destroying_effect) {
+				var value = derived.v;
+
+				// if the derived is dirty and has reactions, or depends on the values that just changed, re-execute
+				// (a derived can be maybe_dirty due to the effect destroy removing its last reaction)
+				if (
+					((derived.f & CLEAN) === 0 && derived.reactions !== null) ||
+					depends_on_old_values(derived)
+				) {
+					value = execute_derived(derived);
+				}
+
+				old_values.set(derived, value);
+
+				return value;
+			}
+
+			// connect disconnected deriveds if we are reading them inside an effect,
+			// or inside another derived that is already connected
+			var should_connect =
+				(derived.f & CONNECTED) === 0 &&
+				!untracking &&
+				active_reaction !== null &&
+				(is_updating_effect || (active_reaction.f & CONNECTED) !== 0);
+
+			var is_new = (derived.f & REACTION_RAN) === 0;
+
+			if (is_dirty(derived)) {
+				if (should_connect) {
+					// set the flag before `update_derived`, so that the derived
+					// is added as a reaction to its dependencies
+					derived.f |= CONNECTED;
+				}
+
+				update_derived(derived);
+			}
+
+			if (should_connect && !is_new) {
+				unfreeze_derived_effects(derived);
+				reconnect(derived);
+			}
+		}
+
+		if (batch_values?.has(signal)) {
+			return batch_values.get(signal);
+		}
+
+		if ((signal.f & ERROR_VALUE) !== 0) {
+			throw signal.v;
+		}
+
+		return signal.v;
+	}
+
+	/**
+	 * (Re)connect a disconnected derived, so that it is notified
+	 * of changes in `mark_reactions`
+	 * @param {Derived} derived
+	 */
+	function reconnect(derived) {
+		derived.f |= CONNECTED;
+
+		if (derived.deps === null) return;
+
+		for (const dep of derived.deps) {
+			(dep.reactions ??= []).push(derived);
+
+			if ((dep.f & DERIVED) !== 0 && (dep.f & CONNECTED) === 0) {
+				unfreeze_derived_effects(/** @type {Derived} */ (dep));
+				reconnect(/** @type {Derived} */ (dep));
+			}
+		}
+	}
+
+	/** @param {Derived} derived */
+	function depends_on_old_values(derived) {
+		if (derived.v === UNINITIALIZED) return true; // we don't know, so assume the worst
+		if (derived.deps === null) return false;
+
+		for (const dep of derived.deps) {
+			if (old_values.has(dep)) {
+				return true;
+			}
+
+			if ((dep.f & DERIVED) !== 0 && depends_on_old_values(/** @type {Derived} */ (dep))) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * When used inside a [`$derived`](https://svelte.dev/docs/svelte/$derived) or [`$effect`](https://svelte.dev/docs/svelte/$effect),
+	 * any state read inside `fn` will not be treated as a dependency.
+	 *
+	 * ```ts
+	 * $effect(() => {
+	 *   // this will run when `data` changes, but not when `time` changes
+	 *   save(data, {
+	 *     timestamp: untrack(() => time)
+	 *   });
+	 * });
+	 * ```
+	 * @template T
+	 * @param {() => T} fn
+	 * @returns {T}
+	 */
+	function untrack(fn) {
+		var previous_untracking = untracking;
+		try {
+			untracking = true;
+			return fn();
+		} finally {
+			untracking = previous_untracking;
+		}
+	}
+
+	/**
+	 * @param {string} name
+	 */
+	function is_capture_event(name) {
+		return name.endsWith('capture') && name !== 'gotpointercapture' && name !== 'lostpointercapture';
+	}
+
+	/** List of Element events that will be delegated */
+	const DELEGATED_EVENTS = [
+		'beforeinput',
+		'click',
+		'change',
+		'dblclick',
+		'contextmenu',
+		'focusin',
+		'focusout',
+		'input',
+		'keydown',
+		'keyup',
+		'mousedown',
+		'mousemove',
+		'mouseout',
+		'mouseover',
+		'mouseup',
+		'pointerdown',
+		'pointermove',
+		'pointerout',
+		'pointerover',
+		'pointerup',
+		'touchend',
+		'touchmove',
+		'touchstart'
+	];
+
+	/**
+	 * Returns `true` if `event_name` is a delegated event
+	 * @param {string} event_name
+	 */
+	function can_delegate_event(event_name) {
+		return DELEGATED_EVENTS.includes(event_name);
+	}
+
+	/**
+	 * @type {Record<string, string>}
+	 * List of attribute names that should be aliased to their property names
+	 * because they behave differently between setting them as an attribute and
+	 * setting them as a property.
+	 */
+	const ATTRIBUTE_ALIASES = {
+		// no `class: 'className'` because we handle that separately
+		formnovalidate: 'formNoValidate',
+		ismap: 'isMap',
+		nomodule: 'noModule',
+		playsinline: 'playsInline',
+		readonly: 'readOnly',
+		defaultvalue: 'defaultValue',
+		defaultchecked: 'defaultChecked',
+		srcobject: 'srcObject',
+		novalidate: 'noValidate',
+		allowfullscreen: 'allowFullscreen',
+		disablepictureinpicture: 'disablePictureInPicture',
+		disableremoteplayback: 'disableRemotePlayback'
+	};
+
+	/**
+	 * @param {string} name
+	 */
+	function normalize_attribute(name) {
+		name = name.toLowerCase();
+		return ATTRIBUTE_ALIASES[name] ?? name;
+	}
+
+	/**
+	 * Subset of delegated events which should be passive by default.
+	 * These two are already passive via browser defaults on window, document and body.
+	 * But since
+	 * - we're delegating them
+	 * - they happen often
+	 * - they apply to mobile which is generally less performant
+	 * we're marking them as passive by default for other elements, too.
+	 */
+	const PASSIVE_EVENTS = ['touchstart', 'touchmove'];
+
+	/**
+	 * Returns `true` if `name` is a passive event
+	 * @param {string} name
+	 */
+	function is_passive_event(name) {
+		return PASSIVE_EVENTS.includes(name);
+	}
+
+	/** @import { SourceLocation } from '#client' */
+
+	/**
+	 * @param {any} fn
+	 * @param {string} filename
+	 * @param {SourceLocation[]} locations
+	 * @returns {any}
+	 */
+	function add_locations(fn, filename, locations) {
+		return (/** @type {any[]} */ ...args) => {
+			const dom = fn(...args);
+
+			var node = dom.nodeType === DOCUMENT_FRAGMENT_NODE ? dom.firstChild : dom;
+			assign_locations(node, filename, locations);
+
+			return dom;
+		};
+	}
+
+	/**
+	 * @param {Element} element
+	 * @param {string} filename
+	 * @param {SourceLocation} location
+	 */
+	function assign_location(element, filename, location) {
+		// @ts-expect-error
+		element.__svelte_meta = {
+			parent: dev_stack,
+			loc: { file: filename, line: location[0], column: location[1] }
+		};
+
+		if (location[2]) {
+			assign_locations(element.firstChild, filename, location[2]);
+		}
+	}
+
+	/**
+	 * @param {Node | null} node
+	 * @param {string} filename
+	 * @param {SourceLocation[]} locations
+	 */
+	function assign_locations(node, filename, locations) {
+		var i = 0;
+
+		while (node && i < locations.length) {
+
+			if (node.nodeType === ELEMENT_NODE) {
+				assign_location(/** @type {Element} */ (node), filename, locations[i++]);
+			}
+
+			node = node.nextSibling;
+		}
+	}
+
+	/**
+	 * Used on elements, as a map of event type -> event handler,
+	 * and on events themselves to track which element handled an event
+	 */
+	const event_symbol = Symbol('events');
+
+	/** @type {Set<string>} */
+	const all_registered_events = new Set();
+
+	/** @type {Set<(events: Array<string>) => void>} */
+	const root_event_handles = new Set();
+
+	/**
+	 * @param {string} event_name
+	 * @param {EventTarget} dom
+	 * @param {EventListener} [handler]
+	 * @param {AddEventListenerOptions} [options]
+	 */
+	function create_event(event_name, dom, handler, options = {}) {
+		/**
+		 * @this {EventTarget}
+		 */
+		function target_handler(/** @type {Event} */ event) {
+			if (!options.capture) {
+				// Only call in the bubble phase, else delegated events would be called before the capturing events
+				handle_event_propagation.call(dom, event);
+			}
+			if (!event.cancelBubble) {
+				return without_reactive_context(() => {
+					return handler?.call(this, event);
+				});
+			}
+		}
+
+		// Chrome has a bug where pointer events don't work when attached to a DOM element that has been cloned
+		// with cloneNode() and the DOM element is disconnected from the document. To ensure the event works, we
+		// defer the attachment till after it's been appended to the document. TODO: remove this once Chrome fixes
+		// this bug. The same applies to wheel events and touch events.
+		if (
+			event_name.startsWith('pointer') ||
+			event_name.startsWith('touch') ||
+			event_name === 'wheel'
+		) {
+			queue_micro_task(() => {
+				dom.addEventListener(event_name, target_handler, options);
+			});
+		} else {
+			dom.addEventListener(event_name, target_handler, options);
+		}
+
+		return target_handler;
+	}
+
+	/**
+	 * Attaches an event handler to an element and returns a function that removes the handler. Using this
+	 * rather than `addEventListener` will preserve the correct order relative to handlers added declaratively
+	 * (with attributes like `onclick`), which use event delegation for performance reasons
+	 *
+	 * @param {EventTarget} element
+	 * @param {string} type
+	 * @param {EventListener} handler
+	 * @param {AddEventListenerOptions} [options]
+	 */
+	function on(element, type, handler, options = {}) {
+		var target_handler = create_event(type, element, handler, options);
+
+		return () => {
+			element.removeEventListener(type, target_handler, options);
+		};
+	}
+
+	/**
+	 * @param {string} event_name
+	 * @param {Element} dom
+	 * @param {EventListener} [handler]
+	 * @param {boolean} [capture]
+	 * @param {boolean} [passive]
+	 * @returns {void}
+	 */
+	function event(event_name, dom, handler, capture, passive) {
+		var options = { capture, passive };
+		var target_handler = create_event(event_name, dom, handler, options);
+
+		if (
+			dom === document.body ||
+			// @ts-ignore
+			dom === window ||
+			// @ts-ignore
+			dom === document ||
+			// Firefox has quirky behavior, it can happen that we still get "canplay" events when the element is already removed
+			dom instanceof HTMLMediaElement
+		) {
+			teardown(() => {
+				dom.removeEventListener(event_name, target_handler, options);
+			});
+		}
+	}
+
+	/**
+	 * @param {string} event_name
+	 * @param {Element} element
+	 * @param {EventListener} [handler]
+	 * @returns {void}
+	 */
+	function delegated(event_name, element, handler) {
+		// @ts-expect-error
+		(element[event_symbol] ??= {})[event_name] = handler;
+	}
+
+	/**
+	 * @param {Array<string>} events
+	 * @returns {void}
+	 */
+	function delegate(events) {
+		for (var i = 0; i < events.length; i++) {
+			all_registered_events.add(events[i]);
+		}
+
+		for (var fn of root_event_handles) {
+			fn(events);
+		}
+	}
+
+	// used to store the reference to the currently propagated event
+	// to prevent garbage collection between microtasks in Firefox
+	// If the event object is GCed too early, the expando __root property
+	// set on the event object is lost, causing the event delegation
+	// to process the event twice
+	let last_propagated_event = null;
+
+	/**
+	 * @this {EventTarget}
+	 * @param {Event} event
+	 * @returns {void}
+	 */
+	function handle_event_propagation(event) {
+		var handler_element = this;
+		var owner_document = /** @type {Node} */ (handler_element).ownerDocument;
+		var event_name = event.type;
+		var path = event.composedPath?.() || [];
+		var current_target = /** @type {null | Element} */ (path[0] || event.target);
+
+		last_propagated_event = event;
+
+		// composedPath contains list of nodes the event has propagated through.
+		// We check `event_symbol` to skip all nodes below it in case this is a
+		// parent of the `event_symbol` node, which indicates that there's nested
+		// mounted apps. In this case we don't want to trigger events multiple times.
+		var path_idx = 0;
+
+		// the `last_propagated_event === event` check is redundant, but
+		// without it the variable will be DCE'd and things will
+		// fail mysteriously in Firefox
+		// @ts-expect-error is added below
+		var handled_at = last_propagated_event === event && event[event_symbol];
+
+		if (handled_at) {
+			var at_idx = path.indexOf(handled_at);
+			if (
+				at_idx !== -1 &&
+				(handler_element === document || handler_element === /** @type {any} */ (window))
+			) {
+				// This is the fallback document listener or a window listener, but the event was already handled
+				// -> ignore, but set handle_at to document/window so that we're resetting the event
+				// chain in case someone manually dispatches the same event object again.
+				// @ts-expect-error
+				event[event_symbol] = handler_element;
+				return;
+			}
+
+			// We're deliberately not skipping if the index is higher, because
+			// someone could create an event programmatically and emit it multiple times,
+			// in which case we want to handle the whole propagation chain properly each time.
+			// (this will only be a false negative if the event is dispatched multiple times and
+			// the fallback document listener isn't reached in between, but that's super rare)
+			var handler_idx = path.indexOf(handler_element);
+			if (handler_idx === -1) {
+				// handle_idx can theoretically be -1 (happened in some JSDOM testing scenarios with an event listener on the window object)
+				// so guard against that, too, and assume that everything was handled at this point.
+				return;
+			}
+
+			if (at_idx <= handler_idx) {
+				path_idx = at_idx;
+			}
+		}
+
+		current_target = /** @type {Element} */ (path[path_idx] || event.target);
+		// there can only be one delegated event per element, and we either already handled the current target,
+		// or this is the very first target in the chain which has a non-delegated listener, in which case it's safe
+		// to handle a possible delegated event on it later (through the root delegation listener for example).
+		if (current_target === handler_element) return;
+
+		// Proxy currentTarget to correct target
+		define_property(event, 'currentTarget', {
+			configurable: true,
+			get() {
+				return current_target || owner_document;
+			}
+		});
+
+		// This started because of Chromium issue https://chromestatus.com/feature/5128696823545856,
+		// where removal or moving of of the DOM can cause sync `blur` events to fire, which can cause logic
+		// to run inside the current `active_reaction`, which isn't what we want at all. However, on reflection,
+		// it's probably best that all event handled by Svelte have this behaviour, as we don't really want
+		// an event handler to run in the context of another reaction or effect.
+		var previous_reaction = active_reaction;
+		var previous_effect = active_effect;
+		set_active_reaction(null);
+		set_active_effect(null);
+
+		try {
+			/**
+			 * @type {unknown}
+			 */
+			var throw_error;
+			/**
+			 * @type {unknown[]}
+			 */
+			var other_errors = [];
+
+			while (current_target !== null) {
+				/** @type {null | Element} */
+				var parent_element =
+					current_target.assignedSlot ||
+					current_target.parentNode ||
+					/** @type {any} */ (current_target).host ||
+					null;
+
+				try {
+					// @ts-expect-error
+					var delegated = current_target[event_symbol]?.[event_name];
+
+					if (
+						delegated != null &&
+						(!(/** @type {any} */ (current_target).disabled) ||
+							// DOM could've been updated already by the time this is reached, so we check this as well
+							// -> the target could not have been disabled because it emits the event in the first place
+							event.target === current_target)
+					) {
+						delegated.call(current_target, event);
+					}
+				} catch (error) {
+					if (throw_error) {
+						other_errors.push(error);
+					} else {
+						throw_error = error;
+					}
+				}
+				if (event.cancelBubble || parent_element === handler_element || parent_element === null) {
+					break;
+				}
+				current_target = parent_element;
+			}
+
+			if (throw_error) {
+				for (let error of other_errors) {
+					// Throw the rest of the errors, one-by-one on a microtask
+					queueMicrotask(() => {
+						throw error;
+					});
+				}
+				throw throw_error;
+			}
+		} finally {
+			// @ts-expect-error is used above
+			event[event_symbol] = handler_element;
+			// @ts-ignore remove proxy on currentTarget
+			delete event.currentTarget;
+			set_active_reaction(previous_reaction);
+			set_active_effect(previous_effect);
+		}
+	}
+
+	const policy =
+		// We gotta write it like this because after downleveling the pure comment may end up in the wrong location
+		globalThis?.window?.trustedTypes &&
+		/* @__PURE__ */ globalThis.window.trustedTypes.createPolicy('svelte-trusted-html', {
+			/** @param {string} html */
+			createHTML: (html) => {
+				return html;
+			}
+		});
+
+	/** @param {string} html */
+	function create_trusted_html(html) {
+		return /** @type {string} */ (policy?.createHTML(html) ?? html);
+	}
+
+	/**
+	 * @param {string} html
+	 */
+	function create_fragment_from_html(html) {
+		var elem = create_element('template');
+		elem.innerHTML = create_trusted_html(html.replaceAll('<!>', '<!---->')); // XHTML compliance
+		return elem.content;
+	}
+
+	/** @import { Effect, EffectNodes, TemplateNode } from '#client' */
+	/** @import { TemplateStructure } from './types' */
+
+	/**
+	 * @param {TemplateNode} start
+	 * @param {TemplateNode | null} end
+	 */
+	function assign_nodes(start, end) {
+		var effect = /** @type {Effect} */ (active_effect);
+		if (effect.nodes === null) {
+			effect.nodes = { start, end, a: null, t: null };
+		}
+	}
+
+	/**
+	 * @param {string} content
+	 * @param {number} flags
+	 * @returns {() => Node | Node[]}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function from_html(content, flags) {
+		var is_fragment = (flags & TEMPLATE_FRAGMENT) !== 0;
+		var use_import_node = (flags & TEMPLATE_USE_IMPORT_NODE) !== 0;
+
+		/** @type {Node} */
+		var node;
+
+		/**
+		 * Whether or not the first item is a text/element node. If not, we need to
+		 * create an additional comment node to act as `effect.nodes.start`
+		 */
+		var has_start = !content.startsWith('<!>');
+
+		return () => {
+
+			if (node === undefined) {
+				node = create_fragment_from_html(has_start ? content : '<!>' + content);
+				if (!is_fragment) node = /** @type {TemplateNode} */ (get_first_child(node));
+			}
+
+			var clone = /** @type {TemplateNode} */ (
+				use_import_node || is_firefox ? document.importNode(node, true) : node.cloneNode(true)
+			);
+
+			if (is_fragment) {
+				var start = /** @type {TemplateNode} */ (get_first_child(clone));
+				var end = /** @type {TemplateNode} */ (clone.lastChild);
+
+				assign_nodes(start, end);
+			} else {
+				assign_nodes(clone, clone);
+			}
+
+			return clone;
+		};
+	}
+
+	/**
+	 * @param {string} content
+	 * @param {number} flags
+	 * @param {'svg' | 'math'} ns
+	 * @returns {() => Node | Node[]}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function from_namespace(content, flags, ns = 'svg') {
+		/**
+		 * Whether or not the first item is a text/element node. If not, we need to
+		 * create an additional comment node to act as `effect.nodes.start`
+		 */
+		var has_start = !content.startsWith('<!>');
+
+		var is_fragment = (flags & TEMPLATE_FRAGMENT) !== 0;
+		var wrapped = `<${ns}>${has_start ? content : '<!>' + content}</${ns}>`;
+
+		/** @type {Element | DocumentFragment} */
+		var node;
+
+		return () => {
+
+			if (!node) {
+				var fragment = /** @type {DocumentFragment} */ (create_fragment_from_html(wrapped));
+				var root = /** @type {Element} */ (get_first_child(fragment));
+
+				if (is_fragment) {
+					node = document.createDocumentFragment();
+					while (get_first_child(root)) {
+						node.appendChild(/** @type {TemplateNode} */ (get_first_child(root)));
+					}
+				} else {
+					node = /** @type {Element} */ (get_first_child(root));
+				}
+			}
+
+			var clone = /** @type {TemplateNode} */ (node.cloneNode(true));
+
+			if (is_fragment) {
+				var start = /** @type {TemplateNode} */ (get_first_child(clone));
+				var end = /** @type {TemplateNode} */ (clone.lastChild);
+
+				assign_nodes(start, end);
+			} else {
+				assign_nodes(clone, clone);
+			}
+
+			return clone;
+		};
+	}
+
+	/**
+	 * @param {string} content
+	 * @param {number} flags
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function from_svg(content, flags) {
+		return from_namespace(content, flags, 'svg');
+	}
+
+	/**
+	 * Don't mark this as side-effect-free, hydration needs to walk all nodes
+	 * @param {any} value
+	 */
+	function text(value = '') {
+		{
+			var t = create_text(value + '');
+			assign_nodes(t, t);
+			return t;
+		}
+	}
+
+	/**
+	 * @returns {TemplateNode | DocumentFragment}
+	 */
+	function comment() {
+
+		var frag = document.createDocumentFragment();
+		var start = document.createComment('');
+		var anchor = create_text();
+		frag.append(start, anchor);
+
+		assign_nodes(start, anchor);
+
+		return frag;
+	}
+
+	/**
+	 * Assign the created (or in hydration mode, traversed) dom elements to the current block
+	 * and insert the elements into the dom (in client mode).
+	 * @param {Text | Comment | Element} anchor
+	 * @param {DocumentFragment | Element} dom
+	 */
+	function append(anchor, dom) {
+
+		if (anchor === null) {
+			// edge case — void `<svelte:element>` with content
+			return;
+		}
+
+		anchor.before(/** @type {Node} */ (dom));
+	}
+
+	/** @import { ComponentContext, Effect, EffectNodes, TemplateNode } from '#client' */
+	/** @import { Component, ComponentType, SvelteComponent, MountOptions } from '../../index.js' */
+
+	/**
+	 * This is normally true — block effects should run their intro transitions —
+	 * but is false during hydration (unless `options.intro` is `true`) and
+	 * when creating the children of a `<svelte:element>` that just changed tag
+	 */
+	let should_intro = true;
+
+	/**
+	 * @param {Element} text
+	 * @param {string} value
+	 * @returns {void}
+	 */
+	function set_text(text, value) {
+		// For objects, we apply string coercion (which might make things like $state array references in the template reactive) before diffing
+		var str = value == null ? '' : typeof value === 'object' ? `${value}` : value;
+		// @ts-expect-error
+		if (str !== (text.__t ??= text.nodeValue)) {
+			// @ts-expect-error
+			text.__t = str;
+			text.nodeValue = `${str}`;
+		}
+	}
+
+	/**
+	 * Mounts a component to the given target and returns the exports and potentially the props (if compiled with `accessors: true`) of the component.
+	 * Transitions will play during the initial render unless the `intro` option is set to `false`.
+	 *
+	 * @template {Record<string, any>} Props
+	 * @template {Record<string, any>} Exports
+	 * @param {ComponentType<SvelteComponent<Props>> | Component<Props, Exports, any>} component
+	 * @param {MountOptions<Props>} options
+	 * @returns {Exports}
+	 */
+	function mount(component, options) {
+		return _mount(component, options);
+	}
+
+	/** @type {Map<EventTarget, Map<string, number>>} */
+	const listeners = new Map();
+
+	/**
+	 * @template {Record<string, any>} Exports
+	 * @param {ComponentType<SvelteComponent<any>> | Component<any>} Component
+	 * @param {MountOptions} options
+	 * @returns {Exports}
+	 */
+	function _mount(
+		Component,
+		{ target, anchor, props = {}, events, context, intro = true, transformError }
+	) {
+		init_operations();
+
+		/** @type {Exports} */
+		// @ts-expect-error will be defined because the render effect runs synchronously
+		var component = undefined;
+
+		var unmount = component_root(() => {
+			var anchor_node = anchor ?? target.appendChild(create_text());
+
+			boundary(
+				/** @type {TemplateNode} */ (anchor_node),
+				{
+					pending: () => {}
+				},
+				(anchor_node) => {
+					push({});
+					var ctx = /** @type {ComponentContext} */ (component_context);
+					if (context) ctx.c = context;
+
+					if (events) {
+						// We can't spread the object or else we'd lose the state proxy stuff, if it is one
+						/** @type {any} */ (props).$$events = events;
+					}
+
+					should_intro = intro;
+					// @ts-expect-error the public typings are not what the actual function looks like
+					component = Component(anchor_node, props) || {};
+					should_intro = true;
+
+					pop();
+				},
+				transformError
+			);
+
+			// Setup event delegation _after_ component is mounted - if an error would happen during mount, it would otherwise not be cleaned up
+			/** @type {Set<string>} */
+			var registered_events = new Set();
+
+			/** @param {Array<string>} events */
+			var event_handle = (events) => {
+				for (var i = 0; i < events.length; i++) {
+					var event_name = events[i];
+
+					if (registered_events.has(event_name)) continue;
+					registered_events.add(event_name);
+
+					var passive = is_passive_event(event_name);
+
+					// Add the event listener to both the container and the document.
+					// The container listener ensures we catch events from within in case
+					// the outer content stops propagation of the event.
+					//
+					// The document listener ensures we catch events that originate from elements that were
+					// manually moved outside of the container (e.g. via manual portals).
+					for (const node of [target, document]) {
+						var counts = listeners.get(node);
+
+						if (counts === undefined) {
+							counts = new Map();
+							listeners.set(node, counts);
+						}
+
+						var count = counts.get(event_name);
+
+						if (count === undefined) {
+							node.addEventListener(event_name, handle_event_propagation, { passive });
+							counts.set(event_name, 1);
+						} else {
+							counts.set(event_name, count + 1);
+						}
+					}
+				}
+			};
+
+			event_handle(array_from(all_registered_events));
+			root_event_handles.add(event_handle);
+
+			return () => {
+				for (var event_name of registered_events) {
+					for (const node of [target, document]) {
+						var counts = /** @type {Map<string, number>} */ (listeners.get(node));
+						var count = /** @type {number} */ (counts.get(event_name));
+
+						if (--count == 0) {
+							node.removeEventListener(event_name, handle_event_propagation);
+							counts.delete(event_name);
+
+							if (counts.size === 0) {
+								listeners.delete(node);
+							}
+						} else {
+							counts.set(event_name, count);
+						}
+					}
+				}
+
+				root_event_handles.delete(event_handle);
+
+				if (anchor_node !== anchor) {
+					anchor_node.parentNode?.removeChild(anchor_node);
+				}
+			};
+		});
+
+		mounted_components.set(component, unmount);
+		return component;
+	}
+
+	/**
+	 * References of the components that were mounted or hydrated.
+	 * Uses a `WeakMap` to avoid memory leaks.
+	 */
+	let mounted_components = new WeakMap();
+
+	/** @param {Function & { [FILENAME]: string }} target */
+	function check_target(target) {
+		if (target) {
+			component_api_invalid_new(target[FILENAME] ?? 'a component', target.name);
+		}
+	}
+
+	function legacy_api() {
+		const component = component_context?.function;
+
+		/** @param {string} method */
+		function error(method) {
+			component_api_changed(method, component[FILENAME]);
+		}
+
+		return {
+			$destroy: () => error('$destroy()'),
+			$on: () => error('$on(...)'),
+			$set: () => error('$set(...)')
+		};
+	}
+
+	/**
+	 * @param {Node} anchor
+	 * @param {...(()=>any)[]} args
+	 */
+	function validate_snippet_args(anchor, ...args) {
+		if (typeof anchor !== 'object' || !(anchor instanceof Node)) {
+			invalid_snippet_arguments();
+		}
+
+		for (let arg of args) {
+			if (typeof arg !== 'function') {
+				invalid_snippet_arguments();
+			}
+		}
+	}
+
+	/** @import { Effect, TemplateNode } from '#client' */
+
+	/**
+	 * @typedef {{ effect: Effect, fragment: DocumentFragment }} Branch
+	 */
+
+	/**
+	 * @template Key
+	 */
+	class BranchManager {
+		/** @type {TemplateNode} */
+		anchor;
+
+		/** @type {Map<Batch, Key>} */
+		#batches = new Map();
+
+		/**
+		 * Map of keys to effects that are currently rendered in the DOM.
+		 * These effects are visible and actively part of the document tree.
+		 * Example:
+		 * ```
+		 * {#if condition}
+		 * 	foo
+		 * {:else}
+		 * 	bar
+		 * {/if}
+		 * ```
+		 * Can result in the entries `true->Effect` and `false->Effect`
+		 * @type {Map<Key, Effect>}
+		 */
+		#onscreen = new Map();
+
+		/**
+		 * Similar to #onscreen with respect to the keys, but contains branches that are not yet
+		 * in the DOM, because their insertion is deferred.
+		 * @type {Map<Key, Branch>}
+		 */
+		#offscreen = new Map();
+
+		/**
+		 * Keys of effects that are currently outroing
+		 * @type {Set<Key>}
+		 */
+		#outroing = new Set();
+
+		/**
+		 * Whether to pause (i.e. outro) on change, or destroy immediately.
+		 * This is necessary for `<svelte:element>`
+		 */
+		#transition = true;
+
+		/**
+		 * @param {TemplateNode} anchor
+		 * @param {boolean} transition
+		 */
+		constructor(anchor, transition = true) {
+			this.anchor = anchor;
+			this.#transition = transition;
+		}
+
+		/**
+		 * @param {Batch} batch
+		 */
+		#commit = (batch) => {
+			// if this batch was made obsolete, bail
+			if (!this.#batches.has(batch)) return;
+
+			var key = /** @type {Key} */ (this.#batches.get(batch));
+
+			var onscreen = this.#onscreen.get(key);
+
+			if (onscreen) {
+				// effect is already in the DOM — abort any current outro
+				resume_effect(onscreen);
+				this.#outroing.delete(key);
+			} else {
+				// effect is currently offscreen. put it in the DOM
+				var offscreen = this.#offscreen.get(key);
+
+				if (offscreen && (offscreen.effect.f & INERT) === 0) {
+					this.#onscreen.set(key, offscreen.effect);
+					this.#offscreen.delete(key);
+
+					// remove the anchor...
+					/** @type {TemplateNode} */ (offscreen.fragment.lastChild).remove();
+
+					// ...and append the fragment
+					this.anchor.before(offscreen.fragment);
+					onscreen = offscreen.effect;
+				}
+			}
+
+			for (const [b, k] of this.#batches) {
+				this.#batches.delete(b);
+
+				if (b === batch) {
+					// keep values for newer batches
+					break;
+				}
+
+				const offscreen = this.#offscreen.get(k);
+
+				if (offscreen) {
+					// for older batches, destroy offscreen effects
+					// as they will never be committed
+					destroy_effect(offscreen.effect);
+					this.#offscreen.delete(k);
+				}
+			}
+
+			// outro/destroy all onscreen effects...
+			for (const [k, effect] of this.#onscreen) {
+				// ...except the one that was just committed
+				//    or those that are already outroing (else the transition is aborted and the effect destroyed right away)
+				if (k === key || this.#outroing.has(k)) continue;
+
+				// don't destroy branches that are inside outroing blocks
+				if ((effect.f & INERT) !== 0) continue;
+
+				const on_destroy = () => {
+					const keys = Array.from(this.#batches.values());
+
+					if (keys.includes(k)) {
+						// keep the effect offscreen, as another batch will need it
+						var fragment = document.createDocumentFragment();
+						move_effect(effect, fragment);
+
+						fragment.append(create_text()); // TODO can we avoid this?
+
+						this.#offscreen.set(k, { effect, fragment });
+					} else {
+						destroy_effect(effect);
+					}
+
+					this.#outroing.delete(k);
+					this.#onscreen.delete(k);
+				};
+
+				if (this.#transition || !onscreen) {
+					this.#outroing.add(k);
+					pause_effect(effect, on_destroy, false);
+				} else {
+					on_destroy();
+				}
+			}
+		};
+
+		/**
+		 * @param {Batch} batch
+		 */
+		#discard = (batch) => {
+			this.#batches.delete(batch);
+
+			const keys = Array.from(this.#batches.values());
+
+			for (const [k, branch] of this.#offscreen) {
+				if (!keys.includes(k)) {
+					destroy_effect(branch.effect);
+					this.#offscreen.delete(k);
+				}
+			}
+		};
+
+		/**
+		 *
+		 * @param {any} key
+		 * @param {null | ((target: TemplateNode) => void)} fn
+		 */
+		ensure(key, fn) {
+			var batch = /** @type {Batch} */ (current_batch);
+			var defer = should_defer_append();
+
+			if (fn && !this.#onscreen.has(key) && !this.#offscreen.has(key)) {
+				if (defer) {
+					var fragment = document.createDocumentFragment();
+					var target = create_text();
+
+					fragment.append(target);
+
+					this.#offscreen.set(key, {
+						effect: branch(() => fn(target)),
+						fragment
+					});
+				} else {
+					this.#onscreen.set(
+						key,
+						branch(() => fn(this.anchor))
+					);
+				}
+			}
+
+			this.#batches.set(batch, key);
+
+			if (defer) {
+				for (const [k, effect] of this.#onscreen) {
+					if (k === key) {
+						batch.unskip_effect(effect);
+					} else {
+						batch.skip_effect(effect);
+					}
+				}
+
+				for (const [k, branch] of this.#offscreen) {
+					if (k === key) {
+						batch.unskip_effect(branch.effect);
+					} else {
+						batch.skip_effect(branch.effect);
+					}
+				}
+
+				batch.oncommit(this.#commit);
+				batch.ondiscard(this.#discard);
+			} else {
+
+				this.#commit(batch);
+			}
+		}
+	}
+
+	/** @import { TemplateNode } from '#client' */
+
+	/**
+	 * @param {TemplateNode} node
+	 * @param {(branch: (fn: (anchor: Node) => void, key?: number | false) => void) => void} fn
+	 * @param {boolean} [elseif] True if this is an `{:else if ...}` block rather than an `{#if ...}`, as that affects which transitions are considered 'local'
+	 * @returns {void}
+	 */
+	function if_block(node, fn, elseif = false) {
+
+		var branches = new BranchManager(node);
+		var flags = elseif ? EFFECT_TRANSPARENT : 0;
+
+		/**
+		 * @param {number | false} key
+		 * @param {null | ((anchor: Node) => void)} fn
+		 */
+		function update_branch(key, fn) {
+
+			branches.ensure(key, fn);
+		}
+
+		block(() => {
+			var has_branch = false;
+
+			fn((fn, key = 0) => {
+				has_branch = true;
+				update_branch(key, fn);
+			});
+
+			if (!has_branch) {
+				update_branch(-1, null);
+			}
+		}, flags);
+	}
+
+	/** @import { TemplateNode } from '#client' */
+
+	const NAN$1 = Symbol('NaN');
+
+	/**
+	 * @template V
+	 * @param {TemplateNode} node
+	 * @param {() => V} get_key
+	 * @param {(anchor: Node) => TemplateNode | void} render_fn
+	 * @returns {void}
+	 */
+	function key(node, get_key, render_fn) {
+
+		var branches = new BranchManager(node);
+
+		var legacy = !is_runes();
+
+		block(() => {
+			var key = get_key();
+
+			// NaN !== NaN, hence we do this workaround to not trigger remounts unnecessarily
+			if (key !== key) {
+				key = /** @type {any} */ (NAN$1);
+			}
+
+			// key blocks in Svelte <5 had stupid semantics
+			if (legacy && key !== null && typeof key === 'object') {
+				key = /** @type {V} */ ({});
+			}
+
+			branches.ensure(key, render_fn);
+		});
+	}
+
+	/** @import { EachItem, EachOutroGroup, EachState, Effect, EffectNodes, MaybeSource, Source, TemplateNode, TransitionManager, Value } from '#client' */
+	/** @import { Batch } from '../../reactivity/batch.js'; */
+
+	// When making substantive changes to this file, validate them with the each block stress test:
+	// https://svelte.dev/playground/1972b2cf46564476ad8c8c6405b23b7b
+	// This test also exists in this repo, as `packages/svelte/tests/manual/each-stress-test`
+
+	/**
+	 * @param {any} _
+	 * @param {number} i
+	 */
+	function index(_, i) {
+		return i;
+	}
+
+	/**
+	 * Pause multiple effects simultaneously, and coordinate their
+	 * subsequent destruction. Used in each blocks
+	 * @param {EachState} state
+	 * @param {Effect[]} to_destroy
+	 * @param {null | Node} controlled_anchor
+	 */
+	function pause_effects(state, to_destroy, controlled_anchor) {
+		/** @type {TransitionManager[]} */
+		var transitions = [];
+		var length = to_destroy.length;
+
+		/** @type {EachOutroGroup} */
+		var group;
+		var remaining = to_destroy.length;
+
+		for (var i = 0; i < length; i++) {
+			let effect = to_destroy[i];
+
+			pause_effect(
+				effect,
+				() => {
+					if (group) {
+						group.pending.delete(effect);
+						group.done.add(effect);
+
+						if (group.pending.size === 0) {
+							var groups = /** @type {Set<EachOutroGroup>} */ (state.outrogroups);
+
+							destroy_effects(state, array_from(group.done));
+							groups.delete(group);
+
+							if (groups.size === 0) {
+								state.outrogroups = null;
+							}
+						}
+					} else {
+						remaining -= 1;
+					}
+				},
+				false
+			);
+		}
+
+		if (remaining === 0) {
+			// If we're in a controlled each block (i.e. the block is the only child of an
+			// element), and we are removing all items, _and_ there are no out transitions,
+			// we can use the fast path — emptying the element and replacing the anchor
+			var fast_path = transitions.length === 0 && controlled_anchor !== null;
+
+			if (fast_path) {
+				var anchor = /** @type {Element} */ (controlled_anchor);
+				var parent_node = /** @type {Element} */ (anchor.parentNode);
+
+				clear_text_content(parent_node);
+				parent_node.append(anchor);
+
+				state.items.clear();
+			}
+
+			destroy_effects(state, to_destroy, !fast_path);
+		} else {
+			group = {
+				pending: new Set(to_destroy),
+				done: new Set()
+			};
+
+			(state.outrogroups ??= new Set()).add(group);
+		}
+	}
+
+	/**
+	 * @param {EachState} state
+	 * @param {Effect[]} to_destroy
+	 * @param {boolean} remove_dom
+	 */
+	function destroy_effects(state, to_destroy, remove_dom = true) {
+		/** @type {Set<Effect> | undefined} */
+		var preserved_effects;
+
+		// The loop-in-a-loop isn't ideal, but we should only hit this in relatively rare cases
+		if (state.pending.size > 0) {
+			preserved_effects = new Set();
+
+			for (const keys of state.pending.values()) {
+				for (const key of keys) {
+					preserved_effects.add(/** @type {EachItem} */ (state.items.get(key)).e);
+				}
+			}
+		}
+
+		for (var i = 0; i < to_destroy.length; i++) {
+			var e = to_destroy[i];
+
+			if (preserved_effects?.has(e)) {
+				e.f |= EFFECT_OFFSCREEN;
+
+				const fragment = document.createDocumentFragment();
+				move_effect(e, fragment);
+			} else {
+				destroy_effect(to_destroy[i], remove_dom);
+			}
+		}
+	}
+
+	/** @type {TemplateNode} */
+	var offscreen_anchor;
+
+	/**
+	 * @template V
+	 * @param {Element | Comment} node The next sibling node, or the parent node if this is a 'controlled' block
+	 * @param {number} flags
+	 * @param {() => V[]} get_collection
+	 * @param {(value: V, index: number) => any} get_key
+	 * @param {(anchor: Node, item: MaybeSource<V>, index: MaybeSource<number>) => void} render_fn
+	 * @param {null | ((anchor: Node) => void)} fallback_fn
+	 * @returns {void}
+	 */
+	function each(node, flags, get_collection, get_key, render_fn, fallback_fn = null) {
+		var anchor = node;
+
+		/** @type {Map<any, EachItem>} */
+		var items = new Map();
+
+		var is_controlled = (flags & EACH_IS_CONTROLLED) !== 0;
+
+		if (is_controlled) {
+			var parent_node = /** @type {Element} */ (node);
+
+			anchor = parent_node.appendChild(create_text());
+		}
+
+		/** @type {Effect | null} */
+		var fallback = null;
+
+		// TODO: ideally we could use derived for runes mode but because of the ability
+		// to use a store which can be mutated, we can't do that here as mutating a store
+		// will still result in the collection array being the same from the store
+		var each_array = derived_safe_equal(() => {
+			var collection = get_collection();
+
+			return is_array(collection) ? collection : collection == null ? [] : array_from(collection);
+		});
+
+		/** @type {V[]} */
+		var array;
+
+		/** @type {Map<Batch, Set<any>>} */
+		var pending = new Map();
+
+		var first_run = true;
+
+		/**
+		 * @param {Batch} batch
+		 */
+		function commit(batch) {
+			if ((state.effect.f & DESTROYED) !== 0) {
+				return;
+			}
+
+			state.pending.delete(batch);
+
+			state.fallback = fallback;
+			reconcile(state, array, anchor, flags, get_key);
+
+			if (fallback !== null) {
+				if (array.length === 0) {
+					if ((fallback.f & EFFECT_OFFSCREEN) === 0) {
+						resume_effect(fallback);
+					} else {
+						fallback.f ^= EFFECT_OFFSCREEN;
+						move(fallback, null, anchor);
+					}
+				} else {
+					pause_effect(fallback, () => {
+						// TODO only null out if no pending batch needs it,
+						// otherwise re-add `fallback.fragment` and move the
+						// effect into it
+						fallback = null;
+					});
+				}
+			}
+		}
+
+		/**
+		 * @param {Batch} batch
+		 */
+		function discard(batch) {
+			state.pending.delete(batch);
+		}
+
+		var effect = block(() => {
+			array = /** @type {V[]} */ (get$1(each_array));
+			var length = array.length;
+
+			var keys = new Set();
+			var batch = /** @type {Batch} */ (current_batch);
+			var defer = should_defer_append();
+
+			for (var index = 0; index < length; index += 1) {
+
+				var value = array[index];
+				var key = get_key(value, index);
+
+				{
+					// Check that the key function is idempotent (returns the same value when called twice)
+					var key_again = get_key(value, index);
+					if (key !== key_again) {
+						each_key_volatile(String(index), String(key), String(key_again));
+					}
+				}
+
+				var item = first_run ? null : items.get(key);
+
+				if (item) {
+					// update before reconciliation, to trigger any async updates
+					if (item.v) internal_set(item.v, value);
+					if (item.i) internal_set(item.i, index);
+
+					if (defer) {
+						batch.unskip_effect(item.e);
+					}
+				} else {
+					item = create_item(
+						items,
+						first_run ? anchor : (offscreen_anchor ??= create_text()),
+						value,
+						key,
+						index,
+						render_fn,
+						flags,
+						get_collection
+					);
+
+					if (!first_run) {
+						item.e.f |= EFFECT_OFFSCREEN;
+					}
+
+					items.set(key, item);
+				}
+
+				keys.add(key);
+			}
+
+			if (length === 0 && fallback_fn && !fallback) {
+				if (first_run) {
+					fallback = branch(() => fallback_fn(anchor));
+				} else {
+					fallback = branch(() => fallback_fn((offscreen_anchor ??= create_text())));
+					fallback.f |= EFFECT_OFFSCREEN;
+				}
+			}
+
+			if (length > keys.size) {
+				{
+					validate_each_keys(array, get_key);
+				}
+			}
+
+			if (!first_run) {
+				pending.set(batch, keys);
+
+				if (defer) {
+					for (const [key, item] of items) {
+						if (!keys.has(key)) {
+							batch.skip_effect(item.e);
+						}
+					}
+
+					batch.oncommit(commit);
+					batch.ondiscard(discard);
+				} else {
+					commit(batch);
+				}
+			}
+
+			// When we mount the each block for the first time, the collection won't be
+			// connected to this effect as the effect hasn't finished running yet and its deps
+			// won't be assigned. However, it's possible that when reconciling the each block
+			// that a mutation occurred and it's made the collection MAYBE_DIRTY, so reading the
+			// collection again can provide consistency to the reactive graph again as the deriveds
+			// will now be `CLEAN`.
+			get$1(each_array);
+		});
+
+		/** @type {EachState} */
+		var state = { effect, items, pending, outrogroups: null, fallback };
+
+		first_run = false;
+	}
+
+	/**
+	 * Skip past any non-branch effects (which could be created with `createSubscriber`, for example) to find the next branch effect
+	 * @param {Effect | null} effect
+	 * @returns {Effect | null}
+	 */
+	function skip_to_branch(effect) {
+		while (effect !== null && (effect.f & BRANCH_EFFECT) === 0) {
+			effect = effect.next;
+		}
+		return effect;
+	}
+
+	/**
+	 * Add, remove, or reorder items output by an each block as its input changes
+	 * @template V
+	 * @param {EachState} state
+	 * @param {Array<V>} array
+	 * @param {Element | Comment | Text} anchor
+	 * @param {number} flags
+	 * @param {(value: V, index: number) => any} get_key
+	 * @returns {void}
+	 */
+	function reconcile(state, array, anchor, flags, get_key) {
+		var is_animated = (flags & EACH_IS_ANIMATED) !== 0;
+
+		var length = array.length;
+		var items = state.items;
+		var current = skip_to_branch(state.effect.first);
+
+		/** @type {undefined | Set<Effect>} */
+		var seen;
+
+		/** @type {Effect | null} */
+		var prev = null;
+
+		/** @type {undefined | Set<Effect>} */
+		var to_animate;
+
+		/** @type {Effect[]} */
+		var matched = [];
+
+		/** @type {Effect[]} */
+		var stashed = [];
+
+		/** @type {V} */
+		var value;
+
+		/** @type {any} */
+		var key;
+
+		/** @type {Effect | undefined} */
+		var effect;
+
+		/** @type {number} */
+		var i;
+
+		if (is_animated) {
+			for (i = 0; i < length; i += 1) {
+				value = array[i];
+				key = get_key(value, i);
+				effect = /** @type {EachItem} */ (items.get(key)).e;
+
+				// offscreen == coming in now, no animation in that case,
+				// else this would happen https://github.com/sveltejs/svelte/issues/17181
+				if ((effect.f & EFFECT_OFFSCREEN) === 0) {
+					effect.nodes?.a?.measure();
+					(to_animate ??= new Set()).add(effect);
+				}
+			}
+		}
+
+		for (i = 0; i < length; i += 1) {
+			value = array[i];
+			key = get_key(value, i);
+
+			effect = /** @type {EachItem} */ (items.get(key)).e;
+
+			if (state.outrogroups !== null) {
+				for (const group of state.outrogroups) {
+					group.pending.delete(effect);
+					group.done.delete(effect);
+				}
+			}
+
+			if ((effect.f & EFFECT_OFFSCREEN) !== 0) {
+				effect.f ^= EFFECT_OFFSCREEN;
+
+				if (effect === current) {
+					move(effect, null, anchor);
+				} else {
+					var next = prev ? prev.next : current;
+
+					if (effect === state.effect.last) {
+						state.effect.last = effect.prev;
+					}
+
+					if (effect.prev) effect.prev.next = effect.next;
+					if (effect.next) effect.next.prev = effect.prev;
+					link(state, prev, effect);
+					link(state, effect, next);
+
+					move(effect, next, anchor);
+					prev = effect;
+
+					matched = [];
+					stashed = [];
+
+					current = skip_to_branch(prev.next);
+					continue;
+				}
+			}
+
+			if ((effect.f & INERT) !== 0) {
+				resume_effect(effect);
+				if (is_animated) {
+					effect.nodes?.a?.unfix();
+					(to_animate ??= new Set()).delete(effect);
+				}
+			}
+
+			if (effect !== current) {
+				if (seen !== undefined && seen.has(effect)) {
+					if (matched.length < stashed.length) {
+						// more efficient to move later items to the front
+						var start = stashed[0];
+						var j;
+
+						prev = start.prev;
+
+						var a = matched[0];
+						var b = matched[matched.length - 1];
+
+						for (j = 0; j < matched.length; j += 1) {
+							move(matched[j], start, anchor);
+						}
+
+						for (j = 0; j < stashed.length; j += 1) {
+							seen.delete(stashed[j]);
+						}
+
+						link(state, a.prev, b.next);
+						link(state, prev, a);
+						link(state, b, start);
+
+						current = start;
+						prev = b;
+						i -= 1;
+
+						matched = [];
+						stashed = [];
+					} else {
+						// more efficient to move earlier items to the back
+						seen.delete(effect);
+						move(effect, current, anchor);
+
+						link(state, effect.prev, effect.next);
+						link(state, effect, prev === null ? state.effect.first : prev.next);
+						link(state, prev, effect);
+
+						prev = effect;
+					}
+
+					continue;
+				}
+
+				matched = [];
+				stashed = [];
+
+				while (current !== null && current !== effect) {
+					(seen ??= new Set()).add(current);
+					stashed.push(current);
+					current = skip_to_branch(current.next);
+				}
+
+				if (current === null) {
+					continue;
+				}
+			}
+
+			if ((effect.f & EFFECT_OFFSCREEN) === 0) {
+				matched.push(effect);
+			}
+
+			prev = effect;
+			current = skip_to_branch(effect.next);
+		}
+
+		if (state.outrogroups !== null) {
+			for (const group of state.outrogroups) {
+				if (group.pending.size === 0) {
+					destroy_effects(state, array_from(group.done));
+					state.outrogroups?.delete(group);
+				}
+			}
+
+			if (state.outrogroups.size === 0) {
+				state.outrogroups = null;
+			}
+		}
+
+		if (current !== null || seen !== undefined) {
+			/** @type {Effect[]} */
+			var to_destroy = [];
+
+			if (seen !== undefined) {
+				for (effect of seen) {
+					if ((effect.f & INERT) === 0) {
+						to_destroy.push(effect);
+					}
+				}
+			}
+
+			while (current !== null) {
+				// If the each block isn't inert, then inert effects are currently outroing and will be removed once the transition is finished
+				if ((current.f & INERT) === 0 && current !== state.fallback) {
+					to_destroy.push(current);
+				}
+
+				current = skip_to_branch(current.next);
+			}
+
+			var destroy_length = to_destroy.length;
+
+			if (destroy_length > 0) {
+				var controlled_anchor = (flags & EACH_IS_CONTROLLED) !== 0 && length === 0 ? anchor : null;
+
+				if (is_animated) {
+					for (i = 0; i < destroy_length; i += 1) {
+						to_destroy[i].nodes?.a?.measure();
+					}
+
+					for (i = 0; i < destroy_length; i += 1) {
+						to_destroy[i].nodes?.a?.fix();
+					}
+				}
+
+				pause_effects(state, to_destroy, controlled_anchor);
+			}
+		}
+
+		if (is_animated) {
+			queue_micro_task(() => {
+				if (to_animate === undefined) return;
+				for (effect of to_animate) {
+					effect.nodes?.a?.apply();
+				}
+			});
+		}
+	}
+
+	/**
+	 * @template V
+	 * @param {Map<any, EachItem>} items
+	 * @param {Node} anchor
+	 * @param {V} value
+	 * @param {unknown} key
+	 * @param {number} index
+	 * @param {(anchor: Node, item: V | Source<V>, index: number | Value<number>, collection: () => V[]) => void} render_fn
+	 * @param {number} flags
+	 * @param {() => V[]} get_collection
+	 * @returns {EachItem}
+	 */
+	function create_item(items, anchor, value, key, index, render_fn, flags, get_collection) {
+		var v =
+			(flags & EACH_ITEM_REACTIVE) !== 0
+				? (flags & EACH_ITEM_IMMUTABLE) === 0
+					? mutable_source(value, false, false)
+					: source(value)
+				: null;
+
+		var i = (flags & EACH_INDEX_REACTIVE) !== 0 ? source(index) : null;
+
+		if (v) {
+			// For tracing purposes, we need to link the source signal we create with the
+			// collection + index so that tracing works as intended
+			v.trace = () => {
+				// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+				get_collection()[i?.v ?? index];
+			};
+		}
+
+		return {
+			v,
+			i,
+			e: branch(() => {
+				render_fn(anchor, v ?? value, i ?? index, get_collection);
+
+				return () => {
+					items.delete(key);
+				};
+			})
+		};
+	}
+
+	/**
+	 * @param {Effect} effect
+	 * @param {Effect | null} next
+	 * @param {Text | Element | Comment} anchor
+	 */
+	function move(effect, next, anchor) {
+		if (!effect.nodes) return;
+
+		var node = effect.nodes.start;
+		var end = effect.nodes.end;
+
+		var dest =
+			next && (next.f & EFFECT_OFFSCREEN) === 0
+				? /** @type {EffectNodes} */ (next.nodes).start
+				: anchor;
+
+		while (node !== null) {
+			var next_node = /** @type {TemplateNode} */ (get_next_sibling(node));
+			dest.before(node);
+
+			if (node === end) {
+				return;
+			}
+
+			node = next_node;
+		}
+	}
+
+	/**
+	 * @param {EachState} state
+	 * @param {Effect | null} prev
+	 * @param {Effect | null} next
+	 */
+	function link(state, prev, next) {
+		if (prev === null) {
+			state.effect.first = next;
+		} else {
+			prev.next = next;
+		}
+
+		if (next === null) {
+			state.effect.last = prev;
+		} else {
+			next.prev = prev;
+		}
+	}
+
+	/**
+	 * @param {Array<any>} array
+	 * @param {(item: any, index: number) => string} key_fn
+	 * @returns {void}
+	 */
+	function validate_each_keys(array, key_fn) {
+		const keys = new Map();
+		const length = array.length;
+
+		for (let i = 0; i < length; i++) {
+			const key = key_fn(array[i], i);
+
+			if (keys.has(key)) {
+				const a = String(keys.get(key));
+				const b = String(i);
+
+				/** @type {string | null} */
+				let k = String(key);
+				if (k.startsWith('[object ')) k = null;
+
+				each_key_duplicate(a, b, k);
+			}
+
+			keys.set(key, i);
+		}
+	}
+
+	/**
+	 * @param {any} store
+	 * @param {string} name
+	 */
+	function validate_store(store, name) {
+		if (store != null && typeof store.subscribe !== 'function') {
+			store_invalid_shape(name);
+		}
+	}
+
+	/**
+	 * @template {(...args: any[]) => unknown} T
+	 * @param {T} fn
+	 */
+	function prevent_snippet_stringification(fn) {
+		fn.toString = () => {
+			snippet_without_render_tag();
+			return '';
+		};
+		return fn;
+	}
+
+	/** @import { Snippet } from 'svelte' */
+	/** @import { TemplateNode } from '#client' */
+	/** @import { Getters } from '#shared' */
+
+	/**
+	 * @template {(node: TemplateNode, ...args: any[]) => void} SnippetFn
+	 * @param {TemplateNode} node
+	 * @param {() => SnippetFn | null | undefined} get_snippet
+	 * @param {(() => any)[]} args
+	 * @returns {void}
+	 */
+	function snippet(node, get_snippet, ...args) {
+		var branches = new BranchManager(node);
+
+		block(() => {
+			const snippet = get_snippet() ?? null;
+
+			if (snippet == null) {
+				invalid_snippet();
+			}
+
+			branches.ensure(snippet, snippet && ((anchor) => snippet(anchor, ...args)));
+		}, EFFECT_TRANSPARENT);
+	}
+
+	/**
+	 * In development, wrap the snippet function so that it passes validation, and so that the
+	 * correct component context is set for ownership checks
+	 * @param {any} component
+	 * @param {(node: TemplateNode, ...args: any[]) => void} fn
+	 */
+	function wrap_snippet(component, fn) {
+		const snippet = (/** @type {TemplateNode} */ node, /** @type {any[]} */ ...args) => {
+			var previous_component_function = dev_current_component_function;
+			set_dev_current_component_function(component);
+
+			try {
+				return fn(node, ...args);
+			} finally {
+				set_dev_current_component_function(previous_component_function);
+			}
+		};
+
+		prevent_snippet_stringification(snippet);
+
+		return snippet;
+	}
+
+	/** @import { TemplateNode, Dom } from '#client' */
+
+	/**
+	 * @template P
+	 * @template {(props: P) => void} C
+	 * @param {TemplateNode} node
+	 * @param {() => C} get_component
+	 * @param {(anchor: TemplateNode, component: C) => Dom | void} render_fn
+	 * @returns {void}
+	 */
+	function component(node, get_component, render_fn) {
+
+		var branches = new BranchManager(node);
+
+		block(() => {
+			var component = get_component() ?? null;
+
+			branches.ensure(component, component && ((target) => render_fn(target, component)));
+		}, EFFECT_TRANSPARENT);
+	}
+
+	/** @import { Raf } from '#client' */
+
+	const now$1 = () => performance.now() ;
+
+	/** @type {Raf} */
+	const raf = {
+		// don't access requestAnimationFrame eagerly outside method
+		// this allows basic testing of user code without JSDOM
+		// bunder will eval and remove ternary when the user's app is built
+		tick: /** @param {any} _ */ (_) => (requestAnimationFrame )(_),
+		now: () => now$1(),
+		tasks: new Set()
+	};
+
+	/** @import { TaskCallback, Task, TaskEntry } from '#client' */
+
+	// TODO move this into timing.js where it probably belongs
+
+	/**
+	 * @returns {void}
+	 */
+	function run_tasks() {
+		// use `raf.now()` instead of the `requestAnimationFrame` callback argument, because
+		// otherwise things can get wonky https://github.com/sveltejs/svelte/pull/14541
+		const now = raf.now();
+
+		raf.tasks.forEach((task) => {
 			if (!task.c(now)) {
-				tasks.delete(task);
+				raf.tasks.delete(task);
 				task.f();
 			}
 		});
-		if (tasks.size !== 0) raf(run_tasks);
+
+		if (raf.tasks.size !== 0) {
+			raf.tick(run_tasks);
+		}
 	}
 
 	/**
 	 * Creates a new task that runs on each raf frame
 	 * until it returns a falsy value or is aborted
-	 * @param {import('./private.js').TaskCallback} callback
-	 * @returns {import('./private.js').Task}
+	 * @param {TaskCallback} callback
+	 * @returns {Task}
 	 */
 	function loop(callback) {
-		/** @type {import('./private.js').TaskEntry} */
+		/** @type {TaskEntry} */
 		let task;
-		if (tasks.size === 0) raf(run_tasks);
+
+		if (raf.tasks.size === 0) {
+			raf.tick(run_tasks);
+		}
+
 		return {
 			promise: new Promise((fulfill) => {
-				tasks.add((task = { c: callback, f: fulfill }));
+				raf.tasks.add((task = { c: callback, f: fulfill }));
 			}),
 			abort() {
-				tasks.delete(task);
+				raf.tasks.delete(task);
 			}
 		};
 	}
 
+	/** @import { AnimateFn, Animation, AnimationConfig, EachItem, Effect, EffectNodes, TransitionFn, TransitionManager } from '#client' */
+
 	/**
-	 * @param {Node} target
-	 * @param {Node} node
+	 * @param {Element} element
+	 * @param {'introstart' | 'introend' | 'outrostart' | 'outroend'} type
 	 * @returns {void}
 	 */
-	function append(target, node) {
-		target.appendChild(node);
+	function dispatch_event(element, type) {
+		without_reactive_context(() => {
+			element.dispatchEvent(new CustomEvent(type));
+		});
 	}
 
 	/**
-	 * @param {Node} node
-	 * @returns {ShadowRoot | Document}
+	 * Converts a property to the camel-case format expected by Element.animate(), KeyframeEffect(), and KeyframeEffect.setKeyframes().
+	 * @param {string} style
+	 * @returns {string}
 	 */
-	function get_root_for_style(node) {
-		if (!node) return document;
-		const root = node.getRootNode ? node.getRootNode() : node.ownerDocument;
-		if (root && /** @type {ShadowRoot} */ (root).host) {
-			return /** @type {ShadowRoot} */ (root);
+	function css_property_to_camelcase(style) {
+		// in compliance with spec
+		if (style === 'float') return 'cssFloat';
+		if (style === 'offset') return 'cssOffset';
+
+		// do not rename custom @properties
+		if (style.startsWith('--')) return style;
+
+		const parts = style.split('-');
+		if (parts.length === 1) return parts[0];
+		return (
+			parts[0] +
+			parts
+				.slice(1)
+				.map(/** @param {any} word */ (word) => word[0].toUpperCase() + word.slice(1))
+				.join('')
+		);
+	}
+
+	/**
+	 * @param {string} css
+	 * @returns {Keyframe}
+	 */
+	function css_to_keyframe(css) {
+		/** @type {Keyframe} */
+		const keyframe = {};
+		const parts = css.split(';');
+		for (const part of parts) {
+			const [property, value] = part.split(':');
+			if (!property || value === undefined) break;
+
+			const formatted_property = css_property_to_camelcase(property.trim());
+			keyframe[formatted_property] = value.trim();
 		}
-		return node.ownerDocument;
+		return keyframe;
 	}
 
-	/**
-	 * @param {Node} node
-	 * @returns {CSSStyleSheet}
-	 */
-	function append_empty_stylesheet(node) {
-		const style_element = element('style');
-		// For transitions to work without 'style-src: unsafe-inline' Content Security Policy,
-		// these empty tags need to be allowed with a hash as a workaround until we move to the Web Animations API.
-		// Using the hash for the empty string (for an empty tag) works in all browsers except Safari.
-		// So as a workaround for the workaround, when we append empty style tags we set their content to /* empty */.
-		// The hash 'sha256-9OlNO0DNEeaVzHL4RZwCLsBHA8WBQ8toBp/4F5XV2nc=' will then work even in Safari.
-		style_element.textContent = '/* empty */';
-		append_stylesheet(get_root_for_style(node), style_element);
-		return style_element.sheet;
-	}
+	/** @param {number} t */
+	const linear = (t) => t;
 
 	/**
-	 * @param {ShadowRoot | Document} node
-	 * @param {HTMLStyleElement} style
-	 * @returns {CSSStyleSheet}
-	 */
-	function append_stylesheet(node, style) {
-		append(/** @type {Document} */ (node).head || node, style);
-		return style.sheet;
-	}
-
-	/**
-	 * @param {Node} target
-	 * @param {Node} node
-	 * @param {Node} [anchor]
+	 * Called inside block effects as `$.transition(...)`. This creates a transition manager and
+	 * attaches it to the current effect — later, inside `pause_effect` and `resume_effect`, we
+	 * use this to create `intro` and `outro` transitions.
+	 * @template P
+	 * @param {number} flags
+	 * @param {HTMLElement} element
+	 * @param {() => TransitionFn<P | undefined>} get_fn
+	 * @param {(() => P) | null} get_params
 	 * @returns {void}
 	 */
-	function insert(target, node, anchor) {
-		target.insertBefore(node, anchor || null);
-	}
+	function transition(flags, element, get_fn, get_params) {
+		var is_global = (flags & TRANSITION_GLOBAL) !== 0;
 
-	/**
-	 * @param {Node} node
-	 * @returns {void}
-	 */
-	function detach(node) {
-		if (node.parentNode) {
-			node.parentNode.removeChild(node);
+		/** @type {'in' | 'out' | 'both'} */
+		var direction = 'both' ;
+
+		/** @type {AnimationConfig | ((opts: { direction: 'in' | 'out' }) => AnimationConfig) | undefined} */
+		var current_options;
+
+		var inert = element.inert;
+
+		/**
+		 * The default overflow style, stashed so we can revert changes during the transition
+		 * that are necessary to work around a Safari <18 bug
+		 * TODO 6.0 remove this, if older versions of Safari have died out enough
+		 */
+		var overflow = element.style.overflow;
+
+		/** @type {Animation | undefined} */
+		var intro;
+
+		/** @type {Animation | undefined} */
+		var outro;
+
+		function get_options() {
+			return without_reactive_context(() => {
+				// If a transition is still ongoing, we use the existing options rather than generating
+				// new ones. This ensures that reversible transitions reverse smoothly, rather than
+				// jumping to a new spot because (for example) a different `duration` was used
+				return (current_options ??= get_fn()(element, get_params?.() ?? /** @type {P} */ ({}), {
+					direction
+				}));
+			});
 		}
-	}
 
-	/**
-	 * @returns {void} */
-	function destroy_each(iterations, detaching) {
-		for (let i = 0; i < iterations.length; i += 1) {
-			if (iterations[i]) iterations[i].d(detaching);
-		}
-	}
+		/** @type {TransitionManager} */
+		var transition = {
+			is_global,
+			in() {
+				element.inert = inert;
 
-	/**
-	 * @template {keyof HTMLElementTagNameMap} K
-	 * @param {K} name
-	 * @returns {HTMLElementTagNameMap[K]}
-	 */
-	function element(name) {
-		return document.createElement(name);
-	}
+				intro = animate(element, get_options(), outro, 1, () => {
+					dispatch_event(element, 'introend');
 
-	/**
-	 * @template {keyof SVGElementTagNameMap} K
-	 * @param {K} name
-	 * @returns {SVGElement}
-	 */
-	function svg_element(name) {
-		return document.createElementNS('http://www.w3.org/2000/svg', name);
-	}
+					// Ensure we cancel the animation to prevent leaking
+					intro?.abort();
+					intro = current_options = undefined;
 
-	/**
-	 * @param {string} data
-	 * @returns {Text}
-	 */
-	function text(data) {
-		return document.createTextNode(data);
-	}
+					element.style.overflow = overflow;
+				});
+			},
+			out(fn) {
 
-	/**
-	 * @returns {Text} */
-	function space() {
-		return text(' ');
-	}
+				element.inert = true;
 
-	/**
-	 * @returns {Text} */
-	function empty() {
-		return text('');
-	}
+				outro = animate(element, get_options(), intro, 0, () => {
+					dispatch_event(element, 'outroend');
+					fn?.();
+				});
+			},
+			stop: () => {
+				intro?.abort();
+				outro?.abort();
+			}
+		};
 
-	/**
-	 * @param {EventTarget} node
-	 * @param {string} event
-	 * @param {EventListenerOrEventListenerObject} handler
-	 * @param {boolean | AddEventListenerOptions | EventListenerOptions} [options]
-	 * @returns {() => void}
-	 */
-	function listen(node, event, handler, options) {
-		node.addEventListener(event, handler, options);
-		return () => node.removeEventListener(event, handler, options);
-	}
+		var e = /** @type {Effect & { nodes: EffectNodes }} */ (active_effect);
 
-	/**
-	 * @param {Element} node
-	 * @param {string} attribute
-	 * @param {string} [value]
-	 * @returns {void}
-	 */
-	function attr(node, attribute, value) {
-		if (value == null) node.removeAttribute(attribute);
-		else if (node.getAttribute(attribute) !== value) node.setAttribute(attribute, value);
-	}
-	/**
-	 * List of attributes that should always be set through the attr method,
-	 * because updating them through the property setter doesn't work reliably.
-	 * In the example of `width`/`height`, the problem is that the setter only
-	 * accepts numeric values, but the attribute can also be set to a string like `50%`.
-	 * If this list becomes too big, rethink this approach.
-	 */
-	const always_set_through_set_attribute = ['width', 'height'];
+		(e.nodes.t ??= []).push(transition);
 
-	/**
-	 * @param {Element & ElementCSSInlineStyle} node
-	 * @param {{ [x: string]: string }} attributes
-	 * @returns {void}
-	 */
-	function set_attributes(node, attributes) {
-		// @ts-ignore
-		const descriptors = Object.getOwnPropertyDescriptors(node.__proto__);
-		for (const key in attributes) {
-			if (attributes[key] == null) {
-				node.removeAttribute(key);
-			} else if (key === 'style') {
-				node.style.cssText = attributes[key];
-			} else if (key === '__value') {
-				/** @type {any} */ (node).value = node[key] = attributes[key];
-			} else if (
-				descriptors[key] &&
-				descriptors[key].set &&
-				always_set_through_set_attribute.indexOf(key) === -1
-			) {
-				node[key] = attributes[key];
-			} else {
-				attr(node, key, attributes[key]);
+		// if this is a local transition, we only want to run it if the parent (branch) effect's
+		// parent (block) effect is where the state change happened. we can determine that by
+		// looking at whether the block effect is currently initializing
+		if (should_intro) {
+			var run = is_global;
+
+			if (!run) {
+				var block = /** @type {Effect | null} */ (e.parent);
+
+				// skip over transparent blocks (e.g. snippets, else-if blocks)
+				while (block && (block.f & EFFECT_TRANSPARENT) !== 0) {
+					while ((block = block.parent)) {
+						if ((block.f & BLOCK_EFFECT) !== 0) break;
+					}
+				}
+
+				run = !block || (block.f & REACTION_RAN) !== 0;
+			}
+
+			if (run) {
+				effect(() => {
+					untrack(() => transition.in());
+				});
 			}
 		}
 	}
 
 	/**
-	 * @returns {void}
-	 */
-	function xlink_attr(node, attribute, value) {
-		node.setAttributeNS('http://www.w3.org/1999/xlink', attribute, value);
-	}
-
-	/**
+	 * Animates an element, according to the provided configuration
 	 * @param {Element} element
-	 * @returns {ChildNode[]}
+	 * @param {AnimationConfig | ((opts: { direction: 'in' | 'out' }) => AnimationConfig)} options
+	 * @param {Animation | undefined} counterpart The corresponding intro/outro to this outro/intro
+	 * @param {number} t2 The target `t` value — `1` for intro, `0` for outro
+	 * @param {(() => void)} on_finish Called after successfully completing the animation
+	 * @returns {Animation}
 	 */
-	function children(element) {
-		return Array.from(element.childNodes);
+	function animate(element, options, counterpart, t2, on_finish) {
+		var is_intro = t2 === 1;
+
+		if (is_function(options)) {
+			// In the case of a deferred transition (such as `crossfade`), `option` will be
+			// a function rather than an `AnimationConfig`. We need to call this function
+			// once the DOM has been updated...
+			/** @type {Animation} */
+			var a;
+			var aborted = false;
+
+			queue_micro_task(() => {
+				if (aborted) return;
+				var o = options({ direction: is_intro ? 'in' : 'out' });
+				a = animate(element, o, counterpart, t2, on_finish);
+			});
+
+			// ...but we want to do so without using `async`/`await` everywhere, so
+			// we return a facade that allows everything to remain synchronous
+			return {
+				abort: () => {
+					aborted = true;
+					a?.abort();
+				},
+				deactivate: () => a.deactivate(),
+				reset: () => a.reset(),
+				t: () => a.t()
+			};
+		}
+
+		counterpart?.deactivate();
+
+		if (!options?.duration && !options?.delay) {
+			dispatch_event(element, is_intro ? 'introstart' : 'outrostart');
+			on_finish();
+
+			return {
+				abort: noop$1,
+				deactivate: noop$1,
+				reset: noop$1,
+				t: () => t2
+			};
+		}
+
+		const { delay = 0, css, tick, easing = linear } = options;
+
+		var keyframes = [];
+
+		if (is_intro && counterpart === undefined) {
+			if (tick) {
+				tick(0, 1); // TODO put in nested effect, to avoid interleaved reads/writes?
+			}
+
+			if (css) {
+				var styles = css_to_keyframe(css(0, 1));
+				keyframes.push(styles, styles);
+			}
+		}
+
+		var get_t = () => 1 - t2;
+
+		// create a dummy animation that lasts as long as the delay (but with whatever devtools
+		// multiplier is in effect). in the common case that it is `0`, we keep it anyway so that
+		// the CSS keyframes aren't created until the DOM is updated
+		//
+		// fill forwards to prevent the element from rendering without styles applied
+		// see https://github.com/sveltejs/svelte/issues/14732
+		var animation = element.animate(keyframes, { duration: delay, fill: 'forwards' });
+
+		animation.onfinish = () => {
+			// remove dummy animation from the stack to prevent conflict with main animation
+			animation.cancel();
+
+			dispatch_event(element, is_intro ? 'introstart' : 'outrostart');
+
+			// for bidirectional transitions, we start from the current position,
+			// rather than doing a full intro/outro
+			var t1 = counterpart?.t() ?? 1 - t2;
+			counterpart?.abort();
+
+			var delta = t2 - t1;
+			var duration = /** @type {number} */ (options.duration) * Math.abs(delta);
+			var keyframes = [];
+
+			if (duration > 0) {
+				/**
+				 * Whether or not the CSS includes `overflow: hidden`, in which case we need to
+				 * add it as an inline style to work around a Safari <18 bug
+				 * TODO 6.0 remove this, if possible
+				 */
+				var needs_overflow_hidden = false;
+
+				if (css) {
+					var n = Math.ceil(duration / (1000 / 60)); // `n` must be an integer, or we risk missing the `t2` value
+
+					for (var i = 0; i <= n; i += 1) {
+						var t = t1 + delta * easing(i / n);
+						var styles = css_to_keyframe(css(t, 1 - t));
+						keyframes.push(styles);
+
+						needs_overflow_hidden ||= styles.overflow === 'hidden';
+					}
+				}
+
+				if (needs_overflow_hidden) {
+					/** @type {HTMLElement} */ (element).style.overflow = 'hidden';
+				}
+
+				get_t = () => {
+					var time = /** @type {number} */ (
+						/** @type {globalThis.Animation} */ (animation).currentTime
+					);
+
+					return t1 + delta * easing(time / duration);
+				};
+
+				if (tick) {
+					loop(() => {
+						if (animation.playState !== 'running') return false;
+
+						var t = get_t();
+						tick(t, 1 - t);
+
+						return true;
+					});
+				}
+			}
+
+			animation = element.animate(keyframes, { duration, fill: 'forwards' });
+
+			animation.onfinish = () => {
+				get_t = () => t2;
+				tick?.(t2, 1 - t2);
+				on_finish();
+			};
+		};
+
+		return {
+			abort: () => {
+				if (animation) {
+					animation.cancel();
+					// This prevents memory leaks in Chromium
+					animation.effect = null;
+					// This prevents onfinish to be launched after cancel(),
+					// which can happen in some rare cases
+					// see https://github.com/sveltejs/svelte/issues/13681
+					animation.onfinish = noop$1;
+				}
+			},
+			deactivate: () => {
+				on_finish = noop$1;
+			},
+			reset: () => {
+				if (t2 === 0) {
+					tick?.(1, 0);
+				}
+			},
+			t: () => get_t()
+		};
 	}
 
-	/**
-	 * @param {Text} text
-	 * @param {unknown} data
-	 * @returns {void}
-	 */
-	function set_data(text, data) {
-		data = '' + data;
-		if (text.data === data) return;
-		text.data = /** @type {string} */ (data);
-	}
+	/** @import { Effect } from '#client' */
+
+	// TODO in 6.0 or 7.0, when we remove legacy mode, we can simplify this by
+	// getting rid of the block/branch stuff and just letting the effect rip.
+	// see https://github.com/sveltejs/svelte/pull/15962
 
 	/**
-	 * @returns {void} */
-	function set_style(node, key, value, important) {
-		if (value == null) {
-			node.style.removeProperty(key);
+	 * @param {Element} node
+	 * @param {() => (node: Element) => void} get_fn
+	 */
+	function attach(node, get_fn) {
+		/** @type {false | undefined | ((node: Element) => void)} */
+		var fn = undefined;
+
+		/** @type {Effect | null} */
+		var e;
+
+		managed(() => {
+			if (fn !== (fn = get_fn())) {
+				if (e) {
+					destroy_effect(e);
+					e = null;
+				}
+
+				if (fn) {
+					e = branch(() => {
+						effect(() => /** @type {(node: Element) => void} */ (fn)(node));
+					});
+				}
+			}
+		});
+	}
+
+	function r(e){var t,f,n="";if("string"==typeof e||"number"==typeof e)n+=e;else if("object"==typeof e)if(Array.isArray(e)){var o=e.length;for(t=0;t<o;t++)e[t]&&(f=r(e[t]))&&(n&&(n+=" "),n+=f);}else for(f in e)e[f]&&(n&&(n+=" "),n+=f);return n}function clsx$1(){for(var e,t,f=0,n="",o=arguments.length;f<o;f++)(e=arguments[f])&&(t=r(e))&&(n&&(n+=" "),n+=t);return n}
+
+	/**
+	 * Small wrapper around clsx to preserve Svelte's (weird) handling of falsy values.
+	 * TODO Svelte 6 revisit this, and likely turn all falsy values into the empty string (what clsx also does)
+	 * @param  {any} value
+	 */
+	function clsx(value) {
+		if (typeof value === 'object') {
+			return clsx$1(value);
 		} else {
-			node.style.setProperty(key, value, important ? 'important' : '');
+			return value ?? '';
 		}
 	}
 
+	const whitespace = [...' \t\n\r\f\u00a0\u000b\ufeff'];
+
 	/**
-	 * @returns {void} */
-	function toggle_class(element, name, toggle) {
-		// The `!!` is required because an `undefined` flag means flipping the current state.
-		element.classList.toggle(name, !!toggle);
+	 * @param {any} value
+	 * @param {string | null} [hash]
+	 * @param {Record<string, boolean>} [directives]
+	 * @returns {string | null}
+	 */
+	function to_class(value, hash, directives) {
+		var classname = value == null ? '' : '' + value;
+
+		if (hash) {
+			classname = classname ? classname + ' ' + hash : hash;
+		}
+
+		if (directives) {
+			for (var key of Object.keys(directives)) {
+				if (directives[key]) {
+					classname = classname ? classname + ' ' + key : key;
+				} else if (classname.length) {
+					var len = key.length;
+					var a = 0;
+
+					while ((a = classname.indexOf(key, a)) >= 0) {
+						var b = a + len;
+
+						if (
+							(a === 0 || whitespace.includes(classname[a - 1])) &&
+							(b === classname.length || whitespace.includes(classname[b]))
+						) {
+							classname = (a === 0 ? '' : classname.substring(0, a)) + classname.substring(b + 1);
+						} else {
+							a = b;
+						}
+					}
+				}
+			}
+		}
+
+		return classname === '' ? null : classname;
 	}
 
 	/**
-	 * @template T
-	 * @param {string} type
-	 * @param {T} [detail]
-	 * @param {{ bubbles?: boolean, cancelable?: boolean }} [options]
-	 * @returns {CustomEvent<T>}
+	 *
+	 * @param {Record<string,any>} styles
+	 * @param {boolean} important
 	 */
-	function custom_event(type, detail, { bubbles = false, cancelable = false } = {}) {
-		return new CustomEvent(type, { detail, bubbles, cancelable });
-	}
+	function append_styles(styles, important = false) {
+		var separator = important ? ' !important;' : ';';
+		var css = '';
 
-	function construct_svelte_component(component, props) {
-		return new component(props);
-	}
+		for (var key of Object.keys(styles)) {
+			var value = styles[key];
+			if (value != null && value !== '') {
+				css += ' ' + key + ': ' + value + separator;
+			}
+		}
 
-	/**
-	 * @typedef {Node & {
-	 * 	claim_order?: number;
-	 * 	hydrate_init?: true;
-	 * 	actual_end_child?: NodeEx;
-	 * 	childNodes: NodeListOf<NodeEx>;
-	 * }} NodeEx
-	 */
-
-	/** @typedef {ChildNode & NodeEx} ChildNodeEx */
-
-	/** @typedef {NodeEx & { claim_order: number }} NodeEx2 */
-
-	/**
-	 * @typedef {ChildNodeEx[] & {
-	 * 	claim_info?: {
-	 * 		last_index: number;
-	 * 		total_claimed: number;
-	 * 	};
-	 * }} ChildNodeArray
-	 */
-
-	// we need to store the information for multiple documents because a Svelte application could also contain iframes
-	// https://github.com/sveltejs/svelte/issues/3624
-	/** @type {Map<Document | ShadowRoot, import('./private.d.ts').StyleInformation>} */
-	const managed_styles = new Map();
-
-	let active = 0;
-
-	// https://github.com/darkskyapp/string-hash/blob/master/index.js
-	/**
-	 * @param {string} str
-	 * @returns {number}
-	 */
-	function hash(str) {
-		let hash = 5381;
-		let i = str.length;
-		while (i--) hash = ((hash << 5) - hash) ^ str.charCodeAt(i);
-		return hash >>> 0;
+		return css;
 	}
 
 	/**
-	 * @param {Document | ShadowRoot} doc
-	 * @param {Element & ElementCSSInlineStyle} node
-	 * @returns {{ stylesheet: any; rules: {}; }}
-	 */
-	function create_style_information(doc, node) {
-		const info = { stylesheet: append_empty_stylesheet(node), rules: {} };
-		managed_styles.set(doc, info);
-		return info;
-	}
-
-	/**
-	 * @param {Element & ElementCSSInlineStyle} node
-	 * @param {number} a
-	 * @param {number} b
-	 * @param {number} duration
-	 * @param {number} delay
-	 * @param {(t: number) => number} ease
-	 * @param {(t: number, u: number) => string} fn
-	 * @param {number} uid
+	 * @param {string} name
 	 * @returns {string}
 	 */
-	function create_rule(node, a, b, duration, delay, ease, fn, uid = 0) {
-		const step = 16.666 / duration;
-		let keyframes = '{\n';
-		for (let p = 0; p <= 1; p += step) {
-			const t = a + (b - a) * ease(p);
-			keyframes += p * 100 + `%{${fn(t, 1 - t)}}\n`;
+	function to_css_name(name) {
+		if (name[0] !== '-' || name[1] !== '-') {
+			return name.toLowerCase();
 		}
-		const rule = keyframes + `100% {${fn(b, 1 - b)}}\n}`;
-		const name = `__svelte_${hash(rule)}_${uid}`;
-		const doc = get_root_for_style(node);
-		const { stylesheet, rules } = managed_styles.get(doc) || create_style_information(doc, node);
-		if (!rules[name]) {
-			rules[name] = true;
-			stylesheet.insertRule(`@keyframes ${name} ${rule}`, stylesheet.cssRules.length);
-		}
-		const animation = node.style.animation || '';
-		node.style.animation = `${
-		animation ? `${animation}, ` : ''
-	}${name} ${duration}ms linear ${delay}ms 1 both`;
-		active += 1;
 		return name;
 	}
 
 	/**
-	 * @param {Element & ElementCSSInlineStyle} node
-	 * @param {string} [name]
-	 * @returns {void}
+	 * @param {any} value
+	 * @param {Record<string, any> | [Record<string, any>, Record<string, any>]} [styles]
+	 * @returns {string | null}
 	 */
-	function delete_rule(node, name) {
-		const previous = (node.style.animation || '').split(', ');
-		const next = previous.filter(
-			name
-				? (anim) => anim.indexOf(name) < 0 // remove specific animation
-				: (anim) => anim.indexOf('__svelte') === -1 // remove all Svelte animations
-		);
-		const deleted = previous.length - next.length;
-		if (deleted) {
-			node.style.animation = next.join(', ');
-			active -= deleted;
-			if (!active) clear_rules();
+	function to_style(value, styles) {
+		if (styles) {
+			var new_style = '';
+
+			/** @type {Record<string,any> | undefined} */
+			var normal_styles;
+
+			/** @type {Record<string,any> | undefined} */
+			var important_styles;
+
+			if (Array.isArray(styles)) {
+				normal_styles = styles[0];
+				important_styles = styles[1];
+			} else {
+				normal_styles = styles;
+			}
+
+			if (value) {
+				value = String(value)
+					.replaceAll(/\s*\/\*.*?\*\/\s*/g, '')
+					.trim();
+
+				/** @type {boolean | '"' | "'"} */
+				var in_str = false;
+				var in_apo = 0;
+				var in_comment = false;
+
+				var reserved_names = [];
+
+				if (normal_styles) {
+					reserved_names.push(...Object.keys(normal_styles).map(to_css_name));
+				}
+				if (important_styles) {
+					reserved_names.push(...Object.keys(important_styles).map(to_css_name));
+				}
+
+				var start_index = 0;
+				var name_index = -1;
+
+				const len = value.length;
+				for (var i = 0; i < len; i++) {
+					var c = value[i];
+
+					if (in_comment) {
+						if (c === '/' && value[i - 1] === '*') {
+							in_comment = false;
+						}
+					} else if (in_str) {
+						if (in_str === c) {
+							in_str = false;
+						}
+					} else if (c === '/' && value[i + 1] === '*') {
+						in_comment = true;
+					} else if (c === '"' || c === "'") {
+						in_str = c;
+					} else if (c === '(') {
+						in_apo++;
+					} else if (c === ')') {
+						in_apo--;
+					}
+
+					if (!in_comment && in_str === false && in_apo === 0) {
+						if (c === ':' && name_index === -1) {
+							name_index = i;
+						} else if (c === ';' || i === len - 1) {
+							if (name_index !== -1) {
+								var name = to_css_name(value.substring(start_index, name_index).trim());
+
+								if (!reserved_names.includes(name)) {
+									if (c !== ';') {
+										i++;
+									}
+
+									var property = value.substring(start_index, i).trim();
+									new_style += ' ' + property + ';';
+								}
+							}
+
+							start_index = i + 1;
+							name_index = -1;
+						}
+					}
+				}
+			}
+
+			if (normal_styles) {
+				new_style += append_styles(normal_styles);
+			}
+
+			if (important_styles) {
+				new_style += append_styles(important_styles, true);
+			}
+
+			new_style = new_style.trim();
+			return new_style === '' ? null : new_style;
+		}
+
+		return value == null ? null : String(value);
+	}
+
+	/**
+	 * @param {Element} dom
+	 * @param {boolean | number} is_html
+	 * @param {string | null} value
+	 * @param {string} [hash]
+	 * @param {Record<string, any>} [prev_classes]
+	 * @param {Record<string, any>} [next_classes]
+	 * @returns {Record<string, boolean> | undefined}
+	 */
+	function set_class(dom, is_html, value, hash, prev_classes, next_classes) {
+		// @ts-expect-error need to add __className to patched prototype
+		var prev = dom.__className;
+
+		if (
+			prev !== value ||
+			prev === undefined // for edge case of `class={undefined}`
+		) {
+			var next_class_name = to_class(value, hash, next_classes);
+
+			{
+				// Removing the attribute when the value is only an empty string causes
+				// performance issues vs simply making the className an empty string. So
+				// we should only remove the class if the value is nullish
+				// and there no hash/directives :
+				if (next_class_name == null) {
+					dom.removeAttribute('class');
+				} else if (is_html) {
+					dom.className = next_class_name;
+				} else {
+					dom.setAttribute('class', next_class_name);
+				}
+			}
+
+			// @ts-expect-error need to add __className to patched prototype
+			dom.__className = value;
+		} else if (next_classes && prev_classes !== next_classes) {
+			for (var key in next_classes) {
+				var is_present = !!next_classes[key];
+
+				if (prev_classes == null || is_present !== !!prev_classes[key]) {
+					dom.classList.toggle(key, is_present);
+				}
+			}
+		}
+
+		return next_classes;
+	}
+
+	/**
+	 * @param {Element & ElementCSSInlineStyle} dom
+	 * @param {Record<string, any>} prev
+	 * @param {Record<string, any>} next
+	 * @param {string} [priority]
+	 */
+	function update_styles(dom, prev = {}, next, priority) {
+		for (var key in next) {
+			var value = next[key];
+
+			if (prev[key] !== value) {
+				if (next[key] == null) {
+					dom.style.removeProperty(key);
+				} else {
+					dom.style.setProperty(key, value, priority);
+				}
+			}
 		}
 	}
 
-	/** @returns {void} */
-	function clear_rules() {
-		raf(() => {
-			if (active) return;
-			managed_styles.forEach((info) => {
-				const { ownerNode } = info.stylesheet;
-				// there is no ownerNode if it runs on jsdom.
-				if (ownerNode) detach(ownerNode);
-			});
-			managed_styles.clear();
+	/**
+	 * @param {Element & ElementCSSInlineStyle} dom
+	 * @param {string | null} value
+	 * @param {Record<string, any> | [Record<string, any>, Record<string, any>]} [prev_styles]
+	 * @param {Record<string, any> | [Record<string, any>, Record<string, any>]} [next_styles]
+	 */
+	function set_style(dom, value, prev_styles, next_styles) {
+		// @ts-expect-error
+		var prev = dom.__style;
+
+		if (prev !== value) {
+			var next_style_attr = to_style(value, next_styles);
+
+			{
+				if (next_style_attr == null) {
+					dom.removeAttribute('style');
+				} else {
+					dom.style.cssText = next_style_attr;
+				}
+			}
+
+			// @ts-expect-error
+			dom.__style = value;
+		} else if (next_styles) {
+			if (Array.isArray(next_styles)) {
+				update_styles(dom, prev_styles?.[0], next_styles[0]);
+				update_styles(dom, prev_styles?.[1], next_styles[1], 'important');
+			} else {
+				update_styles(dom, prev_styles, next_styles);
+			}
+		}
+
+		return next_styles;
+	}
+
+	/**
+	 * Selects the correct option(s) (depending on whether this is a multiple select)
+	 * @template V
+	 * @param {HTMLSelectElement} select
+	 * @param {V} value
+	 * @param {boolean} mounting
+	 */
+	function select_option(select, value, mounting = false) {
+		if (select.multiple) {
+			// If value is null or undefined, keep the selection as is
+			if (value == undefined) {
+				return;
+			}
+
+			// If not an array, warn and keep the selection as is
+			if (!is_array(value)) {
+				return select_multiple_invalid_value();
+			}
+
+			// Otherwise, update the selection
+			for (var option of select.options) {
+				option.selected = value.includes(get_option_value(option));
+			}
+
+			return;
+		}
+
+		for (option of select.options) {
+			var option_value = get_option_value(option);
+			if (is(option_value, value)) {
+				option.selected = true;
+				return;
+			}
+		}
+
+		if (!mounting || value !== undefined) {
+			select.selectedIndex = -1; // no option should be selected
+		}
+	}
+
+	/**
+	 * Selects the correct option(s) if `value` is given,
+	 * and then sets up a mutation observer to sync the
+	 * current selection to the dom when it changes. Such
+	 * changes could for example occur when options are
+	 * inside an `#each` block.
+	 * @param {HTMLSelectElement} select
+	 */
+	function init_select(select) {
+		var observer = new MutationObserver(() => {
+			// @ts-ignore
+			select_option(select, select.__value);
+			// Deliberately don't update the potential binding value,
+			// the model should be preserved unless explicitly changed
+		});
+
+		observer.observe(select, {
+			// Listen to option element changes
+			childList: true,
+			subtree: true, // because of <optgroup>
+			// Listen to option element value attribute changes
+			// (doesn't get notified of select value changes,
+			// because that property is not reflected as an attribute)
+			attributes: true,
+			attributeFilter: ['value']
+		});
+
+		teardown(() => {
+			observer.disconnect();
 		});
 	}
 
-	let current_component;
-
-	/** @returns {void} */
-	function set_current_component(component) {
-		current_component = component;
-	}
-
-	function get_current_component() {
-		if (!current_component) throw new Error('Function called outside component initialization');
-		return current_component;
-	}
-
-	/**
-	 * The `onMount` function schedules a callback to run as soon as the component has been mounted to the DOM.
-	 * It must be called during the component's initialisation (but doesn't need to live *inside* the component;
-	 * it can be called from an external module).
-	 *
-	 * If a function is returned _synchronously_ from `onMount`, it will be called when the component is unmounted.
-	 *
-	 * `onMount` does not run inside a [server-side component](/docs#run-time-server-side-component-api).
-	 *
-	 * https://svelte.dev/docs/svelte#onmount
-	 * @template T
-	 * @param {() => import('./private.js').NotFunction<T> | Promise<import('./private.js').NotFunction<T>> | (() => any)} fn
-	 * @returns {void}
-	 */
-	function onMount(fn) {
-		get_current_component().$$.on_mount.push(fn);
-	}
-
-	/**
-	 * Schedules a callback to run immediately before the component is unmounted.
-	 *
-	 * Out of `onMount`, `beforeUpdate`, `afterUpdate` and `onDestroy`, this is the
-	 * only one that runs inside a server-side component.
-	 *
-	 * https://svelte.dev/docs/svelte#ondestroy
-	 * @param {() => any} fn
-	 * @returns {void}
-	 */
-	function onDestroy(fn) {
-		get_current_component().$$.on_destroy.push(fn);
-	}
-
-	const dirty_components = [];
-	const binding_callbacks = [];
-
-	let render_callbacks = [];
-
-	const flush_callbacks = [];
-
-	const resolved_promise = /* @__PURE__ */ Promise.resolve();
-
-	let update_scheduled = false;
-
-	/** @returns {void} */
-	function schedule_update() {
-		if (!update_scheduled) {
-			update_scheduled = true;
-			resolved_promise.then(flush);
+	/** @param {HTMLOptionElement} option */
+	function get_option_value(option) {
+		// __value only exists if the <option> has a value attribute
+		if ('__value' in option) {
+			return option.__value;
+		} else {
+			return option.value;
 		}
 	}
 
-	/** @returns {void} */
-	function add_render_callback(fn) {
-		render_callbacks.push(fn);
-	}
+	/** @import { Blocker, Effect } from '#client' */
 
-	// flush() calls callbacks in this order:
-	// 1. All beforeUpdate callbacks, in order: parents before children
-	// 2. All bind:this callbacks, in reverse order: children before parents.
-	// 3. All afterUpdate callbacks, in order: parents before children. EXCEPT
-	//    for afterUpdates called during the initial onMount, which are called in
-	//    reverse order: children before parents.
-	// Since callbacks might update component values, which could trigger another
-	// call to flush(), the following steps guard against this:
-	// 1. During beforeUpdate, any updated components will be added to the
-	//    dirty_components array and will cause a reentrant call to flush(). Because
-	//    the flush index is kept outside the function, the reentrant call will pick
-	//    up where the earlier call left off and go through all dirty components. The
-	//    current_component value is saved and restored so that the reentrant call will
-	//    not interfere with the "parent" flush() call.
-	// 2. bind:this callbacks cannot trigger new flush() calls.
-	// 3. During afterUpdate, any updated components will NOT have their afterUpdate
-	//    callback called a second time; the seen_callbacks set, outside the flush()
-	//    function, guarantees this behavior.
-	const seen_callbacks = new Set();
+	const CLASS = Symbol('class');
+	const STYLE = Symbol('style');
 
-	let flushidx = 0; // Do *not* move this inside the flush() function
+	const IS_CUSTOM_ELEMENT = Symbol('is custom element');
+	const IS_HTML = Symbol('is html');
+	const OPTION_TAG = IS_XHTML ? 'option' : 'OPTION';
+	const SELECT_TAG = IS_XHTML ? 'select' : 'SELECT';
 
-	/** @returns {void} */
-	function flush() {
-		// Do not reenter flush while dirty components are updated, as this can
-		// result in an infinite loop. Instead, let the inner flush handle it.
-		// Reentrancy is ok afterwards for bindings etc.
-		if (flushidx !== 0) {
-			return;
-		}
-		const saved_component = current_component;
-		do {
-			// first, call beforeUpdate functions
-			// and update components
-			try {
-				while (flushidx < dirty_components.length) {
-					const component = dirty_components[flushidx];
-					flushidx++;
-					set_current_component(component);
-					update$1(component.$$);
-				}
-			} catch (e) {
-				// reset dirty state to not end up in a deadlocked state and then rethrow
-				dirty_components.length = 0;
-				flushidx = 0;
-				throw e;
+	/**
+	 * Sets the `selected` attribute on an `option` element.
+	 * Not set through the property because that doesn't reflect to the DOM,
+	 * which means it wouldn't be taken into account when a form is reset.
+	 * @param {HTMLOptionElement} element
+	 * @param {boolean} selected
+	 */
+	function set_selected(element, selected) {
+		if (selected) {
+			// The selected option could've changed via user selection, and
+			// setting the value without this check would set it back.
+			if (!element.hasAttribute('selected')) {
+				element.setAttribute('selected', '');
 			}
-			set_current_component(null);
-			dirty_components.length = 0;
-			flushidx = 0;
-			while (binding_callbacks.length) binding_callbacks.pop()();
-			// then, once components are updated, call
-			// afterUpdate functions. This may cause
-			// subsequent updates...
-			for (let i = 0; i < render_callbacks.length; i += 1) {
-				const callback = render_callbacks[i];
-				if (!seen_callbacks.has(callback)) {
-					// ...so guard against infinite loops
-					seen_callbacks.add(callback);
-					callback();
+		} else {
+			element.removeAttribute('selected');
+		}
+	}
+
+	/**
+	 * @param {Element} element
+	 * @param {string} attribute
+	 * @param {string | null} value
+	 * @param {boolean} [skip_warning]
+	 */
+	function set_attribute(element, attribute, value, skip_warning) {
+		var attributes = get_attributes(element);
+
+		if (attributes[attribute] === (attributes[attribute] = value)) return;
+
+		if (attribute === 'loading') {
+			// @ts-expect-error
+			element[LOADING_ATTR_SYMBOL] = value;
+		}
+
+		if (value == null) {
+			element.removeAttribute(attribute);
+		} else if (typeof value !== 'string' && get_setters(element).includes(attribute)) {
+			// @ts-ignore
+			element[attribute] = value;
+		} else {
+			element.setAttribute(attribute, value);
+		}
+	}
+
+	/**
+	 * Spreads attributes onto a DOM element, taking into account the currently set attributes
+	 * @param {Element & ElementCSSInlineStyle} element
+	 * @param {Record<string | symbol, any> | undefined} prev
+	 * @param {Record<string | symbol, any>} next New attributes - this function mutates this object
+	 * @param {string} [css_hash]
+	 * @param {boolean} [should_remove_defaults]
+	 * @param {boolean} [skip_warning]
+	 * @returns {Record<string, any>}
+	 */
+	function set_attributes(
+		element,
+		prev,
+		next,
+		css_hash,
+		should_remove_defaults = false,
+		skip_warning = false
+	) {
+
+		var attributes = get_attributes(element);
+
+		var is_custom_element = attributes[IS_CUSTOM_ELEMENT];
+		var preserve_attribute_case = !attributes[IS_HTML];
+
+		var current = prev || {};
+		var is_option_element = element.nodeName === OPTION_TAG;
+
+		for (var key in prev) {
+			if (!(key in next)) {
+				next[key] = null;
+			}
+		}
+
+		if (next.class) {
+			next.class = clsx(next.class);
+		} else {
+			next.class = null; /* force call to set_class() */
+		}
+
+		if (next[STYLE]) {
+			next.style ??= null; /* force call to set_style() */
+		}
+
+		var setters = get_setters(element);
+
+		// since key is captured we use const
+		for (const key in next) {
+			// let instead of var because referenced in a closure
+			let value = next[key];
+
+			// Up here because we want to do this for the initial value, too, even if it's undefined,
+			// and this wouldn't be reached in case of undefined because of the equality check below
+			if (is_option_element && key === 'value' && value == null) {
+				// The <option> element is a special case because removing the value attribute means
+				// the value is set to the text content of the option element, and setting the value
+				// to null or undefined means the value is set to the string "null" or "undefined".
+				// To align with how we handle this case in non-spread-scenarios, this logic is needed.
+				// There's a super-edge-case bug here that is left in in favor of smaller code size:
+				// Because of the "set missing props to null" logic above, we can't differentiate
+				// between a missing value and an explicitly set value of null or undefined. That means
+				// that once set, the value attribute of an <option> element can't be removed. This is
+				// a very rare edge case, and removing the attribute altogether isn't possible either
+				// for the <option value={undefined}> case, so we're not losing any functionality here.
+				// @ts-ignore
+				element.value = element.__value = '';
+				current[key] = value;
+				continue;
+			}
+
+			if (key === 'class') {
+				var is_html = element.namespaceURI === 'http://www.w3.org/1999/xhtml';
+				set_class(element, is_html, value, css_hash, prev?.[CLASS], next[CLASS]);
+				current[key] = value;
+				current[CLASS] = next[CLASS];
+				continue;
+			}
+
+			if (key === 'style') {
+				set_style(element, value, prev?.[STYLE], next[STYLE]);
+				current[key] = value;
+				current[STYLE] = next[STYLE];
+				continue;
+			}
+
+			var prev_value = current[key];
+
+			// Skip if value is unchanged, unless it's `undefined` and the element still has the attribute
+			if (value === prev_value && !(value === undefined && element.hasAttribute(key))) {
+				continue;
+			}
+
+			current[key] = value;
+
+			var prefix = key[0] + key[1]; // this is faster than key.slice(0, 2)
+			if (prefix === '$$') continue;
+
+			if (prefix === 'on') {
+				/** @type {{ capture?: true }} */
+				const opts = {};
+				const event_handle_key = '$$' + key;
+				let event_name = key.slice(2);
+				var is_delegated = can_delegate_event(event_name);
+
+				if (is_capture_event(event_name)) {
+					event_name = event_name.slice(0, -7);
+					opts.capture = true;
+				}
+
+				if (!is_delegated && prev_value) {
+					// Listening to same event but different handler -> our handle function below takes care of this
+					// If we were to remove and add listeners in this case, it could happen that the event is "swallowed"
+					// (the browser seems to not know yet that a new one exists now) and doesn't reach the handler
+					// https://github.com/sveltejs/svelte/issues/11903
+					if (value != null) continue;
+
+					element.removeEventListener(event_name, current[event_handle_key], opts);
+					current[event_handle_key] = null;
+				}
+
+				if (is_delegated) {
+					delegated(event_name, element, value);
+					delegate([event_name]);
+				} else if (value != null) {
+					/**
+					 * @this {any}
+					 * @param {Event} evt
+					 */
+					function handle(evt) {
+						current[key].call(this, evt);
+					}
+
+					current[event_handle_key] = create_event(event_name, element, handle, opts);
+				}
+			} else if (key === 'style') {
+				// avoid using the setter
+				set_attribute(element, key, value);
+			} else if (key === 'autofocus') {
+				autofocus(/** @type {HTMLElement} */ (element), Boolean(value));
+			} else if (!is_custom_element && (key === '__value' || (key === 'value' && value != null))) {
+				// @ts-ignore We're not running this for custom elements because __value is actually
+				// how Lit stores the current value on the element, and messing with that would break things.
+				element.value = element.__value = value;
+			} else if (key === 'selected' && is_option_element) {
+				set_selected(/** @type {HTMLOptionElement} */ (element), value);
+			} else {
+				var name = key;
+				if (!preserve_attribute_case) {
+					name = normalize_attribute(name);
+				}
+
+				var is_default = name === 'defaultValue' || name === 'defaultChecked';
+
+				if (value == null && !is_custom_element && !is_default) {
+					attributes[key] = null;
+
+					if (name === 'value' || name === 'checked') {
+						// removing value/checked also removes defaultValue/defaultChecked — preserve
+						let input = /** @type {HTMLInputElement} */ (element);
+						const use_default = prev === undefined;
+						if (name === 'value') {
+							let previous = input.defaultValue;
+							input.removeAttribute(name);
+							input.defaultValue = previous;
+							// @ts-ignore
+							input.value = input.__value = use_default ? previous : null;
+						} else {
+							let previous = input.defaultChecked;
+							input.removeAttribute(name);
+							input.defaultChecked = previous;
+							input.checked = use_default ? previous : false;
+						}
+					} else {
+						element.removeAttribute(key);
+					}
+				} else if (
+					is_default ||
+					(setters.includes(name) && (is_custom_element || typeof value !== 'string'))
+				) {
+					// @ts-ignore
+					element[name] = value;
+					// remove it from attributes's cache
+					if (name in attributes) attributes[name] = UNINITIALIZED;
+				} else if (typeof value !== 'function') {
+					set_attribute(element, name, value);
 				}
 			}
-			render_callbacks.length = 0;
-		} while (dirty_components.length);
-		while (flush_callbacks.length) {
-			flush_callbacks.pop()();
 		}
-		update_scheduled = false;
-		seen_callbacks.clear();
-		set_current_component(saved_component);
-	}
 
-	/** @returns {void} */
-	function update$1($$) {
-		if ($$.fragment !== null) {
-			$$.update();
-			run_all($$.before_update);
-			const dirty = $$.dirty;
-			$$.dirty = [-1];
-			$$.fragment && $$.fragment.p($$.ctx, dirty);
-			$$.after_update.forEach(add_render_callback);
-		}
+		return current;
 	}
 
 	/**
-	 * Useful for example to execute remaining `afterUpdate` callbacks before executing `destroy`.
-	 * @param {Function[]} fns
-	 * @returns {void}
+	 * @param {Element & ElementCSSInlineStyle} element
+	 * @param {(...expressions: any) => Record<string | symbol, any>} fn
+	 * @param {Array<() => any>} sync
+	 * @param {Array<() => Promise<any>>} async
+	 * @param {Blocker[]} blockers
+	 * @param {string} [css_hash]
+	 * @param {boolean} [should_remove_defaults]
+	 * @param {boolean} [skip_warning]
 	 */
-	function flush_render_callbacks(fns) {
-		const filtered = [];
-		const targets = [];
-		render_callbacks.forEach((c) => (fns.indexOf(c) === -1 ? filtered.push(c) : targets.push(c)));
-		targets.forEach((c) => c());
-		render_callbacks = filtered;
-	}
+	function attribute_effect(
+		element,
+		fn,
+		sync = [],
+		async = [],
+		blockers = [],
+		css_hash,
+		should_remove_defaults = false,
+		skip_warning = false
+	) {
+		flatten(blockers, sync, async, (values) => {
+			/** @type {Record<string | symbol, any> | undefined} */
+			var prev = undefined;
 
-	/**
-	 * @type {Promise<void> | null}
-	 */
-	let promise;
+			/** @type {Record<symbol, Effect>} */
+			var effects = {};
 
-	/**
-	 * @returns {Promise<void>}
-	 */
-	function wait() {
-		if (!promise) {
-			promise = Promise.resolve();
-			promise.then(() => {
-				promise = null;
-			});
-		}
-		return promise;
-	}
+			var is_select = element.nodeName === SELECT_TAG;
+			var inited = false;
 
-	/**
-	 * @param {Element} node
-	 * @param {INTRO | OUTRO | boolean} direction
-	 * @param {'start' | 'end'} kind
-	 * @returns {void}
-	 */
-	function dispatch(node, direction, kind) {
-		node.dispatchEvent(custom_event(`${direction ? 'intro' : 'outro'}${kind}`));
-	}
+			managed(() => {
+				var next = fn(...values.map(get$1));
+				/** @type {Record<string | symbol, any>} */
+				var current = set_attributes(
+					element,
+					prev,
+					next,
+					css_hash,
+					should_remove_defaults,
+					skip_warning
+				);
 
-	const outroing = new Set();
-
-	/**
-	 * @type {Outro}
-	 */
-	let outros;
-
-	/**
-	 * @returns {void} */
-	function group_outros() {
-		outros = {
-			r: 0,
-			c: [],
-			p: outros // parent group
-		};
-	}
-
-	/**
-	 * @returns {void} */
-	function check_outros() {
-		if (!outros.r) {
-			run_all(outros.c);
-		}
-		outros = outros.p;
-	}
-
-	/**
-	 * @param {import('./private.js').Fragment} block
-	 * @param {0 | 1} [local]
-	 * @returns {void}
-	 */
-	function transition_in(block, local) {
-		if (block && block.i) {
-			outroing.delete(block);
-			block.i(local);
-		}
-	}
-
-	/**
-	 * @param {import('./private.js').Fragment} block
-	 * @param {0 | 1} local
-	 * @param {0 | 1} [detach]
-	 * @param {() => void} [callback]
-	 * @returns {void}
-	 */
-	function transition_out(block, local, detach, callback) {
-		if (block && block.o) {
-			if (outroing.has(block)) return;
-			outroing.add(block);
-			outros.c.push(() => {
-				outroing.delete(block);
-				if (callback) {
-					if (detach) block.d(1);
-					callback();
+				if (inited && is_select && 'value' in next) {
+					select_option(/** @type {HTMLSelectElement} */ (element), next.value);
 				}
+
+				for (let symbol of Object.getOwnPropertySymbols(effects)) {
+					if (!next[symbol]) destroy_effect(effects[symbol]);
+				}
+
+				for (let symbol of Object.getOwnPropertySymbols(next)) {
+					var n = next[symbol];
+
+					if (symbol.description === ATTACHMENT_KEY && (!prev || n !== prev[symbol])) {
+						if (effects[symbol]) destroy_effect(effects[symbol]);
+						effects[symbol] = branch(() => attach(element, () => n));
+					}
+
+					current[symbol] = n;
+				}
+
+				prev = current;
 			});
-			block.o(local);
-		} else if (callback) {
-			callback();
-		}
+
+			if (is_select) {
+				var select = /** @type {HTMLSelectElement} */ (element);
+
+				effect(() => {
+					select_option(select, /** @type {Record<string | symbol, any>} */ (prev).value, true);
+					init_select(select);
+				});
+			}
+
+			inited = true;
+		});
 	}
 
 	/**
-	 * @type {import('../transition/public.js').TransitionConfig}
+	 *
+	 * @param {Element} element
 	 */
-	const null_transition = { duration: 0 };
+	function get_attributes(element) {
+		return /** @type {Record<string | symbol, unknown>} **/ (
+			// @ts-expect-error
+			element.__attributes ??= {
+				[IS_CUSTOM_ELEMENT]: element.nodeName.includes('-'),
+				[IS_HTML]: element.namespaceURI === NAMESPACE_HTML
+			}
+		);
+	}
 
-	/**
-	 * @param {Element & ElementCSSInlineStyle} node
-	 * @param {TransitionFn} fn
-	 * @param {any} params
-	 * @param {boolean} intro
-	 * @returns {{ run(b: 0 | 1): void; end(): void; }}
-	 */
-	function create_bidirectional_transition(node, fn, params, intro) {
-		/**
-		 * @type {TransitionOptions} */
-		const options = { direction: 'both' };
-		let config = fn(node, params, options);
-		let t = intro ? 0 : 1;
+	/** @type {Map<string, string[]>} */
+	var setters_cache = new Map();
 
-		/**
-		 * @type {Program | null} */
-		let running_program = null;
+	/** @param {Element} element */
+	function get_setters(element) {
+		var cache_key = element.getAttribute('is') || element.nodeName;
+		var setters = setters_cache.get(cache_key);
+		if (setters) return setters;
+		setters_cache.set(cache_key, (setters = []));
 
-		/**
-		 * @type {PendingProgram | null} */
-		let pending_program = null;
-		let animation_name = null;
+		var descriptors;
+		var proto = element; // In the case of custom elements there might be setters on the instance
+		var element_proto = Element.prototype;
 
-		/** @type {boolean} */
-		let original_inert_value;
+		// Stop at Element, from there on there's only unnecessary setters we're not interested in
+		// Do not use contructor.name here as that's unreliable in some browser environments
+		while (element_proto !== proto) {
+			descriptors = get_descriptors(proto);
 
-		/**
-		 * @returns {void} */
-		function clear_animation() {
-			if (animation_name) delete_rule(node, animation_name);
+			for (var key in descriptors) {
+				if (descriptors[key].set) {
+					setters.push(key);
+				}
+			}
+
+			proto = get_prototype_of(proto);
 		}
 
-		/**
-		 * @param {PendingProgram} program
-		 * @param {number} duration
-		 * @returns {Program}
-		 */
-		function init(program, duration) {
-			const d = /** @type {Program['d']} */ (program.b - t);
-			duration *= Math.abs(d);
-			return {
-				a: t,
-				b: program.b,
-				d,
-				duration,
-				start: program.start,
-				end: program.start + duration,
-				group: program.group
+		return setters;
+	}
+
+	/**
+	 * @param {any} bound_value
+	 * @param {Element} element_or_component
+	 * @returns {boolean}
+	 */
+	function is_bound_this(bound_value, element_or_component) {
+		return (
+			bound_value === element_or_component || bound_value?.[STATE_SYMBOL] === element_or_component
+		);
+	}
+
+	/**
+	 * @param {any} element_or_component
+	 * @param {(value: unknown, ...parts: unknown[]) => void} update
+	 * @param {(...parts: unknown[]) => unknown} get_value
+	 * @param {() => unknown[]} [get_parts] Set if the this binding is used inside an each block,
+	 * 										returns all the parts of the each block context that are used in the expression
+	 * @returns {void}
+	 */
+	function bind_this(element_or_component = {}, update, get_value, get_parts) {
+		effect(() => {
+			/** @type {unknown[]} */
+			var old_parts;
+
+			/** @type {unknown[]} */
+			var parts;
+
+			render_effect(() => {
+				old_parts = parts;
+				// We only track changes to the parts, not the value itself to avoid unnecessary reruns.
+				parts = [];
+
+				untrack(() => {
+					if (element_or_component !== get_value(...parts)) {
+						update(element_or_component, ...parts);
+						// If this is an effect rerun (cause: each block context changes), then nullify the binding at
+						// the previous position if it isn't already taken over by a different effect.
+						if (old_parts && is_bound_this(get_value(...old_parts), element_or_component)) {
+							update(null, ...old_parts);
+						}
+					}
+				});
+			});
+
+			return () => {
+				// We cannot use effects in the teardown phase, we we use a microtask instead.
+				queue_micro_task(() => {
+					if (parts && is_bound_this(get_value(...parts), element_or_component)) {
+						update(null, ...parts);
+					}
+				});
 			};
+		});
+
+		return element_or_component;
+	}
+
+	/** @import { Readable } from './public' */
+
+	/**
+	 * @template T
+	 * @param {Readable<T> | null | undefined} store
+	 * @param {(value: T) => void} run
+	 * @param {(value: T) => void} [invalidate]
+	 * @returns {() => void}
+	 */
+	function subscribe_to_store(store, run, invalidate) {
+		if (store == null) {
+			// @ts-expect-error
+			run(undefined);
+
+			return noop$1;
 		}
 
+		// Svelte store takes a private second argument
+		// StartStopNotifier could mutate state, and we want to silence the corresponding validation error
+		const unsub = untrack(() =>
+			store.subscribe(
+				run,
+				// @ts-expect-error
+				invalidate
+			)
+		);
+
+		// Also support RxJS
+		// @ts-expect-error TODO fix this in the types?
+		return unsub.unsubscribe ? () => unsub.unsubscribe() : unsub;
+	}
+
+	/** @import { Readable, StartStopNotifier, Subscriber, Unsubscriber, Updater, Writable } from '../public.js' */
+	/** @import { Stores, StoresValues, SubscribeInvalidateTuple } from '../private.js' */
+
+	/**
+	 * @type {Array<SubscribeInvalidateTuple<any> | any>}
+	 */
+	const subscriber_queue = [];
+
+	/**
+	 * Create a `Writable` store that allows both updating and reading by subscription.
+	 *
+	 * @template T
+	 * @param {T} [value] initial value
+	 * @param {StartStopNotifier<T>} [start]
+	 * @returns {Writable<T>}
+	 */
+	function writable(value, start = noop$1) {
+		/** @type {Unsubscriber | null} */
+		let stop = null;
+
+		/** @type {Set<SubscribeInvalidateTuple<T>>} */
+		const subscribers = new Set();
+
 		/**
-		 * @param {INTRO | OUTRO} b
+		 * @param {T} new_value
 		 * @returns {void}
 		 */
-		function go(b) {
-			const {
-				delay = 0,
-				duration = 300,
-				easing = identity,
-				tick = noop$1,
-				css
-			} = config || null_transition;
+		function set(new_value) {
+			if (safe_not_equal(value, new_value)) {
+				value = new_value;
+				if (stop) {
+					// store is ready
+					const run_queue = !subscriber_queue.length;
+					for (const subscriber of subscribers) {
+						subscriber[1]();
+						subscriber_queue.push(subscriber, value);
+					}
+					if (run_queue) {
+						for (let i = 0; i < subscriber_queue.length; i += 2) {
+							subscriber_queue[i][0](subscriber_queue[i + 1]);
+						}
+						subscriber_queue.length = 0;
+					}
+				}
+			}
+		}
 
-			/**
-			 * @type {PendingProgram} */
-			const program = {
-				start: now$2() + delay,
-				b
+		/**
+		 * @param {Updater<T>} fn
+		 * @returns {void}
+		 */
+		function update(fn) {
+			set(fn(/** @type {T} */ (value)));
+		}
+
+		/**
+		 * @param {Subscriber<T>} run
+		 * @param {() => void} [invalidate]
+		 * @returns {Unsubscriber}
+		 */
+		function subscribe(run, invalidate = noop$1) {
+			/** @type {SubscribeInvalidateTuple<T>} */
+			const subscriber = [run, invalidate];
+			subscribers.add(subscriber);
+			if (subscribers.size === 1) {
+				stop = start(set, update) || noop$1;
+			}
+			run(/** @type {T} */ (value));
+			return () => {
+				subscribers.delete(subscriber);
+				if (subscribers.size === 0 && stop) {
+					stop();
+					stop = null;
+				}
 			};
+		}
+		return { set, update, subscribe };
+	}
 
-			if (!b) {
-				// @ts-ignore todo: improve typings
-				program.group = outros;
-				outros.r += 1;
-			}
+	/**
+	 * Get the current value from a store by subscribing and immediately unsubscribing.
+	 *
+	 * @template T
+	 * @param {Readable<T>} store
+	 * @returns {T}
+	 */
+	function get(store) {
+		let value;
+		subscribe_to_store(store, (_) => (value = _))();
+		// @ts-expect-error
+		return value;
+	}
 
-			if ('inert' in node) {
-				if (b) {
-					if (original_inert_value !== undefined) {
-						// aborted/reversed outro — restore previous inert value
-						node.inert = original_inert_value;
-					}
-				} else {
-					original_inert_value = /** @type {HTMLElement} */ (node).inert;
-					node.inert = true;
-				}
-			}
+	/** @import { StoreReferencesContainer } from '#client' */
+	/** @import { Store } from '#shared' */
 
-			if (running_program || pending_program) {
-				pending_program = program;
+	/**
+	 * Whether or not the prop currently being read is a store binding, as in
+	 * `<Child bind:x={$y} />`. If it is, we treat the prop as mutable even in
+	 * runes mode, and skip `binding_property_non_reactive` validation
+	 */
+	let is_store_binding = false;
+
+	let IS_UNMOUNTED = Symbol();
+
+	/**
+	 * Gets the current value of a store. If the store isn't subscribed to yet, it will create a proxy
+	 * signal that will be updated when the store is. The store references container is needed to
+	 * track reassignments to stores and to track the correct component context.
+	 * @template V
+	 * @param {Store<V> | null | undefined} store
+	 * @param {string} store_name
+	 * @param {StoreReferencesContainer} stores
+	 * @returns {V}
+	 */
+	function store_get(store, store_name, stores) {
+		const entry = (stores[store_name] ??= {
+			store: null,
+			source: mutable_source(undefined),
+			unsubscribe: noop$1
+		});
+
+		{
+			entry.source.label = store_name;
+		}
+
+		// if the component that setup this is already unmounted we don't want to register a subscription
+		if (entry.store !== store && !(IS_UNMOUNTED in stores)) {
+			entry.unsubscribe();
+			entry.store = store ?? null;
+
+			if (store == null) {
+				entry.source.v = undefined; // see synchronous callback comment below
+				entry.unsubscribe = noop$1;
 			} else {
-				// if this is an intro, and there's a delay, we need to do
-				// an initial tick and/or apply CSS animation immediately
-				if (css) {
-					clear_animation();
-					animation_name = create_rule(node, t, b, duration, delay, easing, css);
+				var is_synchronous_callback = true;
+
+				entry.unsubscribe = subscribe_to_store(store, (v) => {
+					if (is_synchronous_callback) {
+						// If the first updates to the store value (possibly multiple of them) are synchronously
+						// inside a derived, we will hit the `state_unsafe_mutation` error if we `set` the value
+						entry.source.v = v;
+					} else {
+						set(entry.source, v);
+					}
+				});
+
+				is_synchronous_callback = false;
+			}
+		}
+
+		// if the component that setup this stores is already unmounted the source will be out of sync
+		// so we just use the `get` for the stores, less performant but it avoids to create a memory leak
+		// and it will keep the value consistent
+		if (store && IS_UNMOUNTED in stores) {
+			return get(store);
+		}
+
+		return get$1(entry.source);
+	}
+
+	/**
+	 * Unsubscribes from all auto-subscribed stores on destroy
+	 * @returns {[StoreReferencesContainer, ()=>void]}
+	 */
+	function setup_stores() {
+		/** @type {StoreReferencesContainer} */
+		const stores = {};
+
+		function cleanup() {
+			teardown(() => {
+				for (var store_name in stores) {
+					const ref = stores[store_name];
+					ref.unsubscribe();
 				}
-				if (b) tick(0, 1);
-				running_program = init(program, duration);
-				add_render_callback(() => dispatch(node, b, 'start'));
-				loop((now) => {
-					if (pending_program && now > pending_program.start) {
-						running_program = init(pending_program, duration);
-						pending_program = null;
-						dispatch(node, running_program.b, 'start');
-						if (css) {
-							clear_animation();
-							animation_name = create_rule(
-								node,
-								t,
-								running_program.b,
-								running_program.duration,
-								0,
-								easing,
-								config.css
-							);
-						}
+				define_property(stores, IS_UNMOUNTED, {
+					enumerable: false,
+					value: true
+				});
+			});
+		}
+
+		return [stores, cleanup];
+	}
+
+	/**
+	 * Returns a tuple that indicates whether `fn()` reads a prop that is a store binding.
+	 * Used to prevent `binding_property_non_reactive` validation false positives and
+	 * ensure that these props are treated as mutable even in runes mode
+	 * @template T
+	 * @param {() => T} fn
+	 * @returns {[T, boolean]}
+	 */
+	function capture_store_binding(fn) {
+		var previous_is_store_binding = is_store_binding;
+
+		try {
+			is_store_binding = false;
+			return [fn(), is_store_binding];
+		} finally {
+			is_store_binding = previous_is_store_binding;
+		}
+	}
+
+	/** @import { Effect, Source } from './types.js' */
+
+	/**
+	 * The proxy handler for rest props (i.e. `const { x, ...rest } = $props()`).
+	 * Is passed the full `$$props` object and excludes the named props.
+	 * @type {ProxyHandler<{ props: Record<string | symbol, unknown>, exclude: Array<string | symbol>, name?: string }>}}
+	 */
+	const rest_props_handler = {
+		get(target, key) {
+			if (target.exclude.includes(key)) return;
+			return target.props[key];
+		},
+		set(target, key) {
+			{
+				// TODO should this happen in prod too?
+				props_rest_readonly(`${target.name}.${String(key)}`);
+			}
+
+			return false;
+		},
+		getOwnPropertyDescriptor(target, key) {
+			if (target.exclude.includes(key)) return;
+			if (key in target.props) {
+				return {
+					enumerable: true,
+					configurable: true,
+					value: target.props[key]
+				};
+			}
+		},
+		has(target, key) {
+			if (target.exclude.includes(key)) return false;
+			return key in target.props;
+		},
+		ownKeys(target) {
+			return Reflect.ownKeys(target.props).filter((key) => !target.exclude.includes(key));
+		}
+	};
+
+	/**
+	 * @param {Record<string, unknown>} props
+	 * @param {string[]} exclude
+	 * @param {string} [name]
+	 * @returns {Record<string, unknown>}
+	 */
+	/*#__NO_SIDE_EFFECTS__*/
+	function rest_props(props, exclude, name) {
+		return new Proxy(
+			{ props, exclude, name, other: {}, to_proxy: [] } ,
+			rest_props_handler
+		);
+	}
+
+	/**
+	 * The proxy handler for spread props. Handles the incoming array of props
+	 * that looks like `() => { dynamic: props }, { static: prop }, ..` and wraps
+	 * them so that the whole thing is passed to the component as the `$$props` argument.
+	 * @type {ProxyHandler<{ props: Array<Record<string | symbol, unknown> | (() => Record<string | symbol, unknown>)> }>}}
+	 */
+	const spread_props_handler = {
+		get(target, key) {
+			let i = target.props.length;
+			while (i--) {
+				let p = target.props[i];
+				if (is_function(p)) p = p();
+				if (typeof p === 'object' && p !== null && key in p) return p[key];
+			}
+		},
+		set(target, key, value) {
+			let i = target.props.length;
+			while (i--) {
+				let p = target.props[i];
+				if (is_function(p)) p = p();
+				const desc = get_descriptor(p, key);
+				if (desc && desc.set) {
+					desc.set(value);
+					return true;
+				}
+			}
+			return false;
+		},
+		getOwnPropertyDescriptor(target, key) {
+			let i = target.props.length;
+			while (i--) {
+				let p = target.props[i];
+				if (is_function(p)) p = p();
+				if (typeof p === 'object' && p !== null && key in p) {
+					const descriptor = get_descriptor(p, key);
+					if (descriptor && !descriptor.configurable) {
+						// Prevent a "Non-configurability Report Error": The target is an array, it does
+						// not actually contain this property. If it is now described as non-configurable,
+						// the proxy throws a validation error. Setting it to true avoids that.
+						descriptor.configurable = true;
 					}
-					if (running_program) {
-						if (now >= running_program.end) {
-							tick((t = running_program.b), 1 - t);
-							dispatch(node, running_program.b, 'end');
-							if (!pending_program) {
-								// we're done
-								if (running_program.b) {
-									// intro — we can tidy up immediately
-									clear_animation();
-								} else {
-									// outro — needs to be coordinated
-									if (!--running_program.group.r) run_all(running_program.group.c);
-								}
-							}
-							running_program = null;
-						} else if (now >= running_program.start) {
-							const p = now - running_program.start;
-							t = running_program.a + running_program.d * easing(p / running_program.duration);
-							tick(t, 1 - t);
+					return descriptor;
+				}
+			}
+		},
+		has(target, key) {
+			// To prevent a false positive `is_entry_props` in the `prop` function
+			if (key === STATE_SYMBOL || key === LEGACY_PROPS) return false;
+
+			for (let p of target.props) {
+				if (is_function(p)) p = p();
+				if (p != null && key in p) return true;
+			}
+
+			return false;
+		},
+		ownKeys(target) {
+			/** @type {Array<string | symbol>} */
+			const keys = [];
+
+			for (let p of target.props) {
+				if (is_function(p)) p = p();
+				if (!p) continue;
+
+				for (const key in p) {
+					if (!keys.includes(key)) keys.push(key);
+				}
+
+				for (const key of Object.getOwnPropertySymbols(p)) {
+					if (!keys.includes(key)) keys.push(key);
+				}
+			}
+
+			return keys;
+		}
+	};
+
+	/**
+	 * @param {Array<Record<string, unknown> | (() => Record<string, unknown>)>} props
+	 * @returns {any}
+	 */
+	function spread_props(...props) {
+		return new Proxy({ props }, spread_props_handler);
+	}
+
+	/**
+	 * This function is responsible for synchronizing a possibly bound prop with the inner component state.
+	 * It is used whenever the compiler sees that the component writes to the prop, or when it has a default prop_value.
+	 * @template V
+	 * @param {Record<string, unknown>} props
+	 * @param {string} key
+	 * @param {number} flags
+	 * @param {V | (() => V)} [fallback]
+	 * @returns {(() => V | ((arg: V) => V) | ((arg: V, mutation: boolean) => V))}
+	 */
+	function prop(props, key, flags, fallback) {
+		var runes = !legacy_mode_flag || (flags & PROPS_IS_RUNES) !== 0;
+		var bindable = (flags & PROPS_IS_BINDABLE) !== 0;
+		var lazy = (flags & PROPS_IS_LAZY_INITIAL) !== 0;
+
+		var fallback_value = /** @type {V} */ (fallback);
+		var fallback_dirty = true;
+
+		var get_fallback = () => {
+			if (fallback_dirty) {
+				fallback_dirty = false;
+
+				fallback_value = lazy
+					? untrack(/** @type {() => V} */ (fallback))
+					: /** @type {V} */ (fallback);
+			}
+
+			return fallback_value;
+		};
+
+		/** @type {((v: V) => void) | undefined} */
+		var setter;
+
+		if (bindable) {
+			// Can be the case when someone does `mount(Component, props)` with `let props = $state({...})`
+			// or `createClassComponent(Component, props)`
+			var is_entry_props = STATE_SYMBOL in props || LEGACY_PROPS in props;
+
+			setter =
+				get_descriptor(props, key)?.set ??
+				(is_entry_props && key in props ? (v) => (props[key] = v) : undefined);
+		}
+
+		var initial_value;
+		var is_store_sub = false;
+
+		if (bindable) {
+			[initial_value, is_store_sub] = capture_store_binding(() => /** @type {V} */ (props[key]));
+		} else {
+			initial_value = /** @type {V} */ (props[key]);
+		}
+
+		if (initial_value === undefined && fallback !== undefined) {
+			initial_value = get_fallback();
+
+			if (setter) {
+				if (runes) props_invalid_value(key);
+				setter(initial_value);
+			}
+		}
+
+		/** @type {() => V} */
+		var getter;
+
+		if (runes) {
+			getter = () => {
+				var value = /** @type {V} */ (props[key]);
+				if (value === undefined) return get_fallback();
+				fallback_dirty = true;
+				return value;
+			};
+		} else {
+			getter = () => {
+				var value = /** @type {V} */ (props[key]);
+
+				if (value !== undefined) {
+					// in legacy mode, we don't revert to the fallback value
+					// if the prop goes from defined to undefined. The easiest
+					// way to model this is to make the fallback undefined
+					// as soon as the prop has a value
+					fallback_value = /** @type {V} */ (undefined);
+				}
+
+				return value === undefined ? fallback_value : value;
+			};
+		}
+
+		// prop is never written to — we only need a getter
+		if (runes && (flags & PROPS_IS_UPDATED) === 0) {
+			return getter;
+		}
+
+		// prop is written to, but the parent component had `bind:foo` which
+		// means we can just call `$$props.foo = value` directly
+		if (setter) {
+			var legacy_parent = props.$$legacy;
+			return /** @type {() => V} */ (
+				function (/** @type {V} */ value, /** @type {boolean} */ mutation) {
+					if (arguments.length > 0) {
+						// We don't want to notify if the value was mutated and the parent is in runes mode.
+						// In that case the state proxy (if it exists) should take care of the notification.
+						// If the parent is not in runes mode, we need to notify on mutation, too, that the prop
+						// has changed because the parent will not be able to detect the change otherwise.
+						if (!runes || !mutation || legacy_parent || is_store_sub) {
+							/** @type {Function} */ (setter)(mutation ? getter() : value);
 						}
+
+						return value;
 					}
-					return !!(running_program || pending_program);
+
+					return getter();
+				}
+			);
+		}
+
+		// Either prop is written to, but there's no binding, which means we
+		// create a derived that we can write to locally.
+		// Or we are in legacy mode where we always create a derived to replicate that
+		// Svelte 4 did not trigger updates when a primitive value was updated to the same value.
+		var overridden = false;
+
+		var d = ((flags & PROPS_IS_IMMUTABLE) !== 0 ? derived : derived_safe_equal)(() => {
+			overridden = false;
+			return getter();
+		});
+
+		{
+			d.label = key;
+		}
+
+		// Capture the initial value if it's bindable
+		if (bindable) get$1(d);
+
+		var parent_effect = /** @type {Effect} */ (active_effect);
+
+		return /** @type {() => V} */ (
+			function (/** @type {any} */ value, /** @type {boolean} */ mutation) {
+				if (arguments.length > 0) {
+					const new_value = mutation ? get$1(d) : runes && bindable ? proxy(value) : value;
+
+					set(d, new_value);
+					overridden = true;
+
+					if (fallback_value !== undefined) {
+						fallback_value = new_value;
+					}
+
+					return value;
+				}
+
+				// special case — avoid recalculating the derived if we're in a
+				// teardown function and the prop was overridden locally, or the
+				// component was already destroyed (this latter part is necessary
+				// because `bind:this` can read props after the component has
+				// been destroyed. TODO simplify `bind:this`
+				if ((is_destroying_effect && overridden) || (parent_effect.f & DESTROYED) !== 0) {
+					return d.v;
+				}
+
+				return get$1(d);
+			}
+		);
+	}
+
+	/**
+	 * @param {string} method
+	 * @param  {...any} objects
+	 */
+	function log_if_contains_state(method, ...objects) {
+		untrack(() => {
+			try {
+				let has_state = false;
+				const transformed = [];
+
+				for (const obj of objects) {
+					if (obj && typeof obj === 'object' && STATE_SYMBOL in obj) {
+						transformed.push(snapshot(obj, true));
+						has_state = true;
+					} else {
+						transformed.push(obj);
+					}
+				}
+
+				if (has_state) {
+					console_log_state(method);
+
+					// eslint-disable-next-line no-console
+					console.log('%c[snapshot]', 'color: grey', ...transformed);
+				}
+			} catch {
+				// Errors can occur when trying to snapshot objects with getters that throw or non-enumerable properties.
+			}
+		});
+
+		return objects;
+	}
+
+	/** @import { ComponentContext, ComponentContextLegacy } from '#client' */
+	/** @import { EventDispatcher } from './index.js' */
+	/** @import { NotFunction } from './internal/types.js' */
+
+	{
+		/**
+		 * @param {string} rune
+		 */
+		function throw_rune_error(rune) {
+			if (!(rune in globalThis)) {
+				// TODO if people start adjusting the "this can contain runes" config through v-p-s more, adjust this message
+				/** @type {any} */
+				let value; // let's hope noone modifies this global, but belts and braces
+				Object.defineProperty(globalThis, rune, {
+					configurable: true,
+					// eslint-disable-next-line getter-return
+					get: () => {
+						if (value !== undefined) {
+							return value;
+						}
+
+						rune_outside_svelte(rune);
+					},
+					set: (v) => {
+						value = v;
+					}
 				});
 			}
 		}
-		return {
-			run(b) {
-				if (is_function(config)) {
-					wait().then(() => {
-						const opts = { direction: b ? 'in' : 'out' };
-						// @ts-ignore
-						config = config(opts);
-						go(b);
-					});
-				} else {
-					go(b);
-				}
-			},
-			end() {
-				clear_animation();
-				running_program = pending_program = null;
-			}
-		};
-	}
 
-	/** @typedef {1} INTRO */
-	/** @typedef {0} OUTRO */
-	/** @typedef {{ direction: 'in' | 'out' | 'both' }} TransitionOptions */
-	/** @typedef {(node: Element, params: any, options: TransitionOptions) => import('../transition/public.js').TransitionConfig} TransitionFn */
-
-	/**
-	 * @typedef {Object} Outro
-	 * @property {number} r
-	 * @property {Function[]} c
-	 * @property {Object} p
-	 */
-
-	/**
-	 * @typedef {Object} PendingProgram
-	 * @property {number} start
-	 * @property {INTRO|OUTRO} b
-	 * @property {Outro} [group]
-	 */
-
-	/**
-	 * @typedef {Object} Program
-	 * @property {number} a
-	 * @property {INTRO|OUTRO} b
-	 * @property {1|-1} d
-	 * @property {number} duration
-	 * @property {number} start
-	 * @property {number} end
-	 * @property {Outro} [group]
-	 */
-
-	// general each functions:
-
-	function ensure_array_like(array_like_or_iterator) {
-		return array_like_or_iterator?.length !== undefined
-			? array_like_or_iterator
-			: Array.from(array_like_or_iterator);
-	}
-
-	/** @returns {void} */
-	function outro_and_destroy_block(block, lookup) {
-		transition_out(block, 1, 1, () => {
-			lookup.delete(block.key);
-		});
-	}
-
-	/** @returns {any[]} */
-	function update_keyed_each(
-		old_blocks,
-		dirty,
-		get_key,
-		dynamic,
-		ctx,
-		list,
-		lookup,
-		node,
-		destroy,
-		create_each_block,
-		next,
-		get_context
-	) {
-		let o = old_blocks.length;
-		let n = list.length;
-		let i = o;
-		const old_indexes = {};
-		while (i--) old_indexes[old_blocks[i].key] = i;
-		const new_blocks = [];
-		const new_lookup = new Map();
-		const deltas = new Map();
-		const updates = [];
-		i = n;
-		while (i--) {
-			const child_ctx = get_context(ctx, list, i);
-			const key = get_key(child_ctx);
-			let block = lookup.get(key);
-			if (!block) {
-				block = create_each_block(key, child_ctx);
-				block.c();
-			} else if (dynamic) {
-				// defer updates until all the DOM shuffling is done
-				updates.push(() => block.p(child_ctx, dirty));
-			}
-			new_lookup.set(key, (new_blocks[i] = block));
-			if (key in old_indexes) deltas.set(key, Math.abs(i - old_indexes[key]));
-		}
-		const will_move = new Set();
-		const did_move = new Set();
-		/** @returns {void} */
-		function insert(block) {
-			transition_in(block, 1);
-			block.m(node, next);
-			lookup.set(block.key, block);
-			next = block.first;
-			n--;
-		}
-		while (o && n) {
-			const new_block = new_blocks[n - 1];
-			const old_block = old_blocks[o - 1];
-			const new_key = new_block.key;
-			const old_key = old_block.key;
-			if (new_block === old_block) {
-				// do nothing
-				next = new_block.first;
-				o--;
-				n--;
-			} else if (!new_lookup.has(old_key)) {
-				// remove old block
-				destroy(old_block, lookup);
-				o--;
-			} else if (!lookup.has(new_key) || will_move.has(new_key)) {
-				insert(new_block);
-			} else if (did_move.has(old_key)) {
-				o--;
-			} else if (deltas.get(new_key) > deltas.get(old_key)) {
-				did_move.add(new_key);
-				insert(new_block);
-			} else {
-				will_move.add(old_key);
-				o--;
-			}
-		}
-		while (o--) {
-			const old_block = old_blocks[o];
-			if (!new_lookup.has(old_block.key)) destroy(old_block, lookup);
-		}
-		while (n) insert(new_blocks[n - 1]);
-		run_all(updates);
-		return new_blocks;
-	}
-
-	/** @returns {{}} */
-	function get_spread_update(levels, updates) {
-		const update = {};
-		const to_null_out = {};
-		const accounted_for = { $$scope: 1 };
-		let i = levels.length;
-		while (i--) {
-			const o = levels[i];
-			const n = updates[i];
-			if (n) {
-				for (const key in o) {
-					if (!(key in n)) to_null_out[key] = 1;
-				}
-				for (const key in n) {
-					if (!accounted_for[key]) {
-						update[key] = n[key];
-						accounted_for[key] = 1;
-					}
-				}
-				levels[i] = n;
-			} else {
-				for (const key in o) {
-					accounted_for[key] = 1;
-				}
-			}
-		}
-		for (const key in to_null_out) {
-			if (!(key in update)) update[key] = undefined;
-		}
-		return update;
-	}
-
-	function get_spread_object(spread_props) {
-		return typeof spread_props === 'object' && spread_props !== null ? spread_props : {};
-	}
-
-	/** @returns {void} */
-	function create_component(block) {
-		block && block.c();
-	}
-
-	/** @returns {void} */
-	function mount_component(component, target, anchor) {
-		const { fragment, after_update } = component.$$;
-		fragment && fragment.m(target, anchor);
-		// onMount happens before the initial afterUpdate
-		add_render_callback(() => {
-			const new_on_destroy = component.$$.on_mount.map(run).filter(is_function);
-			// if the component was destroyed immediately
-			// it will update the `$$.on_destroy` reference to `null`.
-			// the destructured on_destroy may still reference to the old array
-			if (component.$$.on_destroy) {
-				component.$$.on_destroy.push(...new_on_destroy);
-			} else {
-				// Edge case - component was destroyed immediately,
-				// most likely as a result of a binding initialising
-				run_all(new_on_destroy);
-			}
-			component.$$.on_mount = [];
-		});
-		after_update.forEach(add_render_callback);
-	}
-
-	/** @returns {void} */
-	function destroy_component(component, detaching) {
-		const $$ = component.$$;
-		if ($$.fragment !== null) {
-			flush_render_callbacks($$.after_update);
-			run_all($$.on_destroy);
-			$$.fragment && $$.fragment.d(detaching);
-			// TODO null out other refs, including component.$$ (but need to
-			// preserve final state?)
-			$$.on_destroy = $$.fragment = null;
-			$$.ctx = [];
-		}
-	}
-
-	/** @returns {void} */
-	function make_dirty(component, i) {
-		if (component.$$.dirty[0] === -1) {
-			dirty_components.push(component);
-			schedule_update();
-			component.$$.dirty.fill(0);
-		}
-		component.$$.dirty[(i / 31) | 0] |= 1 << i % 31;
-	}
-
-	/** @returns {void} */
-	function init(
-		component,
-		options,
-		instance,
-		create_fragment,
-		not_equal,
-		props,
-		append_styles,
-		dirty = [-1]
-	) {
-		const parent_component = current_component;
-		set_current_component(component);
-		/** @type {import('./private.js').T$$} */
-		const $$ = (component.$$ = {
-			fragment: null,
-			ctx: [],
-			// state
-			props,
-			update: noop$1,
-			not_equal,
-			bound: blank_object(),
-			// lifecycle
-			on_mount: [],
-			on_destroy: [],
-			on_disconnect: [],
-			before_update: [],
-			after_update: [],
-			context: new Map(options.context || (parent_component ? parent_component.$$.context : [])),
-			// everything else
-			callbacks: blank_object(),
-			dirty,
-			skip_bound: false,
-			root: options.target || parent_component.$$.root
-		});
-		append_styles && append_styles($$.root);
-		let ready = false;
-		$$.ctx = instance
-			? instance(component, options.props || {}, (i, ret, ...rest) => {
-					const value = rest.length ? rest[0] : ret;
-					if ($$.ctx && not_equal($$.ctx[i], ($$.ctx[i] = value))) {
-						if (!$$.skip_bound && $$.bound[i]) $$.bound[i](value);
-						if (ready) make_dirty(component, i);
-					}
-					return ret;
-			  })
-			: [];
-		$$.update();
-		ready = true;
-		run_all($$.before_update);
-		// `false` as a special case of no DOM component
-		$$.fragment = create_fragment ? create_fragment($$.ctx) : false;
-		if (options.target) {
-			if (options.hydrate) {
-				const nodes = children(options.target);
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-				$$.fragment && $$.fragment.l(nodes);
-				nodes.forEach(detach);
-			} else {
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-				$$.fragment && $$.fragment.c();
-			}
-			if (options.intro) transition_in(component.$$.fragment);
-			mount_component(component, options.target, options.anchor);
-			flush();
-		}
-		set_current_component(parent_component);
+		throw_rune_error('$state');
+		throw_rune_error('$effect');
+		throw_rune_error('$derived');
+		throw_rune_error('$inspect');
+		throw_rune_error('$props');
+		throw_rune_error('$bindable');
 	}
 
 	/**
-	 * Base class for Svelte components. Used when dev=false.
+	 * `onMount`, like [`$effect`](https://svelte.dev/docs/svelte/$effect), schedules a function to run as soon as the component has been mounted to the DOM.
+	 * Unlike `$effect`, the provided function only runs once.
 	 *
-	 * @template {Record<string, any>} [Props=any]
-	 * @template {Record<string, any>} [Events=any]
+	 * It must be called during the component's initialisation (but doesn't need to live _inside_ the component;
+	 * it can be called from an external module). If a function is returned _synchronously_ from `onMount`,
+	 * it will be called when the component is unmounted.
+	 *
+	 * `onMount` functions do not run during [server-side rendering](https://svelte.dev/docs/svelte/svelte-server#render).
+	 *
+	 * @template T
+	 * @param {() => NotFunction<T> | Promise<NotFunction<T>> | (() => any)} fn
+	 * @returns {void}
 	 */
-	class SvelteComponent {
-		/**
-		 * ### PRIVATE API
-		 *
-		 * Do not use, may change at any time
-		 *
-		 * @type {any}
-		 */
-		$$ = undefined;
-		/**
-		 * ### PRIVATE API
-		 *
-		 * Do not use, may change at any time
-		 *
-		 * @type {any}
-		 */
-		$$set = undefined;
-
-		/** @returns {void} */
-		$destroy() {
-			destroy_component(this, 1);
-			this.$destroy = noop$1;
+	function onMount(fn) {
+		if (component_context === null) {
+			lifecycle_outside_component('onMount');
 		}
 
-		/**
-		 * @template {Extract<keyof Events, string>} K
-		 * @param {K} type
-		 * @param {((e: Events[K]) => void) | null | undefined} callback
-		 * @returns {() => void}
-		 */
-		$on(type, callback) {
-			if (!is_function(callback)) {
-				return noop$1;
-			}
-			const callbacks = this.$$.callbacks[type] || (this.$$.callbacks[type] = []);
-			callbacks.push(callback);
-			return () => {
-				const index = callbacks.indexOf(callback);
-				if (index !== -1) callbacks.splice(index, 1);
-			};
-		}
-
-		/**
-		 * @param {Partial<Props>} props
-		 * @returns {void}
-		 */
-		$set(props) {
-			if (this.$$set && !is_empty(props)) {
-				this.$$.skip_bound = true;
-				this.$$set(props);
-				this.$$.skip_bound = false;
-			}
+		if (legacy_mode_flag && component_context.l !== null) {
+			init_update_callbacks(component_context).m.push(fn);
+		} else {
+			user_effect(() => {
+				const cleanup = untrack(fn);
+				if (typeof cleanup === 'function') return /** @type {() => void} */ (cleanup);
+			});
 		}
 	}
 
 	/**
-	 * @typedef {Object} CustomElementPropDefinition
-	 * @property {string} [attribute]
-	 * @property {boolean} [reflect]
-	 * @property {'String'|'Boolean'|'Number'|'Array'|'Object'} [type]
+	 * Legacy-mode: Init callbacks object for onMount/beforeUpdate/afterUpdate
+	 * @param {ComponentContext} context
 	 */
+	function init_update_callbacks(context) {
+		var l = /** @type {ComponentContextLegacy} */ (context).l;
+		return (l.u ??= { a: [], b: [], m: [] });
+	}
 
 	// generated during release, do not modify
 
-	const PUBLIC_VERSION = '4';
+	const PUBLIC_VERSION = '5';
 
-	if (typeof window !== 'undefined')
-		// @ts-ignore
-		(window.__svelte || (window.__svelte = { v: new Set() })).v.add(PUBLIC_VERSION);
-
-	function getDefaultExportFromCjs (x) {
-		return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
+	if (typeof window !== 'undefined') {
+		// @ts-expect-error
+		((window.__svelte ??= {}).v ??= new Set()).add(PUBLIC_VERSION);
 	}
 
-	var canUseDOM = !!(
-	  typeof window !== 'undefined' &&
-	  window.document &&
-	  window.document.createElement
-	);
-
-	var canUseDom = canUseDOM;
-
-	var canUseDOM$1 = /*@__PURE__*/getDefaultExportFromCjs(canUseDom);
+	enable_legacy_mode_flag();
 
 	/** Detect free variable `global` from Node.js. */
 	var freeGlobal = typeof global == 'object' && global && global.Object === Object && global;
-
-	var freeGlobal$1 = freeGlobal;
 
 	/** Detect free variable `self`. */
 	var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
 
 	/** Used as a reference to the global object. */
-	var root = freeGlobal$1 || freeSelf || Function('return this')();
-
-	var root$1 = root;
+	var root$g = freeGlobal || freeSelf || Function('return this')();
 
 	/** Built-in value references. */
-	var Symbol$1 = root$1.Symbol;
-
-	var Symbol$2 = Symbol$1;
+	var Symbol$1 = root$g.Symbol;
 
 	/** Used for built-in method references. */
 	var objectProto$1 = Object.prototype;
@@ -1391,7 +8989,7 @@ var app = (function () {
 	var nativeObjectToString$1 = objectProto$1.toString;
 
 	/** Built-in value references. */
-	var symToStringTag$1 = Symbol$2 ? Symbol$2.toStringTag : undefined;
+	var symToStringTag$1 = Symbol$1 ? Symbol$1.toStringTag : undefined;
 
 	/**
 	 * A specialized version of `baseGetTag` which ignores `Symbol.toStringTag` values.
@@ -1446,7 +9044,7 @@ var app = (function () {
 	    undefinedTag = '[object Undefined]';
 
 	/** Built-in value references. */
-	var symToStringTag = Symbol$2 ? Symbol$2.toStringTag : undefined;
+	var symToStringTag = Symbol$1 ? Symbol$1.toStringTag : undefined;
 
 	/**
 	 * The base implementation of `getTag` without fallbacks for buggy environments.
@@ -1657,10 +9255,8 @@ var app = (function () {
 	 * // => Logs the number of milliseconds it took for the deferred invocation.
 	 */
 	var now = function() {
-	  return root$1.Date.now();
+	  return root$g.Date.now();
 	};
-
-	var now$1 = now;
 
 	/** Error message constants. */
 	var FUNC_ERROR_TEXT$1 = 'Expected a function';
@@ -1787,7 +9383,7 @@ var app = (function () {
 	  }
 
 	  function timerExpired() {
-	    var time = now$1();
+	    var time = now();
 	    if (shouldInvoke(time)) {
 	      return trailingEdge(time);
 	    }
@@ -1816,11 +9412,11 @@ var app = (function () {
 	  }
 
 	  function flush() {
-	    return timerId === undefined ? result : trailingEdge(now$1());
+	    return timerId === undefined ? result : trailingEdge(now());
 	  }
 
 	  function debounced() {
-	    var time = now$1(),
+	    var time = now(),
 	        isInvoking = shouldInvoke(time);
 
 	    lastArgs = arguments;
@@ -1895,7 +9491,7 @@ var app = (function () {
 	 * // Cancel the trailing throttled invocation.
 	 * jQuery(window).on('popstate', throttled.cancel);
 	 */
-	function throttle(func, wait, options) {
+	function throttle$1(func, wait, options) {
 	  var leading = true,
 	      trailing = true;
 
@@ -1914,7 +9510,7 @@ var app = (function () {
 	}
 
 	/**
-	 * simplebar-core - v1.2.4
+	 * simplebar-core - v1.2.6
 	 * Scrollbars, simpler.
 	 * https://grsmto.github.io/simplebar/
 	 *
@@ -1948,33 +9544,6 @@ var app = (function () {
 	    };
 	    return __assign.apply(this, arguments);
 	};
-
-	var cachedScrollbarWidth = null;
-	var cachedDevicePixelRatio = null;
-	if (canUseDOM$1) {
-	    window.addEventListener('resize', function () {
-	        if (cachedDevicePixelRatio !== window.devicePixelRatio) {
-	            cachedDevicePixelRatio = window.devicePixelRatio;
-	            cachedScrollbarWidth = null;
-	        }
-	    });
-	}
-	function scrollbarWidth() {
-	    if (cachedScrollbarWidth === null) {
-	        if (typeof document === 'undefined') {
-	            cachedScrollbarWidth = 0;
-	            return cachedScrollbarWidth;
-	        }
-	        var body = document.body;
-	        var box = document.createElement('div');
-	        box.classList.add('simplebar-hide-scrollbar');
-	        body.appendChild(box);
-	        var width = box.getBoundingClientRect().right;
-	        body.removeChild(box);
-	        cachedScrollbarWidth = width;
-	    }
-	    return cachedScrollbarWidth;
-	}
 
 	function getElementWindow$1(element) {
 	    if (!element ||
@@ -2031,16 +9600,47 @@ var app = (function () {
 	function classNamesToQuery$1(classNames) {
 	    return ".".concat(classNames.split(' ').join('.'));
 	}
+	var canUseDOM$1 = !!(typeof window !== 'undefined' &&
+	    window.document &&
+	    window.document.createElement);
 
 	var helpers = /*#__PURE__*/Object.freeze({
 	    __proto__: null,
-	    getElementWindow: getElementWindow$1,
-	    getElementDocument: getElementDocument$1,
-	    getOptions: getOptions$1,
 	    addClasses: addClasses$1,
-	    removeClasses: removeClasses$1,
-	    classNamesToQuery: classNamesToQuery$1
+	    canUseDOM: canUseDOM$1,
+	    classNamesToQuery: classNamesToQuery$1,
+	    getElementDocument: getElementDocument$1,
+	    getElementWindow: getElementWindow$1,
+	    getOptions: getOptions$1,
+	    removeClasses: removeClasses$1
 	});
+
+	var cachedScrollbarWidth = null;
+	var cachedDevicePixelRatio = null;
+	if (canUseDOM$1) {
+	    window.addEventListener('resize', function () {
+	        if (cachedDevicePixelRatio !== window.devicePixelRatio) {
+	            cachedDevicePixelRatio = window.devicePixelRatio;
+	            cachedScrollbarWidth = null;
+	        }
+	    });
+	}
+	function scrollbarWidth() {
+	    if (cachedScrollbarWidth === null) {
+	        if (typeof document === 'undefined') {
+	            cachedScrollbarWidth = 0;
+	            return cachedScrollbarWidth;
+	        }
+	        var body = document.body;
+	        var box = document.createElement('div');
+	        box.classList.add('simplebar-hide-scrollbar');
+	        body.appendChild(box);
+	        var width = box.getBoundingClientRect().right;
+	        body.removeChild(box);
+	        cachedScrollbarWidth = width;
+	    }
+	    return cachedScrollbarWidth;
+	}
 
 	var getElementWindow = getElementWindow$1, getElementDocument = getElementDocument$1, getOptions$2 = getOptions$1, addClasses$2 = addClasses$1, removeClasses = removeClasses$1, classNamesToQuery = classNamesToQuery$1;
 	var SimpleBarCore = /** @class */ (function () {
@@ -2052,6 +9652,7 @@ var app = (function () {
 	        this.stopScrollDelay = 175;
 	        this.isScrolling = false;
 	        this.isMouseEntering = false;
+	        this.isDragging = false;
 	        this.scrollXTicking = false;
 	        this.scrollYTicking = false;
 	        this.wrapperEl = null;
@@ -2226,11 +9827,12 @@ var app = (function () {
 	            var dragPos = eventOffset -
 	                ((_h = (_g = track.rect) === null || _g === void 0 ? void 0 : _g[_this.axis[_this.draggedAxis].offsetAttr]) !== null && _h !== void 0 ? _h : 0) -
 	                _this.axis[_this.draggedAxis].dragOffset;
-	            dragPos = _this.draggedAxis === 'x' && _this.isRtl
-	                ? ((_k = (_j = track.rect) === null || _j === void 0 ? void 0 : _j[_this.axis[_this.draggedAxis].sizeAttr]) !== null && _k !== void 0 ? _k : 0) -
-	                    scrollbar.size -
-	                    dragPos
-	                : dragPos;
+	            dragPos =
+	                _this.draggedAxis === 'x' && _this.isRtl
+	                    ? ((_k = (_j = track.rect) === null || _j === void 0 ? void 0 : _j[_this.axis[_this.draggedAxis].sizeAttr]) !== null && _k !== void 0 ? _k : 0) -
+	                        scrollbar.size -
+	                        dragPos
+	                    : dragPos;
 	            // Convert the mouse position into a percentage of the scrollbar height/width.
 	            var dragPerc = dragPos / (trackSize - scrollbar.size);
 	            // Scroll the content by the same percentage.
@@ -2248,11 +9850,13 @@ var app = (function () {
 	         * End scroll handle drag
 	         */
 	        this.onEndDrag = function (e) {
+	            _this.isDragging = false;
 	            var elDocument = getElementDocument(_this.el);
 	            var elWindow = getElementWindow(_this.el);
 	            e.preventDefault();
 	            e.stopPropagation();
 	            removeClasses(_this.el, _this.classNames.dragging);
+	            _this.onStopScrolling();
 	            elDocument.removeEventListener('mousemove', _this.drag, true);
 	            elDocument.removeEventListener('mouseup', _this.onEndDrag, true);
 	            _this.removePreventClickId = elWindow.setTimeout(function () {
@@ -2304,7 +9908,7 @@ var app = (function () {
 	        if (typeof this.el !== 'object' || !this.el.nodeName) {
 	            throw new Error("Argument passed to SimpleBar must be an HTML element instead of ".concat(this.el));
 	        }
-	        this.onMouseMove = throttle(this._onMouseMove, 64);
+	        this.onMouseMove = throttle$1(this._onMouseMove, 64);
 	        this.onWindowResize = debounce(this._onWindowResize, 64, { leading: true });
 	        this.onStopScrolling = debounce(this._onStopScrolling, this.stopScrollDelay);
 	        this.onMouseEntered = debounce(this._onMouseEntered, this.stopScrollDelay);
@@ -2606,6 +10210,8 @@ var app = (function () {
 	    };
 	    SimpleBarCore.prototype.hideScrollbar = function (axis) {
 	        if (axis === void 0) { axis = 'y'; }
+	        if (this.isDragging)
+	            return;
 	        if (this.axis[axis].isOverflowing && this.axis[axis].scrollbar.isVisible) {
 	            removeClasses(this.axis[axis].scrollbar.el, this.classNames.visible);
 	            this.axis[axis].scrollbar.isVisible = false;
@@ -2662,6 +10268,7 @@ var app = (function () {
 	    SimpleBarCore.prototype.onDragStart = function (e, axis) {
 	        var _a;
 	        if (axis === void 0) { axis = 'y'; }
+	        this.isDragging = true;
 	        var elDocument = getElementDocument(this.el);
 	        var elWindow = getElementWindow(this.el);
 	        var scrollbar = this.axis[axis].scrollbar;
@@ -2795,6 +10402,7 @@ var app = (function () {
 	        scrollbarMinSize: 25,
 	        scrollbarMaxSize: 0,
 	        ariaLabel: 'scrollable content',
+	        tabIndex: 0,
 	        classNames: {
 	            contentEl: 'simplebar-content',
 	            contentWrapper: 'simplebar-content-wrapper',
@@ -2828,7 +10436,7 @@ var app = (function () {
 	}());
 
 	/**
-	 * simplebar - v6.2.5
+	 * simplebar - v6.2.7
 	 * Scrollbars, simpler.
 	 * https://grsmto.github.io/simplebar/
 	 *
@@ -2868,7 +10476,7 @@ var app = (function () {
 	    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 	}
 
-	var _a = SimpleBarCore.helpers, getOptions = _a.getOptions, addClasses = _a.addClasses;
+	var _a = SimpleBarCore.helpers, getOptions = _a.getOptions, addClasses = _a.addClasses, canUseDOM = _a.canUseDOM;
 	var SimpleBar = /** @class */ (function (_super) {
 	    __extends(SimpleBar, _super);
 	    function SimpleBar() {
@@ -2929,7 +10537,7 @@ var app = (function () {
 	            this.wrapperEl.appendChild(this.maskEl);
 	            this.wrapperEl.appendChild(this.placeholderEl);
 	            this.el.appendChild(this.wrapperEl);
-	            (_a = this.contentWrapperEl) === null || _a === void 0 ? void 0 : _a.setAttribute('tabindex', '0');
+	            (_a = this.contentWrapperEl) === null || _a === void 0 ? void 0 : _a.setAttribute('tabindex', this.options.tabIndex.toString());
 	            (_b = this.contentWrapperEl) === null || _b === void 0 ? void 0 : _b.setAttribute('role', 'region');
 	            (_c = this.contentWrapperEl) === null || _c === void 0 ? void 0 : _c.setAttribute('aria-label', this.options.ariaLabel);
 	        }
@@ -2995,17 +10603,17 @@ var app = (function () {
 	                }
 	            });
 	            mutation.removedNodes.forEach(function (removedNode) {
+	                var _a;
 	                if (removedNode.nodeType === 1) {
 	                    if (removedNode.getAttribute('data-simplebar') === 'init') {
-	                        SimpleBar.instances.has(removedNode) &&
-	                            !document.documentElement.contains(removedNode) &&
-	                            SimpleBar.instances.get(removedNode).unMount();
+	                        !document.documentElement.contains(removedNode) &&
+	                            ((_a = SimpleBar.instances.get(removedNode)) === null || _a === void 0 ? void 0 : _a.unMount());
 	                    }
 	                    else {
 	                        Array.prototype.forEach.call(removedNode.querySelectorAll('[data-simplebar="init"]'), function (el) {
-	                            SimpleBar.instances.has(el) &&
-	                                !document.documentElement.contains(el) &&
-	                                SimpleBar.instances.get(el).unMount();
+	                            var _a;
+	                            !document.documentElement.contains(el) &&
+	                                ((_a = SimpleBar.instances.get(el)) === null || _a === void 0 ? void 0 : _a.unMount());
 	                        });
 	                    }
 	                }
@@ -3019,413 +10627,273 @@ var app = (function () {
 	 * HTML API
 	 * Called only in a browser env.
 	 */
-	if (canUseDOM$1) {
+	if (canUseDOM) {
 	    SimpleBar.initHtmlApi();
 	}
 
-	/* src/components/SimpleBar.svelte generated by Svelte v4.1.2 */
+	SimpleBar_1[FILENAME] = 'src/components/SimpleBar.svelte';
 
-	function create_fragment$e(ctx) {
-		let div12;
-		let div7;
-		let div1;
-		let t0;
-		let div5;
-		let div4;
-		let div3;
-		let div2;
-		let t1;
-		let div6;
-		let t2;
-		let div9;
-		let t3;
-		let div11;
-		let current;
-		const default_slot_template = /*#slots*/ ctx[5].default;
-		const default_slot = create_slot(default_slot_template, ctx, /*$$scope*/ ctx[4], null);
+	var root$f = add_locations(from_html(`<div><div class="simplebar-wrapper"><div class="simplebar-height-auto-observer-wrapper"><div class="simplebar-height-auto-observer"></div></div> <div class="simplebar-mask"><div class="simplebar-offset"><div class="simplebar-content-wrapper"><div class="simplebar-content"><!></div></div></div></div> <div class="simplebar-placeholder"></div></div> <div class="simplebar-track simplebar-horizontal"><div class="simplebar-scrollbar"></div></div> <div class="simplebar-track simplebar-vertical"><div class="simplebar-scrollbar"></div></div></div>`), SimpleBar_1[FILENAME], [
+		[
+			14,
+			0,
+			[
+				[
+					15,
+					1,
+					[
+						[16, 2, [[17, 3]]],
+						[19, 2, [[20, 3, [[21, 4, [[22, 5]]]]]]],
+						[28, 2]
+					]
+				],
+				[30, 1, [[31, 2]]],
+				[33, 1, [[34, 2]]]
+			]
+		]
+	]);
 
-		return {
-			c() {
-				div12 = element("div");
-				div7 = element("div");
-				div1 = element("div");
-				div1.innerHTML = `<div class="simplebar-height-auto-observer"></div>`;
-				t0 = space();
-				div5 = element("div");
-				div4 = element("div");
-				div3 = element("div");
-				div2 = element("div");
-				if (default_slot) default_slot.c();
-				t1 = space();
-				div6 = element("div");
-				t2 = space();
-				div9 = element("div");
-				div9.innerHTML = `<div class="simplebar-scrollbar"></div>`;
-				t3 = space();
-				div11 = element("div");
-				div11.innerHTML = `<div class="simplebar-scrollbar"></div>`;
-				attr(div1, "class", "simplebar-height-auto-observer-wrapper");
-				attr(div2, "class", "simplebar-content");
-				attr(div3, "class", "simplebar-content-wrapper");
-				attr(div4, "class", "simplebar-offset");
-				attr(div5, "class", "simplebar-mask");
-				attr(div6, "class", "simplebar-placeholder");
-				attr(div7, "class", "simplebar-wrapper");
-				attr(div9, "class", "simplebar-track simplebar-horizontal");
-				attr(div11, "class", "simplebar-track simplebar-vertical");
-				set_style(div12, "max-height", /*maxHeight*/ ctx[0]);
-			},
-			m(target, anchor) {
-				insert(target, div12, anchor);
-				append(div12, div7);
-				append(div7, div1);
-				append(div7, t0);
-				append(div7, div5);
-				append(div5, div4);
-				append(div4, div3);
-				append(div3, div2);
+	function SimpleBar_1($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true, SimpleBar_1);
 
-				if (default_slot) {
-					default_slot.m(div2, null);
-				}
+		let maxHeight = prop($$props, 'maxHeight', 3, "300px");
+		let container = tag(state(void 0), 'container');
 
-				/*div2_binding*/ ctx[6](div2);
-				/*div3_binding*/ ctx[7](div3);
-				append(div7, t1);
-				append(div7, div6);
-				append(div12, t2);
-				append(div12, div9);
-				append(div12, t3);
-				append(div12, div11);
-				/*div12_binding*/ ctx[8](div12);
-				current = true;
-			},
-			p(ctx, [dirty]) {
-				if (default_slot) {
-					if (default_slot.p && (!current || dirty & /*$$scope*/ 16)) {
-						update_slot_base(
-							default_slot,
-							default_slot_template,
-							ctx,
-							/*$$scope*/ ctx[4],
-							!current
-							? get_all_dirty_from_scope(/*$$scope*/ ctx[4])
-							: get_slot_changes(default_slot_template, /*$$scope*/ ctx[4], dirty, null),
-							null
-						);
-					}
-				}
-
-				if (!current || dirty & /*maxHeight*/ 1) {
-					set_style(div12, "max-height", /*maxHeight*/ ctx[0]);
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(default_slot, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(default_slot, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div12);
-				}
-
-				if (default_slot) default_slot.d(detaching);
-				/*div2_binding*/ ctx[6](null);
-				/*div3_binding*/ ctx[7](null);
-				/*div12_binding*/ ctx[8](null);
-			}
-		};
-	}
-
-	function instance$a($$self, $$props, $$invalidate) {
-		let { $$slots: slots = {}, $$scope } = $$props;
-		let { maxHeight = "300px" } = $$props;
-		let container;
-		let scrollElement;
-		let contentElement;
-
-		onMount(async () => {
-			new SimpleBar(container);
+		onMount(() => {
+			new SimpleBar(get$1(container));
 		});
 
-		function div2_binding($$value) {
-			binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-				contentElement = $$value;
-				$$invalidate(3, contentElement);
-			});
-		}
+		var $$exports = { ...legacy_api() };
+		var div = root$f();
+		var div_1 = child(div);
+		var div_2 = sibling(child(div_1), 2);
+		var div_3 = child(div_2);
+		var div_4 = child(div_3);
+		var div_5 = child(div_4);
+		var node = child(div_5);
 
-		function div3_binding($$value) {
-			binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-				scrollElement = $$value;
-				$$invalidate(2, scrollElement);
-			});
-		}
+		add_svelte_meta(() => snippet(node, () => $$props.children ?? noop$1), 'render', SimpleBar_1, 23, 6);
+		bind_this(div, ($$value) => set(container, $$value), () => get$1(container));
+		template_effect(() => set_style(div, `max-height: ${maxHeight() ?? ''}`));
+		append($$anchor, div);
 
-		function div12_binding($$value) {
-			binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-				container = $$value;
-				$$invalidate(1, container);
-			});
-		}
-
-		$$self.$$set = $$props => {
-			if ('maxHeight' in $$props) $$invalidate(0, maxHeight = $$props.maxHeight);
-			if ('$$scope' in $$props) $$invalidate(4, $$scope = $$props.$$scope);
-		};
-
-		return [
-			maxHeight,
-			container,
-			scrollElement,
-			contentElement,
-			$$scope,
-			slots,
-			div2_binding,
-			div3_binding,
-			div12_binding
-		];
-	}
-
-	class SimpleBar_1 extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$a, create_fragment$e, safe_not_equal, { maxHeight: 0 });
-		}
-	}
-
-	const subscriber_queue = [];
-
-	/**
-	 * Creates a `Readable` store that allows reading by subscription.
-	 *
-	 * https://svelte.dev/docs/svelte-store#readable
-	 * @template T
-	 * @param {T} [value] initial value
-	 * @param {import('./public.js').StartStopNotifier<T>} [start]
-	 * @returns {import('./public.js').Readable<T>}
-	 */
-	function readable(value, start) {
-		return {
-			subscribe: writable(value, start).subscribe
-		};
-	}
-
-	/**
-	 * Create a `Writable` store that allows both updating and reading by subscription.
-	 *
-	 * https://svelte.dev/docs/svelte-store#writable
-	 * @template T
-	 * @param {T} [value] initial value
-	 * @param {import('./public.js').StartStopNotifier<T>} [start]
-	 * @returns {import('./public.js').Writable<T>}
-	 */
-	function writable(value, start = noop$1) {
-		/** @type {import('./public.js').Unsubscriber} */
-		let stop;
-		/** @type {Set<import('./private.js').SubscribeInvalidateTuple<T>>} */
-		const subscribers = new Set();
-		/** @param {T} new_value
-		 * @returns {void}
-		 */
-		function set(new_value) {
-			if (safe_not_equal(value, new_value)) {
-				value = new_value;
-				if (stop) {
-					// store is ready
-					const run_queue = !subscriber_queue.length;
-					for (const subscriber of subscribers) {
-						subscriber[1]();
-						subscriber_queue.push(subscriber, value);
-					}
-					if (run_queue) {
-						for (let i = 0; i < subscriber_queue.length; i += 2) {
-							subscriber_queue[i][0](subscriber_queue[i + 1]);
-						}
-						subscriber_queue.length = 0;
-					}
-				}
-			}
-		}
-
-		/**
-		 * @param {import('./public.js').Updater<T>} fn
-		 * @returns {void}
-		 */
-		function update(fn) {
-			set(fn(value));
-		}
-
-		/**
-		 * @param {import('./public.js').Subscriber<T>} run
-		 * @param {import('./private.js').Invalidator<T>} [invalidate]
-		 * @returns {import('./public.js').Unsubscriber}
-		 */
-		function subscribe(run, invalidate = noop$1) {
-			/** @type {import('./private.js').SubscribeInvalidateTuple<T>} */
-			const subscriber = [run, invalidate];
-			subscribers.add(subscriber);
-			if (subscribers.size === 1) {
-				stop = start(set, update) || noop$1;
-			}
-			run(value);
-			return () => {
-				subscribers.delete(subscriber);
-				if (subscribers.size === 0 && stop) {
-					stop();
-					stop = null;
-				}
-			};
-		}
-		return { set, update, subscribe };
-	}
-
-	/**
-	 * Derived value store by synchronizing one or more readable stores and
-	 * applying an aggregation function over its input values.
-	 *
-	 * https://svelte.dev/docs/svelte-store#derived
-	 * @template {import('./private.js').Stores} S
-	 * @template T
-	 * @overload
-	 * @param {S} stores - input stores
-	 * @param {(values: import('./private.js').StoresValues<S>, set: (value: T) => void, update: (fn: import('./public.js').Updater<T>) => void) => import('./public.js').Unsubscriber | void} fn - function callback that aggregates the values
-	 * @param {T} [initial_value] - initial value
-	 * @returns {import('./public.js').Readable<T>}
-	 */
-
-	/**
-	 * Derived value store by synchronizing one or more readable stores and
-	 * applying an aggregation function over its input values.
-	 *
-	 * https://svelte.dev/docs/svelte-store#derived
-	 * @template {import('./private.js').Stores} S
-	 * @template T
-	 * @overload
-	 * @param {S} stores - input stores
-	 * @param {(values: import('./private.js').StoresValues<S>) => T} fn - function callback that aggregates the values
-	 * @param {T} [initial_value] - initial value
-	 * @returns {import('./public.js').Readable<T>}
-	 */
-
-	/**
-	 * @template {import('./private.js').Stores} S
-	 * @template T
-	 * @param {S} stores
-	 * @param {Function} fn
-	 * @param {T} [initial_value]
-	 * @returns {import('./public.js').Readable<T>}
-	 */
-	function derived(stores, fn, initial_value) {
-		const single = !Array.isArray(stores);
-		/** @type {Array<import('./public.js').Readable<any>>} */
-		const stores_array = single ? [stores] : stores;
-		if (!stores_array.every(Boolean)) {
-			throw new Error('derived() expects stores as input, got a falsy value');
-		}
-		const auto = fn.length < 2;
-		return readable(initial_value, (set, update) => {
-			let started = false;
-			const values = [];
-			let pending = 0;
-			let cleanup = noop$1;
-			const sync = () => {
-				if (pending) {
-					return;
-				}
-				cleanup();
-				const result = fn(single ? values[0] : values, set, update);
-				if (auto) {
-					set(result);
-				} else {
-					cleanup = is_function(result) ? result : noop$1;
-				}
-			};
-			const unsubscribers = stores_array.map((store, i) =>
-				subscribe(
-					store,
-					(value) => {
-						values[i] = value;
-						pending &= ~(1 << i);
-						if (started) {
-							sync();
-						}
-					},
-					() => {
-						pending |= 1 << i;
-					}
-				)
-			);
-			started = true;
-			sync();
-			return function stop() {
-				run_all(unsubscribers);
-				cleanup();
-				// We need to set this to false because callbacks can still happen despite having unsubscribed:
-				// Callbacks might already be placed in the queue which doesn't know it should no longer
-				// invoke this derived store.
-				started = false;
-			};
-		});
+		return pop($$exports);
 	}
 
 	const projects = writable([]);
 	const menuActive = writable(null);
 
-	// const fixPath = require("fix-path");
-	// fixPath();
-	const util = require("util");
-	const fs = require("fs");
+	// ─── Fix PATH for production builds ──────────────────────────────────────────
+	// Packaged Electron apps launched from Finder/Dock don't inherit the user's
+	// terminal PATH.  We first try to read the real PATH from the user's login
+	// shell; if that fails we fall back to a list of well-known directories.
+	(function fixProductionPath() {
+		if (process.platform === "win32") {
+			const appData = process.env.APPDATA || "";
+			const pf = process.env["ProgramFiles"] || "C:\\Program Files";
+			const extra = [path.join(appData, "npm"), path.join(pf, "nodejs")];
+			const current = (process.env.PATH || "").split(";");
+			process.env.PATH = [...new Set([...extra, ...current])].join(";");
+			return;
+		}
 
-	const { ipcRenderer } = require("electron");
-	const exec = util.promisify(require("child_process").exec);
+		// macOS / Linux — try the user's real shell first
+		try {
+			const shell = process.env.SHELL || "/bin/zsh";
+			const marker = "__NPMAX_PATH__";
+			const raw = child_process.execFileSync(
+				shell,
+				["-ilc", `printf "${marker}%s${marker}" "$PATH"`],
+				{ timeout: 5000, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
+			);
+			const m = raw.match(new RegExp(`${marker}(.+?)${marker}`));
+			if (m && m[1].includes("/")) {
+				process.env.PATH = m[1];
+				return;
+			}
+		} catch {
+			/* fall through to manual list */
+		}
+
+		// Fallback: prepend well-known directories
+		const home = process.env.HOME || "";
+		const extra = [
+			"/usr/local/bin",
+			"/opt/homebrew/bin",
+			"/opt/homebrew/sbin",
+			"/opt/local/bin",
+			"/usr/bin",
+			"/bin",
+			path.join(home, ".volta", "bin"),
+			path.join(home, ".yarn", "bin"),
+			path.join(home, ".cargo", "bin"),
+			path.join(home, ".local", "bin"),
+			path.join(home, ".fnm", "aliases", "default", "bin"),
+		];
+
+		// Detect NVM — find the newest installed Node version
+		const nvmDir = process.env.NVM_DIR || path.join(home, ".nvm");
+		try {
+			const versionsDir = path.join(nvmDir, "versions", "node");
+			const versions = fs
+				.readdirSync(versionsDir)
+				.filter((v) => v.startsWith("v"))
+				.sort()
+				.reverse();
+			if (versions.length > 0) {
+				extra.push(path.join(versionsDir, versions[0], "bin"));
+			}
+		} catch {
+			/* nvm not installed */
+		}
+
+		const current = (process.env.PATH || "").split(":");
+		process.env.PATH = [...new Set([...extra, ...current])].join(":");
+	})();
+
+	const exec = util.promisify(child_process.exec);
 	const readFile = util.promisify(fs.readFile);
+	const writeFile = util.promisify(fs.writeFile);
 
+	const SHELL =
+		process.platform === "win32" ? undefined : process.env.SHELL || "/bin/zsh";
+
+	const EXEC_OPTS = { timeout: 15000, shell: SHELL };
+
+	/** Returns installed versions of npm, yarn, pnpm (false if not found). */
 	const globalPackages = async () => {
-		let yarn = await yarnPackages();
-		let npm = await npmPackages();
-		let pnpm = await pnpmPackages();
+		const [npm, yarn, pnpm] = await Promise.allSettled([
+			npmVersion(),
+			yarnVersion(),
+			pnpmVersion(),
+		]);
 		return {
-			yarn,
-			npm,
-			pnpm,
+			npm: npm.status === "fulfilled" ? npm.value : false,
+			yarn: yarn.status === "fulfilled" ? yarn.value : false,
+			pnpm: pnpm.status === "fulfilled" ? pnpm.value : false,
 		};
 	};
 
-	const openDirectory = async () => ipcRenderer.invoke("show-open-dialog");
+	const openDirectory = async () => electron.ipcRenderer.invoke("show-open-dialog");
 
-	const getProjectPackages = (path) => {
-		return readFile(`${path}/package.json`, "utf-8");
+	/** Read a project's package.json and return the raw JSON string. */
+	const getProjectPackages = (projectPath) =>
+		readFile(path.join(projectPath, "package.json"), "utf-8");
+
+	/**
+	 * Write an updated version back into the project's package.json.
+	 * Preserves the original semver prefix (^, ~, etc.).
+	 * Returns the new version string, or null on failure.
+	 */
+	const updatePackageVersion = async (
+		projectPath,
+		packageName,
+		latestVersion,
+		isDev,
+	) => {
+		const pkgPath = path.join(projectPath, "package.json");
+		const raw = await readFile(pkgPath, "utf-8");
+		const pkg = JSON.parse(raw);
+
+		const section = isDev ? "devDependencies" : "dependencies";
+		if (!pkg[section]?.[packageName]) return null;
+
+		const prefix = (pkg[section][packageName].match(/^[^\d]*/) ?? ["^"])[0];
+		const updated = prefix + latestVersion;
+		pkg[section][packageName] = updated;
+
+		await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + "\n", "utf-8");
+		return updated;
 	};
 
-	const yarnPackages = async () => {
+	/**
+	 * Check lock file status for a project.
+	 * Returns: "ok" | "stale" | "missing"
+	 *  - "missing" – no lock file found
+	 *  - "stale"   – package.json is newer than the lock file
+	 *  - "ok"      – lock file is up-to-date
+	 */
+	const checkLockFile = (projectPath) => {
+		const pkgPath = path.join(projectPath, "package.json");
+		const locks = [
+			path.join(projectPath, "package-lock.json"),
+			path.join(projectPath, "yarn.lock"),
+			path.join(projectPath, "pnpm-lock.yaml"),
+		];
+
+		let lockPath = null;
+		for (const l of locks) {
+			try {
+				fs.accessSync(l);
+				lockPath = l;
+				break;
+			} catch {
+				/* not found */
+			}
+		}
+
+		if (!lockPath) return "missing";
+
 		try {
-			const { stdout } = await exec("yarn -v");
-			return stdout;
-		} catch (err) {
+			const pkgMtime = fs.statSync(pkgPath).mtimeMs;
+			const lockMtime = fs.statSync(lockPath).mtimeMs;
+			return pkgMtime > lockMtime ? "stale" : "ok";
+		} catch {
+			return "missing";
+		}
+	};
+
+	/**
+	 * Run the appropriate install command (npm/yarn/pnpm) in the project directory.
+	 * Auto-detects the package manager from the lock file or falls back to npm.
+	 * Returns the stdout on success.
+	 */
+	const runInstall = async (projectPath) => {
+		let cmd = "npm install";
+		try {
+			fs.accessSync(path.join(projectPath, "yarn.lock"));
+			cmd = "yarn install";
+		} catch {
+			try {
+				fs.accessSync(path.join(projectPath, "pnpm-lock.yaml"));
+				cmd = "pnpm install";
+			} catch {
+				/* default to npm */
+			}
+		}
+
+		const { stdout } = await exec(cmd, {
+			...EXEC_OPTS,
+			cwd: projectPath,
+			timeout: 120000,
+		});
+		return stdout;
+	};
+
+	const npmVersion = async () => {
+		try {
+			const { stdout } = await exec("npm --version", EXEC_OPTS);
+			return stdout.trim();
+		} catch {
 			return false;
 		}
 	};
 
-	const npmPackages = async () => {
+	const yarnVersion = async () => {
 		try {
-			const { stdout } = await exec("npm -v");
-			return stdout;
-		} catch (err) {
+			const { stdout } = await exec("yarn --version", EXEC_OPTS);
+			return stdout.trim();
+		} catch {
 			return false;
 		}
 	};
 
-	const pnpmPackages = async () => {
+	const pnpmVersion = async () => {
 		try {
-			const { stdout } = await exec("pnpm -v");
-			return stdout;
-		} catch (err) {
+			const { stdout } = await exec("pnpm --version", EXEC_OPTS);
+			return stdout.trim();
+		} catch {
 			return false;
 		}
 	};
@@ -3439,921 +10907,433 @@ var app = (function () {
 		return true;
 	};
 
-	/* src/icons/npm.svelte generated by Svelte v4.1.2 */
+	Npm[FILENAME] = 'src/icons/npm.svelte';
 
-	function create_fragment$d(ctx) {
-		let svg;
-		let path;
+	var root$e = add_locations(from_svg(`<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0 10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625 11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281 13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438 19.445312 L 1.7773438 11.777344 z M 10.667969 11.777344 L 17.777344 11.777344 L 17.779297 11.777344 L 17.779297 19.443359 L 14.222656 19.443359 L 14.222656 21.222656 L 10.667969 21.222656 L 10.667969 11.777344 z M 19.556641 11.777344 L 30.222656 11.777344 L 30.224609 11.777344 L 30.224609 19.445312 L 28.445312 19.445312 L 28.445312 13.556641 L 26.667969 13.556641 L 26.667969 19.445312 L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641 L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344 z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16 13.556641 L 14.222656 13.556641 z"></path></svg>`), Npm[FILENAME], [[1, 0, [[2, 1]]]]);
 
-		return {
-			c() {
-				svg = svg_element("svg");
-				path = svg_element("path");
-				attr(path, "d", "M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0 10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625 11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281 13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438 19.445312 L 1.7773438 11.777344 z M 10.667969 11.777344 L 17.777344 11.777344 L 17.779297 11.777344 L 17.779297 19.443359 L 14.222656 19.443359 L 14.222656 21.222656 L 10.667969 21.222656 L 10.667969 11.777344 z M 19.556641 11.777344 L 30.222656 11.777344 L 30.224609 11.777344 L 30.224609 19.445312 L 28.445312 19.445312 L 28.445312 13.556641 L 26.667969 13.556641 L 26.667969 19.445312 L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641 L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344 z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16 13.556641 L 14.222656 13.556641 z");
-				attr(svg, "viewBox", "0 0 32 32");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-			},
-			m(target, anchor) {
-				insert(target, svg, anchor);
-				append(svg, path);
-			},
-			p: noop$1,
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(svg);
-				}
-			}
-		};
+	function Npm($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, Npm);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$e();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
 	}
 
-	class Npm extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, null, create_fragment$d, safe_not_equal, {});
-		}
+	Pnpm[FILENAME] = 'src/icons/pnpm.svelte';
+
+	var root$d = add_locations(from_svg(`<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid meet" viewBox="66.09157809474142 33.5 184.5 184.49999999999997"><defs><path d="M237.6 95L187.6 95L187.6 45L237.6 45L237.6 95Z" id="bj0tb0Y8q"></path><path d="M182.59 95L132.59 95L132.59 45L182.59 45L182.59 95Z" id="dkDSTzPj3"></path><path d="M127.59 95L77.59 95L77.59 45L127.59 45L127.59 95Z" id="a4vNdcNLpF"></path><path d="M237.6 150L187.6 150L187.6 100L237.6 100L237.6 150Z" id="h2t4Zj1jSU"></path><path d="M182.59 150L132.59 150L132.59 100L182.59 100L182.59 150Z" id="b4t5pngwvT"></path><path d="M182.59 205L132.59 205L132.59 155L182.59 155L182.59 205Z" id="b9s1gd5m2"></path><path d="M237.6 205L187.6 205L187.6 155L237.6 155L237.6 205Z" id="cmt9WLvz7"></path><path d="M127.59 205L77.59 205L77.59 155L127.59 155L127.59 205Z" id="bJUNqgFSg"></path></defs><g><g><use xlink:href="#bj0tb0Y8q" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#dkDSTzPj3" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#a4vNdcNLpF" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#h2t4Zj1jSU" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#b4t5pngwvT" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#b9s1gd5m2" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#cmt9WLvz7" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#bJUNqgFSg" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g></g></svg>`), Pnpm[FILENAME], [
+		[
+			1,
+			0,
+			[
+				[
+					8,
+					1,
+					[
+						[9, 2],
+						[10, 2],
+						[14, 2],
+						[18, 2],
+						[22, 2],
+						[26, 2],
+						[30, 2],
+						[34, 2]
+					]
+				],
+
+				[
+					39,
+					1,
+					[
+						[40, 2, [[41, 3]]],
+						[48, 2, [[49, 3]]],
+						[56, 2, [[57, 3]]],
+						[64, 2, [[65, 3]]],
+						[72, 2, [[73, 3]]],
+						[80, 2, [[81, 3]]],
+						[88, 2, [[89, 3]]],
+						[96, 2, [[97, 3]]]
+					]
+				]
+			]
+		]
+	]);
+
+	function Pnpm($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, Pnpm);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$d();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
 	}
 
-	/* src/icons/pnpm.svelte generated by Svelte v4.1.2 */
+	Yarn[FILENAME] = 'src/icons/yarn.svelte';
 
-	function create_fragment$c(ctx) {
-		let svg;
-		let defs;
-		let path0;
-		let path1;
-		let path2;
-		let path3;
-		let path4;
-		let path5;
-		let path6;
-		let path7;
-		let g8;
-		let g0;
-		let use0;
-		let g1;
-		let use1;
-		let g2;
-		let use2;
-		let g3;
-		let use3;
-		let g4;
-		let use4;
-		let g5;
-		let use5;
-		let g6;
-		let use6;
-		let g7;
-		let use7;
+	var root$c = add_locations(from_svg(`<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29 23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C 27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M 16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781 10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C 12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C 12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391 12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391 10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391 9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781 10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391 10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391 12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219 12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609 13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13 22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219 22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219 22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609 20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609 19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20 20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781 20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391 16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219 14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391 11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5 17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391 9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984 9.0449219 z"></path></svg>`), Yarn[FILENAME], [[1, 0, [[2, 1]]]]);
 
-		return {
-			c() {
-				svg = svg_element("svg");
-				defs = svg_element("defs");
-				path0 = svg_element("path");
-				path1 = svg_element("path");
-				path2 = svg_element("path");
-				path3 = svg_element("path");
-				path4 = svg_element("path");
-				path5 = svg_element("path");
-				path6 = svg_element("path");
-				path7 = svg_element("path");
-				g8 = svg_element("g");
-				g0 = svg_element("g");
-				use0 = svg_element("use");
-				g1 = svg_element("g");
-				use1 = svg_element("use");
-				g2 = svg_element("g");
-				use2 = svg_element("use");
-				g3 = svg_element("g");
-				use3 = svg_element("use");
-				g4 = svg_element("g");
-				use4 = svg_element("use");
-				g5 = svg_element("g");
-				use5 = svg_element("use");
-				g6 = svg_element("g");
-				use6 = svg_element("use");
-				g7 = svg_element("g");
-				use7 = svg_element("use");
-				attr(path0, "d", "M237.6 95L187.6 95L187.6 45L237.6 45L237.6 95Z");
-				attr(path0, "id", "bj0tb0Y8q");
-				attr(path1, "d", "M182.59 95L132.59 95L132.59 45L182.59 45L182.59 95Z");
-				attr(path1, "id", "dkDSTzPj3");
-				attr(path2, "d", "M127.59 95L77.59 95L77.59 45L127.59 45L127.59 95Z");
-				attr(path2, "id", "a4vNdcNLpF");
-				attr(path3, "d", "M237.6 150L187.6 150L187.6 100L237.6 100L237.6 150Z");
-				attr(path3, "id", "h2t4Zj1jSU");
-				attr(path4, "d", "M182.59 150L132.59 150L132.59 100L182.59 100L182.59 150Z");
-				attr(path4, "id", "b4t5pngwvT");
-				attr(path5, "d", "M182.59 205L132.59 205L132.59 155L182.59 155L182.59 205Z");
-				attr(path5, "id", "b9s1gd5m2");
-				attr(path6, "d", "M237.6 205L187.6 205L187.6 155L237.6 155L237.6 205Z");
-				attr(path6, "id", "cmt9WLvz7");
-				attr(path7, "d", "M127.59 205L77.59 205L77.59 155L127.59 155L127.59 205Z");
-				attr(path7, "id", "bJUNqgFSg");
-				xlink_attr(use0, "xlink:href", "#bj0tb0Y8q");
-				attr(use0, "opacity", "1");
-				attr(use0, "fill", "#f9ad00");
-				attr(use0, "fill-opacity", "1");
-				xlink_attr(use1, "xlink:href", "#dkDSTzPj3");
-				attr(use1, "opacity", "1");
-				attr(use1, "fill", "#f9ad00");
-				attr(use1, "fill-opacity", "1");
-				xlink_attr(use2, "xlink:href", "#a4vNdcNLpF");
-				attr(use2, "opacity", "1");
-				attr(use2, "fill", "#f9ad00");
-				attr(use2, "fill-opacity", "1");
-				xlink_attr(use3, "xlink:href", "#h2t4Zj1jSU");
-				attr(use3, "opacity", "1");
-				attr(use3, "fill", "#f9ad00");
-				attr(use3, "fill-opacity", "1");
-				xlink_attr(use4, "xlink:href", "#b4t5pngwvT");
-				attr(use4, "opacity", "1");
-				attr(use4, "fill", "#4e4e4e");
-				attr(use4, "fill-opacity", "1");
-				xlink_attr(use5, "xlink:href", "#b9s1gd5m2");
-				attr(use5, "opacity", "1");
-				attr(use5, "fill", "#4e4e4e");
-				attr(use5, "fill-opacity", "1");
-				xlink_attr(use6, "xlink:href", "#cmt9WLvz7");
-				attr(use6, "opacity", "1");
-				attr(use6, "fill", "#4e4e4e");
-				attr(use6, "fill-opacity", "1");
-				xlink_attr(use7, "xlink:href", "#bJUNqgFSg");
-				attr(use7, "opacity", "1");
-				attr(use7, "fill", "#4e4e4e");
-				attr(use7, "fill-opacity", "1");
-				attr(svg, "version", "1.1");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(svg, "xmlns:xlink", "http://www.w3.org/1999/xlink");
-				attr(svg, "preserveAspectRatio", "xMidYMid meet");
-				attr(svg, "viewBox", "66.09157809474142 33.5 184.5 184.49999999999997");
-			},
-			m(target, anchor) {
-				insert(target, svg, anchor);
-				append(svg, defs);
-				append(defs, path0);
-				append(defs, path1);
-				append(defs, path2);
-				append(defs, path3);
-				append(defs, path4);
-				append(defs, path5);
-				append(defs, path6);
-				append(defs, path7);
-				append(svg, g8);
-				append(g8, g0);
-				append(g0, use0);
-				append(g8, g1);
-				append(g1, use1);
-				append(g8, g2);
-				append(g2, use2);
-				append(g8, g3);
-				append(g3, use3);
-				append(g8, g4);
-				append(g4, use4);
-				append(g8, g5);
-				append(g5, use5);
-				append(g8, g6);
-				append(g6, use6);
-				append(g8, g7);
-				append(g7, use7);
-			},
-			p: noop$1,
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(svg);
-				}
-			}
-		};
+	function Yarn($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, Yarn);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$c();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
 	}
 
-	class Pnpm extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, null, create_fragment$c, safe_not_equal, {});
-		}
-	}
+	Sidebar[FILENAME] = 'src/components/sidebar.svelte';
 
-	/* src/icons/yarn.svelte generated by Svelte v4.1.2 */
+	var root_3$1 = add_locations(from_html(`<div><button class="projectItem__btn svelte-1gr7gr8"><svg class="projectItem__icon svelte-1gr7gr8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg> <span class="projectItem__name svelte-1gr7gr8"> </span></button> <button class="projectItem__remove svelte-1gr7gr8" aria-label="Remove project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button> <button class="projectItem__close svelte-1gr7gr8" aria-label="Close project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg></button></div>`), Sidebar[FILENAME], [
+		[
+			70,
+			7,
+			[
+				[74, 8, [[78, 9, [[86, 10]]], [90, 9]]],
+				[
+					92,
+					8,
+					[[97, 9, [[104, 10], [105, 10], [108, 10], [109, 10]]]]
+				],
+				[112, 8, [[117, 9, [[124, 10], [125, 10]]]]]
+			]
+		]
+	]);
 
-	function create_fragment$b(ctx) {
-		let svg;
-		let path;
+	var root_4$3 = add_locations(from_html(`<p class="sidebarSection__empty svelte-1gr7gr8">No projects yet</p>`), Sidebar[FILENAME], [[131, 6]]);
+	var root_1$2 = add_locations(from_html(`<div class="sidebar__scroll-content svelte-1gr7gr8"><section class="sidebarSection"><h2 class="sidebarSection__label svelte-1gr7gr8">Projects</h2> <!></section></div>`), Sidebar[FILENAME], [[64, 3, [[65, 4, [[66, 5]]]]]]);
+	var root_6$2 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">npm</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[161, 4, [[162, 5], [163, 5], [164, 5]]]]);
+	var root_7$2 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">yarn</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[168, 4, [[169, 5], [170, 5], [171, 5]]]]);
+	var root_8$1 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">pnpm</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[175, 4, [[176, 5], [177, 5], [178, 5]]]]);
+	var root_5$2 = add_locations(from_html(`<section class="sidebarSection" style="padding-left: 8px;padding-right: 8px; padding-bottom: 8px;"><h2 class="sidebarSection__label svelte-1gr7gr8" style="text-align: center;">Package Managers</h2> <!> <!> <!></section>`), Sidebar[FILENAME], [[153, 2, [[157, 3]]]]);
 
-		return {
-			c() {
-				svg = svg_element("svg");
-				path = svg_element("path");
-				attr(path, "d", "M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29 23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C 27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M 16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781 10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C 12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C 12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391 12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391 10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391 9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781 10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391 10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391 12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219 12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609 13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13 22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219 22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219 22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609 20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609 19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20 20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781 20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391 16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219 14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391 11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5 17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391 9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984 9.0449219 z");
-				attr(svg, "viewBox", "0 0 32 32");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-			},
-			m(target, anchor) {
-				insert(target, svg, anchor);
-				append(svg, path);
-			},
-			p: noop$1,
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(svg);
-				}
-			}
-		};
-	}
+	var root$b = add_locations(from_html(`<aside class="sidebar svelte-1gr7gr8"><div><div class="sidebar__titlebar svelte-1gr7gr8"></div> <!> <button class="sidebar__addBtn svelte-1gr7gr8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add Project</button></div> <!></aside>`), Sidebar[FILENAME], [
+		[
+			58,
+			0,
+			[
+				[59, 1, [[61, 2], [137, 2, [[138, 3, [[145, 4], [146, 4]]]]]]]
+			]
+		]
+	]);
 
-	class Yarn extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, null, create_fragment$b, safe_not_equal, {});
-		}
-	}
+	function Sidebar($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true, Sidebar);
 
-	/* src/components/sidebar.svelte generated by Svelte v4.1.2 */
+		const $projects = () => (
+			validate_store(projects, 'projects'),
+			store_get(projects, '$projects', $$stores)
+		);
 
-	function get_each_context$2(ctx, list, i) {
-		const child_ctx = ctx.slice();
-		child_ctx[6] = list[i].id;
-		child_ctx[7] = list[i].name;
-		child_ctx[8] = list[i].path;
-		return child_ctx;
-	}
+		const $menuActive = () => (
+			validate_store(menuActive, 'menuActive'),
+			store_get(menuActive, '$menuActive', $$stores)
+		);
 
-	// (29:3) {#if packages.npm || packages.yarn || packages.pnpm}
-	function create_if_block_4$2(ctx) {
-		let h1;
-
-		return {
-			c() {
-				h1 = element("h1");
-				h1.textContent = "Globals";
-				attr(h1, "class", "sidebarList__title svelte-15zzfxe");
-			},
-			m(target, anchor) {
-				insert(target, h1, anchor);
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(h1);
-				}
-			}
-		};
-	}
-
-	// (32:3) {#if packages.npm}
-	function create_if_block_3$2(ctx) {
-		let button;
-		let figure;
-		let npmicon;
-		let t0;
-		let span;
-		let t1_value = /*packages*/ ctx[0].npm + "";
-		let t1;
-		let current;
-		npmicon = new Npm({});
-
-		return {
-			c() {
-				button = element("button");
-				figure = element("figure");
-				create_component(npmicon.$$.fragment);
-				t0 = text("\n\t\t\t\t\tNpm\n\t\t\t\t\t");
-				span = element("span");
-				t1 = text(t1_value);
-				attr(figure, "class", "ui__iconGlobal svelte-15zzfxe");
-				attr(span, "class", "svelte-15zzfxe");
-				attr(button, "class", "sidebarList__item svelte-15zzfxe");
-			},
-			m(target, anchor) {
-				insert(target, button, anchor);
-				append(button, figure);
-				mount_component(npmicon, figure, null);
-				append(button, t0);
-				append(button, span);
-				append(span, t1);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if ((!current || dirty & /*packages*/ 1) && t1_value !== (t1_value = /*packages*/ ctx[0].npm + "")) set_data(t1, t1_value);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(npmicon.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(npmicon.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(button);
-				}
-
-				destroy_component(npmicon);
-			}
-		};
-	}
-
-	// (41:3) {#if packages.yarn}
-	function create_if_block_2$2(ctx) {
-		let button;
-		let figure;
-		let yarnicon;
-		let t0;
-		let span;
-		let t1_value = /*packages*/ ctx[0].yarn + "";
-		let t1;
-		let current;
-		yarnicon = new Yarn({});
-
-		return {
-			c() {
-				button = element("button");
-				figure = element("figure");
-				create_component(yarnicon.$$.fragment);
-				t0 = text("\n\t\t\t\t\tYarn\n\t\t\t\t\t");
-				span = element("span");
-				t1 = text(t1_value);
-				attr(figure, "class", "ui__iconGlobal svelte-15zzfxe");
-				attr(span, "class", "svelte-15zzfxe");
-				attr(button, "class", "sidebarList__item svelte-15zzfxe");
-			},
-			m(target, anchor) {
-				insert(target, button, anchor);
-				append(button, figure);
-				mount_component(yarnicon, figure, null);
-				append(button, t0);
-				append(button, span);
-				append(span, t1);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if ((!current || dirty & /*packages*/ 1) && t1_value !== (t1_value = /*packages*/ ctx[0].yarn + "")) set_data(t1, t1_value);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(yarnicon.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(yarnicon.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(button);
-				}
-
-				destroy_component(yarnicon);
-			}
-		};
-	}
-
-	// (50:3) {#if packages.pnpm}
-	function create_if_block_1$2(ctx) {
-		let button;
-		let figure;
-		let pnpmicon;
-		let t0;
-		let span;
-		let t1_value = /*packages*/ ctx[0].pnpm + "";
-		let t1;
-		let current;
-		pnpmicon = new Pnpm({});
-
-		return {
-			c() {
-				button = element("button");
-				figure = element("figure");
-				create_component(pnpmicon.$$.fragment);
-				t0 = text("\n\t\t\t\t\tPnpm\n\t\t\t\t\t");
-				span = element("span");
-				t1 = text(t1_value);
-				attr(figure, "class", "ui__iconGlobal svelte-15zzfxe");
-				attr(span, "class", "svelte-15zzfxe");
-				attr(button, "class", "sidebarList__item svelte-15zzfxe");
-			},
-			m(target, anchor) {
-				insert(target, button, anchor);
-				append(button, figure);
-				mount_component(pnpmicon, figure, null);
-				append(button, t0);
-				append(button, span);
-				append(span, t1);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if ((!current || dirty & /*packages*/ 1) && t1_value !== (t1_value = /*packages*/ ctx[0].pnpm + "")) set_data(t1, t1_value);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(pnpmicon.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(pnpmicon.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(button);
-				}
-
-				destroy_component(pnpmicon);
-			}
-		};
-	}
-
-	// (62:3) {#if $projects}
-	function create_if_block$5(ctx) {
-		let each_1_anchor;
-		let each_value = ensure_array_like(/*$projects*/ ctx[1]);
-		let each_blocks = [];
-
-		for (let i = 0; i < each_value.length; i += 1) {
-			each_blocks[i] = create_each_block$2(get_each_context$2(ctx, each_value, i));
-		}
-
-		return {
-			c() {
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					each_blocks[i].c();
-				}
-
-				each_1_anchor = empty();
-			},
-			m(target, anchor) {
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					if (each_blocks[i]) {
-						each_blocks[i].m(target, anchor);
-					}
-				}
-
-				insert(target, each_1_anchor, anchor);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*$menuActive, $projects, localStorage, JSON*/ 6) {
-					each_value = ensure_array_like(/*$projects*/ ctx[1]);
-					let i;
-
-					for (i = 0; i < each_value.length; i += 1) {
-						const child_ctx = get_each_context$2(ctx, each_value, i);
-
-						if (each_blocks[i]) {
-							each_blocks[i].p(child_ctx, dirty);
-						} else {
-							each_blocks[i] = create_each_block$2(child_ctx);
-							each_blocks[i].c();
-							each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
-						}
-					}
-
-					for (; i < each_blocks.length; i += 1) {
-						each_blocks[i].d(1);
-					}
-
-					each_blocks.length = each_value.length;
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(each_1_anchor);
-				}
-
-				destroy_each(each_blocks, detaching);
-			}
-		};
-	}
-
-	// (63:4) {#each $projects as { id, name, path }}
-	function create_each_block$2(ctx) {
-		let button1;
-		let svg0;
-		let path_1;
-		let t0;
-		let t1_value = /*name*/ ctx[7] + "";
-		let t1;
-		let t2;
-		let button0;
-		let t3;
-		let mounted;
-		let dispose;
-
-		function click_handler() {
-			return /*click_handler*/ ctx[3](/*id*/ ctx[6]);
-		}
-
-		function click_handler_1() {
-			return /*click_handler_1*/ ctx[4](/*id*/ ctx[6]);
-		}
-
-		return {
-			c() {
-				button1 = element("button");
-				svg0 = svg_element("svg");
-				path_1 = svg_element("path");
-				t0 = space();
-				t1 = text(t1_value);
-				t2 = space();
-				button0 = element("button");
-				button0.innerHTML = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="svelte-15zzfxe"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg>`;
-				t3 = space();
-				attr(path_1, "d", "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2\n                3h9a2 2 0 0 1 2 2z");
-				attr(svg0, "class", "ui__iconProject svelte-15zzfxe");
-				attr(svg0, "viewBox", "0 0 24 24");
-				attr(svg0, "xmlns", "http://www.w3.org/2000/svg");
-				attr(button0, "class", "sidebarList__itemRemove svelte-15zzfxe");
-				attr(button1, "class", "sidebarList__item svelte-15zzfxe");
-				toggle_class(button1, "active", /*$menuActive*/ ctx[2] === `project_${/*id*/ ctx[6]}`);
-			},
-			m(target, anchor) {
-				insert(target, button1, anchor);
-				append(button1, svg0);
-				append(svg0, path_1);
-				append(button1, t0);
-				append(button1, t1);
-				append(button1, t2);
-				append(button1, button0);
-				append(button1, t3);
-
-				if (!mounted) {
-					dispose = [
-						listen(button0, "click", click_handler),
-						listen(button1, "click", click_handler_1)
-					];
-
-					mounted = true;
-				}
-			},
-			p(new_ctx, dirty) {
-				ctx = new_ctx;
-				if (dirty & /*$projects*/ 2 && t1_value !== (t1_value = /*name*/ ctx[7] + "")) set_data(t1, t1_value);
-
-				if (dirty & /*$menuActive, $projects*/ 6) {
-					toggle_class(button1, "active", /*$menuActive*/ ctx[2] === `project_${/*id*/ ctx[6]}`);
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(button1);
-				}
-
-				mounted = false;
-				run_all(dispose);
-			}
-		};
-	}
-
-	// (27:1) <SimpleBar maxHeight={"calc(100vh - 105px)"}>
-	function create_default_slot$1(ctx) {
-		let section0;
-		let t0;
-		let t1;
-		let t2;
-		let t3;
-		let section1;
-		let h1;
-		let t5;
-		let current;
-		let if_block0 = (/*packages*/ ctx[0].npm || /*packages*/ ctx[0].yarn || /*packages*/ ctx[0].pnpm) && create_if_block_4$2();
-		let if_block1 = /*packages*/ ctx[0].npm && create_if_block_3$2(ctx);
-		let if_block2 = /*packages*/ ctx[0].yarn && create_if_block_2$2(ctx);
-		let if_block3 = /*packages*/ ctx[0].pnpm && create_if_block_1$2(ctx);
-		let if_block4 = /*$projects*/ ctx[1] && create_if_block$5(ctx);
-
-		return {
-			c() {
-				section0 = element("section");
-				if (if_block0) if_block0.c();
-				t0 = space();
-				if (if_block1) if_block1.c();
-				t1 = space();
-				if (if_block2) if_block2.c();
-				t2 = space();
-				if (if_block3) if_block3.c();
-				t3 = space();
-				section1 = element("section");
-				h1 = element("h1");
-				h1.textContent = "Projects";
-				t5 = space();
-				if (if_block4) if_block4.c();
-				attr(section0, "class", "sidebarList svelte-15zzfxe");
-				attr(h1, "class", "sidebarList__title svelte-15zzfxe");
-				attr(section1, "class", "sidebarList svelte-15zzfxe");
-			},
-			m(target, anchor) {
-				insert(target, section0, anchor);
-				if (if_block0) if_block0.m(section0, null);
-				append(section0, t0);
-				if (if_block1) if_block1.m(section0, null);
-				append(section0, t1);
-				if (if_block2) if_block2.m(section0, null);
-				append(section0, t2);
-				if (if_block3) if_block3.m(section0, null);
-				insert(target, t3, anchor);
-				insert(target, section1, anchor);
-				append(section1, h1);
-				append(section1, t5);
-				if (if_block4) if_block4.m(section1, null);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if (/*packages*/ ctx[0].npm || /*packages*/ ctx[0].yarn || /*packages*/ ctx[0].pnpm) {
-					if (if_block0) ; else {
-						if_block0 = create_if_block_4$2();
-						if_block0.c();
-						if_block0.m(section0, t0);
-					}
-				} else if (if_block0) {
-					if_block0.d(1);
-					if_block0 = null;
-				}
-
-				if (/*packages*/ ctx[0].npm) {
-					if (if_block1) {
-						if_block1.p(ctx, dirty);
-
-						if (dirty & /*packages*/ 1) {
-							transition_in(if_block1, 1);
-						}
-					} else {
-						if_block1 = create_if_block_3$2(ctx);
-						if_block1.c();
-						transition_in(if_block1, 1);
-						if_block1.m(section0, t1);
-					}
-				} else if (if_block1) {
-					group_outros();
-
-					transition_out(if_block1, 1, 1, () => {
-						if_block1 = null;
-					});
-
-					check_outros();
-				}
-
-				if (/*packages*/ ctx[0].yarn) {
-					if (if_block2) {
-						if_block2.p(ctx, dirty);
-
-						if (dirty & /*packages*/ 1) {
-							transition_in(if_block2, 1);
-						}
-					} else {
-						if_block2 = create_if_block_2$2(ctx);
-						if_block2.c();
-						transition_in(if_block2, 1);
-						if_block2.m(section0, t2);
-					}
-				} else if (if_block2) {
-					group_outros();
-
-					transition_out(if_block2, 1, 1, () => {
-						if_block2 = null;
-					});
-
-					check_outros();
-				}
-
-				if (/*packages*/ ctx[0].pnpm) {
-					if (if_block3) {
-						if_block3.p(ctx, dirty);
-
-						if (dirty & /*packages*/ 1) {
-							transition_in(if_block3, 1);
-						}
-					} else {
-						if_block3 = create_if_block_1$2(ctx);
-						if_block3.c();
-						transition_in(if_block3, 1);
-						if_block3.m(section0, null);
-					}
-				} else if (if_block3) {
-					group_outros();
-
-					transition_out(if_block3, 1, 1, () => {
-						if_block3 = null;
-					});
-
-					check_outros();
-				}
-
-				if (/*$projects*/ ctx[1]) {
-					if (if_block4) {
-						if_block4.p(ctx, dirty);
-					} else {
-						if_block4 = create_if_block$5(ctx);
-						if_block4.c();
-						if_block4.m(section1, null);
-					}
-				} else if (if_block4) {
-					if_block4.d(1);
-					if_block4 = null;
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(if_block1);
-				transition_in(if_block2);
-				transition_in(if_block3);
-				current = true;
-			},
-			o(local) {
-				transition_out(if_block1);
-				transition_out(if_block2);
-				transition_out(if_block3);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(section0);
-					detach(t3);
-					detach(section1);
-				}
-
-				if (if_block0) if_block0.d();
-				if (if_block1) if_block1.d();
-				if (if_block2) if_block2.d();
-				if (if_block3) if_block3.d();
-				if (if_block4) if_block4.d();
-			}
-		};
-	}
-
-	function create_fragment$a(ctx) {
-		let aside;
-		let simplebar;
-		let t0;
-		let button;
-		let current;
-		let mounted;
-		let dispose;
-
-		simplebar = new SimpleBar_1({
-				props: {
-					maxHeight: "calc(100vh - 105px)",
-					$$slots: { default: [create_default_slot$1] },
-					$$scope: { ctx }
-				}
-			});
-
-		return {
-			c() {
-				aside = element("aside");
-				create_component(simplebar.$$.fragment);
-				t0 = space();
-				button = element("button");
-				button.textContent = "Add Project";
-				attr(button, "class", "addProject svelte-15zzfxe");
-				attr(aside, "class", "sidebar svelte-15zzfxe");
-			},
-			m(target, anchor) {
-				insert(target, aside, anchor);
-				mount_component(simplebar, aside, null);
-				append(aside, t0);
-				append(aside, button);
-				current = true;
-
-				if (!mounted) {
-					dispose = listen(button, "click", /*click_handler_2*/ ctx[5]);
-					mounted = true;
-				}
-			},
-			p(ctx, [dirty]) {
-				const simplebar_changes = {};
-
-				if (dirty & /*$$scope, $projects, $menuActive, packages*/ 2055) {
-					simplebar_changes.$$scope = { dirty, ctx };
-				}
-
-				simplebar.$set(simplebar_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(simplebar.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(simplebar.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(aside);
-				}
-
-				destroy_component(simplebar);
-				mounted = false;
-				dispose();
-			}
-		};
-	}
-
-	function instance$9($$self, $$props, $$invalidate) {
-		let $projects;
-		let $menuActive;
-		component_subscribe($$self, projects, $$value => $$invalidate(1, $projects = $$value));
-		component_subscribe($$self, menuActive, $$value => $$invalidate(2, $menuActive = $$value));
-		let packages = {};
+		const [$$stores, $$cleanup] = setup_stores();
+		let packages = tag(state(proxy({})), 'packages');
 
 		onMount(async () => {
-			$$invalidate(0, packages = isJson(localStorage.getItem("packages"))
-			? JSON.parse(localStorage.getItem("packages"))
-			: {});
+			set(packages, isJson(localStorage.getItem("packages")) ? JSON.parse(localStorage.getItem("packages")) : {}, true);
 
-			projects.set(localStorage.getItem("projects") !== "null"
-			? JSON.parse(localStorage.getItem("projects") || false)
-			: []);
+			projects.set(strict_equals(localStorage.getItem("projects"), "null", false)
+				? JSON.parse(localStorage.getItem("projects") || "[]")
+				: []);
 
-			$$invalidate(0, packages = await globalPackages().then(res => res));
-			localStorage.setItem("packages", JSON.stringify(packages));
+			set(packages, (await track_reactivity_loss(globalPackages()))(), true);
+			localStorage.setItem("packages", JSON.stringify(get$1(packages)));
 		});
 
-		const click_handler = id => {
-			const projectFilter = $projects.filter(item => {
-				return item.id !== id;
-			});
+		async function addProject() {
+			try {
+				const result = (await track_reactivity_loss(openDirectory()))();
 
-			projects.set(projectFilter);
-			menuActive.set(null);
-			localStorage.setItem("projects", JSON.stringify(projectFilter));
-		};
-
-		const click_handler_1 = id => {
-			menuActive.set(`project_${id}`);
-		};
-
-		const click_handler_2 = () => {
-			openDirectory().then(result => {
 				if (result.length > 0) {
 					const projectPath = result[0];
 					const projectPathArray = result[0].split("/");
 					const projectName = projectPathArray[projectPathArray.length - 1];
 
-					projects.set([
-						...$projects,
-						{
-							id: $projects[$projects?.length - 1]
-							? $projects[$projects?.length - 1].id + 1
-							: 0,
-							name: projectName,
-							path: projectPath
-						}
-					]);
+					projects.update((list) => {
+						const newId = list.length > 0 ? list[list.length - 1].id + 1 : 0;
 
-					localStorage.setItem("projects", JSON.stringify($projects));
+						return [...list, { id: newId, name: projectName, path: projectPath }];
+					});
+
+					localStorage.setItem("projects", JSON.stringify($projects()));
 				}
-			}).catch(err => {
-				console.error(err);
-			});
-		};
-
-		return [
-			packages,
-			$projects,
-			$menuActive,
-			click_handler,
-			click_handler_1,
-			click_handler_2
-		];
-	}
-
-	class Sidebar extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$9, create_fragment$a, safe_not_equal, {});
+			} catch(err) {
+				console.error(...log_if_contains_state('error', err));
+			}
 		}
+
+		function closeProject(id) {
+			if (strict_equals($menuActive(), `project_${id}`)) {
+				menuActive.set(null);
+			}
+		}
+
+		function removeProject(id) {
+			const filtered = $projects().filter((item) => strict_equals(item.id, id, false));
+
+			projects.set(filtered);
+			menuActive.set(null);
+			localStorage.setItem("projects", JSON.stringify(filtered));
+		}
+
+		var $$exports = { ...legacy_api() };
+		var aside = root$b();
+		var div = child(aside);
+		var node = sibling(child(div), 2);
+
+		add_svelte_meta(
+			() => SimpleBar_1(node, {
+				maxHeight: "calc(100vh - 120px)",
+				children: wrap_snippet(Sidebar, ($$anchor, $$slotProps) => {
+					var div_1 = root_1$2();
+					var section = child(div_1);
+					var node_1 = sibling(child(section), 2);
+
+					{
+						var consequent = ($$anchor) => {
+							var fragment = comment();
+							var node_2 = first_child(fragment);
+
+							add_svelte_meta(
+								() => each(node_2, 1, $projects, index, ($$anchor, $$item) => {
+									let id = () => get$1($$item).id;
+
+									id();
+
+									let name = () => get$1($$item).name;
+
+									name();
+
+									var div_2 = root_3$1();
+									let classes;
+									var button = child(div_2);
+									var span = sibling(child(button), 2);
+									var text = child(span, true);
+
+									reset(span);
+									reset(button);
+
+									var button_1 = sibling(button, 2);
+									var button_2 = sibling(button_1, 2);
+
+									reset(div_2);
+
+									template_effect(() => {
+										classes = set_class(div_2, 1, 'projectItem svelte-1gr7gr8', null, classes, {
+											'projectItem--active': strict_equals($menuActive(), `project_${id()}`)
+										});
+
+										set_text(text, name());
+									});
+
+									delegated('click', button, function click() {
+										return menuActive.set(`project_${id()}`);
+									});
+
+									delegated('click', button_1, function click_1() {
+										return removeProject(id());
+									});
+
+									delegated('click', button_2, function click_2() {
+										return closeProject(id());
+									});
+
+									append($$anchor, div_2);
+								}),
+								'each',
+								Sidebar,
+								69,
+								6
+							);
+
+							append($$anchor, fragment);
+						};
+
+						var alternate = ($$anchor) => {
+							var p = root_4$3();
+
+							append($$anchor, p);
+						};
+
+						add_svelte_meta(
+							() => if_block(node_1, ($$render) => {
+								if ($projects() && $projects().length > 0) $$render(consequent); else $$render(alternate, -1);
+							}),
+							'if',
+							Sidebar,
+							68,
+							5
+						);
+					}
+
+					reset(section);
+					reset(div_1);
+					append($$anchor, div_1);
+				}),
+				$$slots: { default: true }
+			}),
+			'component',
+			Sidebar,
+			63,
+			2,
+			{ componentTag: 'SimpleBar' }
+		);
+
+		var button_3 = sibling(node, 2);
+
+		var node_3 = sibling(div, 2);
+
+		{
+			var consequent_4 = ($$anchor) => {
+				var section_1 = root_5$2();
+				var node_4 = sibling(child(section_1), 2);
+
+				{
+					var consequent_1 = ($$anchor) => {
+						var div_3 = root_6$2();
+						var figure = child(div_3);
+						var node_5 = child(figure);
+
+						add_svelte_meta(() => Npm(node_5, {}), 'component', Sidebar, 162, 35, { componentTag: 'NpmIcon' });
+
+						var span_1 = sibling(figure, 4);
+						var text_1 = child(span_1);
+						template_effect(($0) => set_text(text_1, $0), [() => get$1(packages).npm.trim()]);
+						append($$anchor, div_3);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_4, ($$render) => {
+							if (get$1(packages).npm) $$render(consequent_1);
+						}),
+						'if',
+						Sidebar,
+						160,
+						3
+					);
+				}
+
+				var node_6 = sibling(node_4, 2);
+
+				{
+					var consequent_2 = ($$anchor) => {
+						var div_4 = root_7$2();
+						var figure_1 = child(div_4);
+						var node_7 = child(figure_1);
+
+						add_svelte_meta(() => Yarn(node_7, {}), 'component', Sidebar, 169, 35, { componentTag: 'YarnIcon' });
+
+						var span_2 = sibling(figure_1, 4);
+						var text_2 = child(span_2);
+						template_effect(($0) => set_text(text_2, $0), [() => get$1(packages).yarn.trim()]);
+						append($$anchor, div_4);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_6, ($$render) => {
+							if (get$1(packages).yarn) $$render(consequent_2);
+						}),
+						'if',
+						Sidebar,
+						167,
+						3
+					);
+				}
+
+				var node_8 = sibling(node_6, 2);
+
+				{
+					var consequent_3 = ($$anchor) => {
+						var div_5 = root_8$1();
+						var figure_2 = child(div_5);
+						var node_9 = child(figure_2);
+
+						add_svelte_meta(() => Pnpm(node_9, {}), 'component', Sidebar, 176, 35, { componentTag: 'PnpmIcon' });
+
+						var span_3 = sibling(figure_2, 4);
+						var text_3 = child(span_3);
+						template_effect(($0) => set_text(text_3, $0), [() => get$1(packages).pnpm.trim()]);
+						append($$anchor, div_5);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_8, ($$render) => {
+							if (get$1(packages).pnpm) $$render(consequent_3);
+						}),
+						'if',
+						Sidebar,
+						174,
+						3
+					);
+				}
+				append($$anchor, section_1);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_3, ($$render) => {
+					if (get$1(packages).npm || get$1(packages).yarn || get$1(packages).pnpm) $$render(consequent_4);
+				}),
+				'if',
+				Sidebar,
+				152,
+				1
+			);
+		}
+		delegated('click', button_3, addProject);
+		append($$anchor, aside);
+
+		var $$pop = pop($$exports);
+
+		$$cleanup();
+
+		return $$pop;
 	}
 
-	/*
-	Adapted from https://github.com/mattdesl
-	Distributed under MIT License https://github.com/mattdesl/eases/blob/master/LICENSE.md
-	*/
+	delegate(['click']);
+
+	/** @import { BlurParams, CrossfadeParams, DrawParams, FadeParams, FlyParams, ScaleParams, SlideParams, TransitionConfig } from './public' */
+
 
 	/**
-	 * https://svelte.dev/docs/svelte-easing
 	 * @param {number} t
 	 * @returns {number}
 	 */
-	function cubicInOut(t) {
+	function cubic_in_out(t) {
 		return t < 0.5 ? 4.0 * t * t * t : 0.5 * Math.pow(2.0 * t - 2.0, 3.0) + 1.0;
+	}
+
+	/** @param {number | string} value
+	 * @returns {[number, string]}
+	 */
+	function split_css_unit(value) {
+		const split = typeof value === 'string' && value.match(/^\s*(-?[\d.]+)([^\s]*)\s*$/);
+		return split ? [parseFloat(split[1]), split[2] || 'px'] : [/** @type {number} */ (value), 'px'];
 	}
 
 	/**
 	 * Animates a `blur` filter alongside an element's opacity.
 	 *
-	 * https://svelte.dev/docs/svelte-transition#blur
 	 * @param {Element} node
-	 * @param {import('./public').BlurParams} [params]
-	 * @returns {import('./public').TransitionConfig}
+	 * @param {BlurParams} [params]
+	 * @returns {TransitionConfig}
 	 */
 	function blur(
 		node,
-		{ delay = 0, duration = 400, easing = cubicInOut, amount = 5, opacity = 0 } = {}
+		{ delay = 0, duration = 400, easing = cubic_in_out, amount = 5, opacity = 0 } = {}
 	) {
 		const style = getComputedStyle(node);
 		const target_opacity = +style.opacity;
@@ -4368,2089 +11348,2320 @@ var app = (function () {
 		};
 	}
 
-	/**
-	 * @external Store
-	 * @see [Svelte stores](https://svelte.dev/docs#component-format-script-4-prefix-stores-with-$-to-access-their-values-store-contract)
-	 */
+	Loader[FILENAME] = 'node_modules/svelte-sonner/dist/Loader.svelte';
+
+	const bars = Array(12).fill(0);
+	var root_1$1 = add_locations(from_html(`<div class="sonner-loading-bar"></div>`), Loader[FILENAME], [[15, 3]]);
+	var root$a = add_locations(from_html(`<div><div class="sonner-spinner"></div></div>`), Loader[FILENAME], [[9, 0, [[13, 1]]]]);
+
+	function Loader($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true, Loader);
+
+		var $$exports = { ...legacy_api() };
+		var div = root$a();
+		var div_1 = child(div);
+
+		add_svelte_meta(
+			() => each(div_1, 23, () => bars, (_, i) => `spinner-bar-${i}`, ($$anchor, _) => {
+				var div_2 = root_1$1();
+
+				append($$anchor, div_2);
+			}),
+			'each',
+			Loader,
+			14,
+			2
+		);
+
+		template_effect(
+			($0) => {
+				set_class(div, 1, $0);
+				set_attribute(div, 'data-visible', $$props.visible);
+			},
+			[
+				() => clsx(['sonner-loading-wrapper', $$props.class].filter(Boolean).join(' '))
+			]
+		);
+
+		append($$anchor, div);
+
+		return pop($$exports);
+	}
+
+	function cn(...classes) {
+	    return classes.filter(Boolean).join(' ');
+	}
+	const isBrowser = typeof document !== 'undefined';
+
+	const defaultWindow = typeof window !== "undefined" ? window : undefined;
 
 	/**
-	 * Create a store similar to [Svelte's `derived`](https://svelte.dev/docs#run-time-svelte-store-writable),
-	 * but which has its own `set` and `update` methods and can send values back to the origin stores.
-	 * [Read more...](https://github.com/PixievoltNo1/svelte-writable-derived#default-export-writablederived)
-	 * 
-	 * @param {Store|Store[]} origins One or more stores to derive from. Same as
-	 * [`derived`](https://svelte.dev/docs#run-time-svelte-store-writable)'s 1st parameter.
-	 * @param {!Function} derive The callback to determine the derived value. Same as
-	 * [`derived`](https://svelte.dev/docs#run-time-svelte-store-writable)'s 2nd parameter.
-	 * @param {!Function} reflect Called when the derived store gets a new value via its `set` or
-	 * `update` methods, and determines new values for the origin stores.
-	 * [Read more...](https://github.com/PixievoltNo1/svelte-writable-derived#new-parameter-reflect)
-	 * @param [initial] The new store's initial value. Same as
-	 * [`derived`](https://svelte.dev/docs#run-time-svelte-store-writable)'s 3rd parameter.
-	 * 
-	 * @returns {Store} A writable store.
+	 * Handles getting the active element in a document or shadow root.
+	 * If the active element is within a shadow root, it will traverse the shadow root
+	 * to find the active element.
+	 * If not, it will return the active element in the document.
+	 *
+	 * @param document A document or shadow root to get the active element from.
+	 * @returns The active element in the document or shadow root.
 	 */
-	function writableDerived(origins, derive, reflect, initial) {
-		var childDerivedSetter, originValues, blockNextDerive = false;
-		var reflectOldValues = reflect.length >= 2;
-		var wrappedDerive = (got, set, update) => {
-			childDerivedSetter = set;
-			if (reflectOldValues) {
-				originValues = got;
-			}
-			if (!blockNextDerive) {
-				let returned = derive(got, set, update);
-				if (derive.length < 2) {
-					set(returned);
-				} else {
-					return returned;
-				}
-			}
-			blockNextDerive = false;
-		};
-		var childDerived = derived(origins, wrappedDerive, initial);
-		
-		var singleOrigin = !Array.isArray(origins);
-		function doReflect(reflecting) {
-			var setWith = reflect(reflecting, originValues);
-			if (singleOrigin) {
-				blockNextDerive = true;
-				origins.set(setWith);
-			} else {
-				setWith.forEach( (value, i) => {
-					blockNextDerive = true;
-					origins[i].set(value);
-				} );
-			}
-			blockNextDerive = false;
+	function getActiveElement(document) {
+	    let activeElement = document.activeElement;
+	    while (activeElement?.shadowRoot) {
+	        const node = activeElement.shadowRoot.activeElement;
+	        if (node === activeElement)
+	            break;
+	        else
+	            activeElement = node;
+	    }
+	    return activeElement;
+	}
+
+	/* active-element.svelte.js generated by Svelte v5.53.7 */
+
+	class ActiveElement {
+		#document;
+		#subscribe;
+
+		constructor(options = {}) {
+			const { window = defaultWindow, document = window?.document } = options;
+
+			if (strict_equals(window, undefined)) return;
+
+			this.#document = document;
+
+			this.#subscribe = createSubscriber((update) => {
+				const cleanupFocusIn = on(window, "focusin", update);
+				const cleanupFocusOut = on(window, "focusout", update);
+
+				return () => {
+					cleanupFocusIn();
+					cleanupFocusOut();
+				};
+			});
 		}
-		
-		var tryingSet = false;
-		function update(fn) {
-			var isUpdated, mutatedBySubscriptions, oldValue, newValue;
-			if (tryingSet) {
-				newValue = fn( get_store_value(childDerived) );
-				childDerivedSetter(newValue);
+
+		get current() {
+			this.#subscribe?.();
+
+			if (!this.#document) return null;
+
+			return getActiveElement(this.#document);
+		}
+	}
+
+	/**
+	 * An object holding a reactive value that is equal to `document.activeElement`.
+	 * It automatically listens for changes, keeping the reference up to date.
+	 *
+	 * If you wish to use a custom document or shadowRoot, you should use
+	 * [useActiveElement](https://runed.dev/docs/utilities/active-element) instead.
+	 *
+	 * @see {@link https://runed.dev/docs/utilities/active-element}
+	 */
+	new ActiveElement();
+
+	class Context {
+	    #name;
+	    #key;
+	    /**
+	     * @param name The name of the context.
+	     * This is used for generating the context key and error messages.
+	     */
+	    constructor(name) {
+	        this.#name = name;
+	        this.#key = Symbol(name);
+	    }
+	    /**
+	     * The key used to get and set the context.
+	     *
+	     * It is not recommended to use this value directly.
+	     * Instead, use the methods provided by this class.
+	     */
+	    get key() {
+	        return this.#key;
+	    }
+	    /**
+	     * Checks whether this has been set in the context of a parent component.
+	     *
+	     * Must be called during component initialisation.
+	     */
+	    exists() {
+	        return hasContext(this.#key);
+	    }
+	    /**
+	     * Retrieves the context that belongs to the closest parent component.
+	     *
+	     * Must be called during component initialisation.
+	     *
+	     * @throws An error if the context does not exist.
+	     */
+	    get() {
+	        const context = getContext(this.#key);
+	        if (context === undefined) {
+	            throw new Error(`Context "${this.#name}" not found`);
+	        }
+	        return context;
+	    }
+	    /**
+	     * Retrieves the context that belongs to the closest parent component,
+	     * or the given fallback value if the context does not exist.
+	     *
+	     * Must be called during component initialisation.
+	     */
+	    getOr(fallback) {
+	        const context = getContext(this.#key);
+	        if (context === undefined) {
+	            return fallback;
+	        }
+	        return context;
+	    }
+	    /**
+	     * Associates the given value with the current component and returns it.
+	     *
+	     * Must be called during component initialisation.
+	     */
+	    set(context) {
+	        return setContext(this.#key, context);
+	    }
+	}
+
+	const sonnerContext = new Context('<Toaster/>');
+
+	/* toast-state.svelte.js generated by Svelte v5.53.7 */
+
+	let toastsCounter = 0;
+
+	class ToastState {
+		#toasts = tag(state(proxy([])), 'ToastState.toasts');
+
+		get toasts() {
+			return get$1(this.#toasts);
+		}
+
+		set toasts(value) {
+			set(this.#toasts, value, true);
+		}
+
+		#heights = tag(state(proxy([])), 'ToastState.heights');
+
+		get heights() {
+			return get$1(this.#heights);
+		}
+
+		set heights(value) {
+			set(this.#heights, value, true);
+		}
+
+		#findToastIdx = (id) => {
+			const idx = this.toasts.findIndex((toast) => strict_equals(toast.id, id));
+
+			if (strict_equals(idx, -1)) return null;
+
+			return idx;
+		};
+
+		addToast = (data) => {
+			if (!isBrowser) return;
+
+			this.toasts.unshift(data);
+		};
+
+		updateToast = ({ id, data, type, message }) => {
+			const toastIdx = this.toasts.findIndex((toast) => strict_equals(toast.id, id));
+			const toastToUpdate = this.toasts[toastIdx];
+
+			this.toasts[toastIdx] = {
+				...toastToUpdate,
+				...data,
+				id,
+				title: message,
+				type,
+				updated: true
+			};
+		};
+
+		create = (data) => {
+			const { message, ...rest } = data;
+			const id = strict_equals(typeof data?.id, 'number') || data.id && data.id?.length > 0 ? data.id : toastsCounter++;
+
+			// Support deprecated `dismissable` as a fallback for backwards compatibility
+			const dismissible = strict_equals(data.dismissible, undefined, false)
+				? data.dismissible
+				: strict_equals(data.dismissable, undefined, false) ? data.dismissable : true;
+
+			const type = strict_equals(data.type, undefined) ? 'default' : data.type;
+
+			untrack(() => {
+				const alreadyExists = this.toasts.find((toast) => strict_equals(toast.id, id));
+
+				if (alreadyExists) {
+					this.updateToast({ id, data, type, message, dismissible });
+				} else {
+					this.addToast({ ...rest, id, title: message, dismissible, type });
+				}
+			});
+
+			return id;
+		};
+
+		dismiss = (id) => {
+			untrack(() => {
+				if (strict_equals(id, undefined)) {
+					// we're dismissing all the toasts
+					this.toasts = this.toasts.map((toast) => ({ ...toast, dismiss: true }));
+
+					return;
+				}
+
+				// we're dismissing a specific toast
+				const toastIdx = this.toasts.findIndex((toast) => strict_equals(toast.id, id));
+
+				if (this.toasts[toastIdx]) {
+					this.toasts[toastIdx] = { ...this.toasts[toastIdx], dismiss: true };
+				}
+			});
+
+			return id;
+		};
+
+		remove = (id) => {
+			if (strict_equals(id, undefined)) {
+				// remove all toasts
+				this.toasts = [];
+
 				return;
 			}
-			var unsubscribe = childDerived.subscribe( (value) => {
-				if (!tryingSet) {
-					oldValue = value;
-				} else if (!isUpdated) {
-					isUpdated = true;
-				} else {
-					mutatedBySubscriptions = true;
-				}
-			} );
-			newValue = fn(oldValue);
-			tryingSet = true;
-			childDerivedSetter(newValue);
-			unsubscribe();
-			tryingSet = false;
-			if (mutatedBySubscriptions) {
-				newValue = get_store_value(childDerived);
+
+			// remove a specific toast
+			const toastIdx = this.#findToastIdx(id);
+
+			if (strict_equals(toastIdx, null)) return;
+
+			this.toasts.splice(toastIdx, 1);
+
+			return id;
+		};
+
+		message = (message, data) => {
+			return this.create({ ...data, type: 'default', message });
+		};
+
+		error = (message, data) => {
+			return this.create({ ...data, type: 'error', message });
+		};
+
+		success = (message, data) => {
+			return this.create({ ...data, type: 'success', message });
+		};
+
+		info = (message, data) => {
+			return this.create({ ...data, type: 'info', message });
+		};
+
+		warning = (message, data) => {
+			return this.create({ ...data, type: 'warning', message });
+		};
+
+		loading = (message, data) => {
+			return this.create({ ...data, type: 'loading', message });
+		};
+
+		promise = (promise, data) => {
+			if (!data) {
+				// Nothing to show
+				return;
 			}
-			if (isUpdated) {
-				doReflect(newValue);
+
+			let id = undefined;
+
+			if (strict_equals(data.loading, undefined, false)) {
+				id = this.create({
+					...data,
+					promise,
+					type: 'loading',
+					message: strict_equals(typeof data.loading, 'string') ? data.loading : data.loading()
+				});
 			}
-		}
-		return {
-			subscribe: childDerived.subscribe,
-			set(value) { update( () => value ); },
-			update,
+
+			const p = promise instanceof Promise ? promise : promise();
+			let shouldDismiss = strict_equals(id, undefined, false);
+
+			p.then((response) => {
+				if (strict_equals(typeof response, 'object') && response && 'ok' in response && strict_equals(typeof response.ok, 'boolean') && !response.ok) {
+					shouldDismiss = false;
+
+					const message = constructPromiseErrorMessage(response);
+
+					this.create({ id, type: 'error', message });
+				} else if (strict_equals(data.success, undefined, false)) {
+					shouldDismiss = false;
+
+					const message = strict_equals(typeof data.success, 'function') ? data.success(response) : data.success;
+
+					this.create({ id, type: 'success', message });
+				}
+			}).catch((error) => {
+				if (strict_equals(data.error, undefined, false)) {
+					shouldDismiss = false;
+
+					const message = strict_equals(typeof data.error, 'function') ? data.error(error) : data.error;
+
+					this.create({ id, type: 'error', message });
+				}
+			}).finally(() => {
+				if (shouldDismiss) {
+					// Toast is still in load state (and will be indefinitely — dismiss it)
+					this.dismiss(id);
+
+					id = undefined;
+				}
+
+				data.finally?.();
+			});
+
+			return id;
 		};
-	}
 
-	const TOAST_LIMIT = 20;
-	const toasts = writable([]);
-	const pausedAt = writable(null);
-	const toastTimeouts = new Map();
-	const addToRemoveQueue = (toastId) => {
-	    if (toastTimeouts.has(toastId)) {
-	        return;
-	    }
-	    const timeout = setTimeout(() => {
-	        toastTimeouts.delete(toastId);
-	        remove(toastId);
-	    }, 1000);
-	    toastTimeouts.set(toastId, timeout);
-	};
-	const clearFromRemoveQueue = (toastId) => {
-	    const timeout = toastTimeouts.get(toastId);
-	    if (timeout) {
-	        clearTimeout(timeout);
-	    }
-	};
-	function update(toast) {
-	    if (toast.id) {
-	        clearFromRemoveQueue(toast.id);
-	    }
-	    toasts.update(($toasts) => $toasts.map((t) => (t.id === toast.id ? { ...t, ...toast } : t)));
-	}
-	function add(toast) {
-	    toasts.update(($toasts) => [toast, ...$toasts].slice(0, TOAST_LIMIT));
-	}
-	function upsert(toast) {
-	    if (get_store_value(toasts).find((t) => t.id === toast.id)) {
-	        update(toast);
-	    }
-	    else {
-	        add(toast);
-	    }
-	}
-	function dismiss(toastId) {
-	    toasts.update(($toasts) => {
-	        if (toastId) {
-	            addToRemoveQueue(toastId);
-	        }
-	        else {
-	            $toasts.forEach((toast) => {
-	                addToRemoveQueue(toast.id);
-	            });
-	        }
-	        return $toasts.map((t) => t.id === toastId || toastId === undefined ? { ...t, visible: false } : t);
-	    });
-	}
-	function remove(toastId) {
-	    toasts.update(($toasts) => {
-	        if (toastId === undefined) {
-	            return [];
-	        }
-	        return $toasts.filter((t) => t.id !== toastId);
-	    });
-	}
-	function startPause(time) {
-	    pausedAt.set(time);
-	}
-	function endPause(time) {
-	    let diff;
-	    pausedAt.update(($pausedAt) => {
-	        diff = time - ($pausedAt || 0);
-	        return null;
-	    });
-	    toasts.update(($toasts) => $toasts.map((t) => ({
-	        ...t,
-	        pauseDuration: t.pauseDuration + diff
-	    })));
-	}
-	const defaultTimeouts = {
-	    blank: 4000,
-	    error: 4000,
-	    success: 2000,
-	    loading: Infinity,
-	    custom: 4000
-	};
-	function useToasterStore(toastOptions = {}) {
-	    const mergedToasts = writableDerived(toasts, ($toasts) => $toasts.map((t) => ({
-	        ...toastOptions,
-	        ...toastOptions[t.type],
-	        ...t,
-	        duration: t.duration ||
-	            toastOptions[t.type]?.duration ||
-	            toastOptions?.duration ||
-	            defaultTimeouts[t.type],
-	        style: [toastOptions.style, toastOptions[t.type]?.style, t.style].join(';')
-	    })), ($toasts) => $toasts);
-	    return {
-	        toasts: mergedToasts,
-	        pausedAt
-	    };
-	}
+		custom = (component, data) => {
+			const id = data?.id || toastsCounter++;
 
-	const isFunction$1 = (valOrFunction) => typeof valOrFunction === 'function';
-	const resolveValue = (valOrFunction, arg) => (isFunction$1(valOrFunction) ? valOrFunction(arg) : valOrFunction);
+			this.create({ component, id, ...data });
 
-	const genId = (() => {
-	    let count = 0;
-	    return () => {
-	        count += 1;
-	        return count.toString();
-	    };
-	})();
-	const prefersReducedMotion = (() => {
-	    // Cache result
-	    let shouldReduceMotion;
-	    return () => {
-	        if (shouldReduceMotion === undefined && typeof window !== 'undefined') {
-	            const mediaQuery = matchMedia('(prefers-reduced-motion: reduce)');
-	            shouldReduceMotion = !mediaQuery || mediaQuery.matches;
-	        }
-	        return shouldReduceMotion;
-	    };
-	})();
+			return id;
+		};
 
-	const createToast = (message, type = 'blank', opts) => ({
-	    createdAt: Date.now(),
-	    visible: true,
-	    type,
-	    ariaProps: {
-	        role: 'status',
-	        'aria-live': 'polite'
-	    },
-	    message,
-	    pauseDuration: 0,
-	    ...opts,
-	    id: opts?.id || genId()
-	});
-	const createHandler = (type) => (message, options) => {
-	    const toast = createToast(message, type, options);
-	    upsert(toast);
-	    return toast.id;
-	};
-	const toast = (message, opts) => createHandler('blank')(message, opts);
-	toast.error = createHandler('error');
-	toast.success = createHandler('success');
-	toast.loading = createHandler('loading');
-	toast.custom = createHandler('custom');
-	toast.dismiss = (toastId) => {
-	    dismiss(toastId);
-	};
-	toast.remove = (toastId) => remove(toastId);
-	toast.promise = (promise, msgs, opts) => {
-	    const id = toast.loading(msgs.loading, { ...opts, ...opts?.loading });
-	    promise
-	        .then((p) => {
-	        toast.success(resolveValue(msgs.success, p), {
-	            id,
-	            ...opts,
-	            ...opts?.success
-	        });
-	        return p;
-	    })
-	        .catch((e) => {
-	        toast.error(resolveValue(msgs.error, e), {
-	            id,
-	            ...opts,
-	            ...opts?.error
-	        });
-	    });
-	    return promise;
-	};
+		removeHeight = (id) => {
+			this.heights = this.heights.filter((height) => strict_equals(height.toastId, id, false));
+		};
 
-	function calculateOffset(toast, $toasts, opts) {
-	    const { reverseOrder, gutter = 8, defaultPosition } = opts || {};
-	    const relevantToasts = $toasts.filter((t) => (t.position || defaultPosition) === (toast.position || defaultPosition) && t.height);
-	    const toastIndex = relevantToasts.findIndex((t) => t.id === toast.id);
-	    const toastsBefore = relevantToasts.filter((toast, i) => i < toastIndex && toast.visible).length;
-	    const offset = relevantToasts
-	        .filter((t) => t.visible)
-	        .slice(...(reverseOrder ? [toastsBefore + 1] : [0, toastsBefore]))
-	        .reduce((acc, t) => acc + (t.height || 0) + gutter, 0);
-	    return offset;
-	}
-	const handlers = {
-	    startPause() {
-	        startPause(Date.now());
-	    },
-	    endPause() {
-	        endPause(Date.now());
-	    },
-	    updateHeight: (toastId, height) => {
-	        update({ id: toastId, height });
-	    },
-	    calculateOffset
-	};
-	function useToaster(toastOptions) {
-	    const { toasts, pausedAt } = useToasterStore(toastOptions);
-	    const timeouts = new Map();
-	    let _pausedAt;
-	    const unsubscribes = [
-	        pausedAt.subscribe(($pausedAt) => {
-	            if ($pausedAt) {
-	                for (const [, timeoutId] of timeouts) {
-	                    clearTimeout(timeoutId);
-	                }
-	                timeouts.clear();
-	            }
-	            _pausedAt = $pausedAt;
-	        }),
-	        toasts.subscribe(($toasts) => {
-	            if (_pausedAt) {
-	                return;
-	            }
-	            const now = Date.now();
-	            for (const t of $toasts) {
-	                if (timeouts.has(t.id)) {
-	                    continue;
-	                }
-	                if (t.duration === Infinity) {
-	                    continue;
-	                }
-	                const durationLeft = (t.duration || 0) + t.pauseDuration - (now - t.createdAt);
-	                if (durationLeft < 0) {
-	                    if (t.visible) {
-	                        // FIXME: This causes a recursive cycle of updates.
-	                        toast.dismiss(t.id);
-	                    }
-	                    return null;
-	                }
-	                timeouts.set(t.id, setTimeout(() => toast.dismiss(t.id), durationLeft));
-	            }
-	        })
-	    ];
-	    onDestroy(() => {
-	        for (const unsubscribe of unsubscribes) {
-	            unsubscribe();
-	        }
-	    });
-	    return { toasts, handlers };
-	}
+		setHeight = (data) => {
+			const toastIdx = this.#findToastIdx(data.toastId);
 
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/CheckmarkIcon.svelte generated by Svelte v4.1.2 */
+			if (strict_equals(toastIdx, null)) {
+				this.heights.push(data);
 
-	function create_fragment$9(ctx) {
-		let div;
-
-		return {
-			c() {
-				div = element("div");
-				attr(div, "class", "svelte-11kvm4p");
-				set_style(div, "--primary", /*primary*/ ctx[0]);
-				set_style(div, "--secondary", /*secondary*/ ctx[1]);
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-			},
-			p(ctx, [dirty]) {
-				if (dirty & /*primary*/ 1) {
-					set_style(div, "--primary", /*primary*/ ctx[0]);
-				}
-
-				if (dirty & /*secondary*/ 2) {
-					set_style(div, "--secondary", /*secondary*/ ctx[1]);
-				}
-			},
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
+				return;
 			}
+
+			this.heights[toastIdx] = data;
+		};
+
+		reset = () => {
+			this.toasts = [];
+			this.heights = [];
 		};
 	}
 
-	function instance$8($$self, $$props, $$invalidate) {
-		let { primary = "#61d345" } = $$props;
-		let { secondary = "#fff" } = $$props;
+	function constructPromiseErrorMessage(response) {
+		if (response && strict_equals(typeof response, 'object') && 'status' in response) {
+			return `HTTP error! Status: ${response.status}`;
+		}
 
-		$$self.$$set = $$props => {
-			if ('primary' in $$props) $$invalidate(0, primary = $$props.primary);
-			if ('secondary' in $$props) $$invalidate(1, secondary = $$props.secondary);
-		};
-
-		return [primary, secondary];
+		return `Error! ${response}`;
 	}
 
-	class CheckmarkIcon extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$8, create_fragment$9, safe_not_equal, { primary: 0, secondary: 1 });
+	const toastState = new ToastState();
+
+	function toastFunction(message, data) {
+		return toastState.create({ message, ...data });
+	}
+
+	class SonnerState {
+		/**
+		 * A derived state of the toasts that are not dismissed.
+		 */
+		#activeToasts = tag(user_derived(() => toastState.toasts.filter((toast) => !toast.dismiss)), 'SonnerState.#activeToasts');
+
+		get toasts() {
+			return get$1(this.#activeToasts);
 		}
 	}
 
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/ErrorIcon.svelte generated by Svelte v4.1.2 */
+	const basicToast = toastFunction;
 
-	function create_fragment$8(ctx) {
-		let div;
-
-		return {
-			c() {
-				div = element("div");
-				attr(div, "class", "svelte-1ee93ns");
-				set_style(div, "--primary", /*primary*/ ctx[0]);
-				set_style(div, "--secondary", /*secondary*/ ctx[1]);
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-			},
-			p(ctx, [dirty]) {
-				if (dirty & /*primary*/ 1) {
-					set_style(div, "--primary", /*primary*/ ctx[0]);
-				}
-
-				if (dirty & /*secondary*/ 2) {
-					set_style(div, "--secondary", /*secondary*/ ctx[1]);
-				}
-			},
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-			}
-		};
-	}
-
-	function instance$7($$self, $$props, $$invalidate) {
-		let { primary = "#ff4b4b" } = $$props;
-		let { secondary = "#fff" } = $$props;
-
-		$$self.$$set = $$props => {
-			if ('primary' in $$props) $$invalidate(0, primary = $$props.primary);
-			if ('secondary' in $$props) $$invalidate(1, secondary = $$props.secondary);
-		};
-
-		return [primary, secondary];
-	}
-
-	class ErrorIcon extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$7, create_fragment$8, safe_not_equal, { primary: 0, secondary: 1 });
+	const toast = Object.assign(basicToast, {
+		success: toastState.success,
+		info: toastState.info,
+		warning: toastState.warning,
+		error: toastState.error,
+		custom: toastState.custom,
+		message: toastState.message,
+		promise: toastState.promise,
+		dismiss: toastState.dismiss,
+		loading: toastState.loading,
+		getActiveToasts: () => {
+			return toastState.toasts.filter((toast) => !toast.dismiss);
 		}
-	}
-
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/LoaderIcon.svelte generated by Svelte v4.1.2 */
-
-	function create_fragment$7(ctx) {
-		let div;
-
-		return {
-			c() {
-				div = element("div");
-				attr(div, "class", "svelte-1j7dflg");
-				set_style(div, "--primary", /*primary*/ ctx[0]);
-				set_style(div, "--secondary", /*secondary*/ ctx[1]);
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-			},
-			p(ctx, [dirty]) {
-				if (dirty & /*primary*/ 1) {
-					set_style(div, "--primary", /*primary*/ ctx[0]);
-				}
-
-				if (dirty & /*secondary*/ 2) {
-					set_style(div, "--secondary", /*secondary*/ ctx[1]);
-				}
-			},
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-			}
-		};
-	}
-
-	function instance$6($$self, $$props, $$invalidate) {
-		let { primary = "#616161" } = $$props;
-		let { secondary = "#e0e0e0" } = $$props;
-
-		$$self.$$set = $$props => {
-			if ('primary' in $$props) $$invalidate(0, primary = $$props.primary);
-			if ('secondary' in $$props) $$invalidate(1, secondary = $$props.secondary);
-		};
-
-		return [primary, secondary];
-	}
-
-	class LoaderIcon extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$6, create_fragment$7, safe_not_equal, { primary: 0, secondary: 1 });
-		}
-	}
-
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/ToastIcon.svelte generated by Svelte v4.1.2 */
-
-	function create_if_block_2$1(ctx) {
-		let div;
-		let loadericon;
-		let t;
-		let current;
-		const loadericon_spread_levels = [/*iconTheme*/ ctx[0]];
-		let loadericon_props = {};
-
-		for (let i = 0; i < loadericon_spread_levels.length; i += 1) {
-			loadericon_props = assign(loadericon_props, loadericon_spread_levels[i]);
-		}
-
-		loadericon = new LoaderIcon({ props: loadericon_props });
-		let if_block = /*type*/ ctx[2] !== 'loading' && create_if_block_3$1(ctx);
-
-		return {
-			c() {
-				div = element("div");
-				create_component(loadericon.$$.fragment);
-				t = space();
-				if (if_block) if_block.c();
-				attr(div, "class", "indicator svelte-1kgeier");
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-				mount_component(loadericon, div, null);
-				append(div, t);
-				if (if_block) if_block.m(div, null);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const loadericon_changes = (dirty & /*iconTheme*/ 1)
-				? get_spread_update(loadericon_spread_levels, [get_spread_object(/*iconTheme*/ ctx[0])])
-				: {};
-
-				loadericon.$set(loadericon_changes);
-
-				if (/*type*/ ctx[2] !== 'loading') {
-					if (if_block) {
-						if_block.p(ctx, dirty);
-
-						if (dirty & /*type*/ 4) {
-							transition_in(if_block, 1);
-						}
-					} else {
-						if_block = create_if_block_3$1(ctx);
-						if_block.c();
-						transition_in(if_block, 1);
-						if_block.m(div, null);
-					}
-				} else if (if_block) {
-					group_outros();
-
-					transition_out(if_block, 1, 1, () => {
-						if_block = null;
-					});
-
-					check_outros();
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(loadericon.$$.fragment, local);
-				transition_in(if_block);
-				current = true;
-			},
-			o(local) {
-				transition_out(loadericon.$$.fragment, local);
-				transition_out(if_block);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-
-				destroy_component(loadericon);
-				if (if_block) if_block.d();
-			}
-		};
-	}
-
-	// (11:38) 
-	function create_if_block_1$1(ctx) {
-		let switch_instance;
-		let switch_instance_anchor;
-		let current;
-		var switch_value = /*icon*/ ctx[1];
-
-		function switch_props(ctx, dirty) {
-			return {};
-		}
-
-		if (switch_value) {
-			switch_instance = construct_svelte_component(switch_value, switch_props());
-		}
-
-		return {
-			c() {
-				if (switch_instance) create_component(switch_instance.$$.fragment);
-				switch_instance_anchor = empty();
-			},
-			m(target, anchor) {
-				if (switch_instance) mount_component(switch_instance, target, anchor);
-				insert(target, switch_instance_anchor, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if (dirty & /*icon*/ 2 && switch_value !== (switch_value = /*icon*/ ctx[1])) {
-					if (switch_instance) {
-						group_outros();
-						const old_component = switch_instance;
-
-						transition_out(old_component.$$.fragment, 1, 0, () => {
-							destroy_component(old_component, 1);
-						});
-
-						check_outros();
-					}
-
-					if (switch_value) {
-						switch_instance = construct_svelte_component(switch_value, switch_props());
-						create_component(switch_instance.$$.fragment);
-						transition_in(switch_instance.$$.fragment, 1);
-						mount_component(switch_instance, switch_instance_anchor.parentNode, switch_instance_anchor);
-					} else {
-						switch_instance = null;
-					}
-				}
-			},
-			i(local) {
-				if (current) return;
-				if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(switch_instance_anchor);
-				}
-
-				if (switch_instance) destroy_component(switch_instance, detaching);
-			}
-		};
-	}
-
-	// (9:0) {#if typeof icon === 'string'}
-	function create_if_block$4(ctx) {
-		let div;
-		let t;
-
-		return {
-			c() {
-				div = element("div");
-				t = text(/*icon*/ ctx[1]);
-				attr(div, "class", "animated svelte-1kgeier");
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-				append(div, t);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*icon*/ 2) set_data(t, /*icon*/ ctx[1]);
-			},
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-			}
-		};
-	}
-
-	// (16:2) {#if type !== 'loading'}
-	function create_if_block_3$1(ctx) {
-		let div;
-		let current_block_type_index;
-		let if_block;
-		let current;
-		const if_block_creators = [create_if_block_4$1, create_else_block$4];
-		const if_blocks = [];
-
-		function select_block_type_1(ctx, dirty) {
-			if (/*type*/ ctx[2] === 'error') return 0;
-			return 1;
-		}
-
-		current_block_type_index = select_block_type_1(ctx);
-		if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-
-		return {
-			c() {
-				div = element("div");
-				if_block.c();
-				attr(div, "class", "status svelte-1kgeier");
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-				if_blocks[current_block_type_index].m(div, null);
-				current = true;
-			},
-			p(ctx, dirty) {
-				let previous_block_index = current_block_type_index;
-				current_block_type_index = select_block_type_1(ctx);
-
-				if (current_block_type_index === previous_block_index) {
-					if_blocks[current_block_type_index].p(ctx, dirty);
-				} else {
-					group_outros();
-
-					transition_out(if_blocks[previous_block_index], 1, 1, () => {
-						if_blocks[previous_block_index] = null;
-					});
-
-					check_outros();
-					if_block = if_blocks[current_block_type_index];
-
-					if (!if_block) {
-						if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-						if_block.c();
-					} else {
-						if_block.p(ctx, dirty);
-					}
-
-					transition_in(if_block, 1);
-					if_block.m(div, null);
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(if_block);
-				current = true;
-			},
-			o(local) {
-				transition_out(if_block);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-
-				if_blocks[current_block_type_index].d();
-			}
-		};
-	}
-
-	// (20:4) {:else}
-	function create_else_block$4(ctx) {
-		let checkmarkicon;
-		let current;
-		const checkmarkicon_spread_levels = [/*iconTheme*/ ctx[0]];
-		let checkmarkicon_props = {};
-
-		for (let i = 0; i < checkmarkicon_spread_levels.length; i += 1) {
-			checkmarkicon_props = assign(checkmarkicon_props, checkmarkicon_spread_levels[i]);
-		}
-
-		checkmarkicon = new CheckmarkIcon({ props: checkmarkicon_props });
-
-		return {
-			c() {
-				create_component(checkmarkicon.$$.fragment);
-			},
-			m(target, anchor) {
-				mount_component(checkmarkicon, target, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const checkmarkicon_changes = (dirty & /*iconTheme*/ 1)
-				? get_spread_update(checkmarkicon_spread_levels, [get_spread_object(/*iconTheme*/ ctx[0])])
-				: {};
-
-				checkmarkicon.$set(checkmarkicon_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(checkmarkicon.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(checkmarkicon.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				destroy_component(checkmarkicon, detaching);
-			}
-		};
-	}
-
-	// (18:4) {#if type === 'error'}
-	function create_if_block_4$1(ctx) {
-		let erroricon;
-		let current;
-		const erroricon_spread_levels = [/*iconTheme*/ ctx[0]];
-		let erroricon_props = {};
-
-		for (let i = 0; i < erroricon_spread_levels.length; i += 1) {
-			erroricon_props = assign(erroricon_props, erroricon_spread_levels[i]);
-		}
-
-		erroricon = new ErrorIcon({ props: erroricon_props });
-
-		return {
-			c() {
-				create_component(erroricon.$$.fragment);
-			},
-			m(target, anchor) {
-				mount_component(erroricon, target, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const erroricon_changes = (dirty & /*iconTheme*/ 1)
-				? get_spread_update(erroricon_spread_levels, [get_spread_object(/*iconTheme*/ ctx[0])])
-				: {};
-
-				erroricon.$set(erroricon_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(erroricon.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(erroricon.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				destroy_component(erroricon, detaching);
-			}
-		};
-	}
-
-	function create_fragment$6(ctx) {
-		let current_block_type_index;
-		let if_block;
-		let if_block_anchor;
-		let current;
-		const if_block_creators = [create_if_block$4, create_if_block_1$1, create_if_block_2$1];
-		const if_blocks = [];
-
-		function select_block_type(ctx, dirty) {
-			if (typeof /*icon*/ ctx[1] === 'string') return 0;
-			if (typeof /*icon*/ ctx[1] !== 'undefined') return 1;
-			if (/*type*/ ctx[2] !== 'blank') return 2;
-			return -1;
-		}
-
-		if (~(current_block_type_index = select_block_type(ctx))) {
-			if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-		}
-
-		return {
-			c() {
-				if (if_block) if_block.c();
-				if_block_anchor = empty();
-			},
-			m(target, anchor) {
-				if (~current_block_type_index) {
-					if_blocks[current_block_type_index].m(target, anchor);
-				}
-
-				insert(target, if_block_anchor, anchor);
-				current = true;
-			},
-			p(ctx, [dirty]) {
-				let previous_block_index = current_block_type_index;
-				current_block_type_index = select_block_type(ctx);
-
-				if (current_block_type_index === previous_block_index) {
-					if (~current_block_type_index) {
-						if_blocks[current_block_type_index].p(ctx, dirty);
-					}
-				} else {
-					if (if_block) {
-						group_outros();
-
-						transition_out(if_blocks[previous_block_index], 1, 1, () => {
-							if_blocks[previous_block_index] = null;
-						});
-
-						check_outros();
-					}
-
-					if (~current_block_type_index) {
-						if_block = if_blocks[current_block_type_index];
-
-						if (!if_block) {
-							if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-							if_block.c();
-						} else {
-							if_block.p(ctx, dirty);
-						}
-
-						transition_in(if_block, 1);
-						if_block.m(if_block_anchor.parentNode, if_block_anchor);
-					} else {
-						if_block = null;
-					}
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(if_block);
-				current = true;
-			},
-			o(local) {
-				transition_out(if_block);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(if_block_anchor);
-				}
-
-				if (~current_block_type_index) {
-					if_blocks[current_block_type_index].d(detaching);
-				}
-			}
-		};
-	}
-
-	function instance$5($$self, $$props, $$invalidate) {
-		let type;
-		let icon;
-		let iconTheme;
-		let { toast } = $$props;
-
-		$$self.$$set = $$props => {
-			if ('toast' in $$props) $$invalidate(3, toast = $$props.toast);
-		};
-
-		$$self.$$.update = () => {
-			if ($$self.$$.dirty & /*toast*/ 8) {
-				$$invalidate(2, { type, icon, iconTheme } = toast, type, ($$invalidate(1, icon), $$invalidate(3, toast)), ($$invalidate(0, iconTheme), $$invalidate(3, toast)));
-			}
-		};
-
-		return [iconTheme, icon, type, toast];
-	}
-
-	class ToastIcon extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$5, create_fragment$6, safe_not_equal, { toast: 3 });
-		}
-	}
-
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/ToastMessage.svelte generated by Svelte v4.1.2 */
-
-	function create_else_block$3(ctx) {
-		let switch_instance;
-		let switch_instance_anchor;
-		let current;
-		var switch_value = /*toast*/ ctx[0].message;
-
-		function switch_props(ctx, dirty) {
-			return { props: { toast: /*toast*/ ctx[0] } };
-		}
-
-		if (switch_value) {
-			switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
-		}
-
-		return {
-			c() {
-				if (switch_instance) create_component(switch_instance.$$.fragment);
-				switch_instance_anchor = empty();
-			},
-			m(target, anchor) {
-				if (switch_instance) mount_component(switch_instance, target, anchor);
-				insert(target, switch_instance_anchor, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if (dirty & /*toast*/ 1 && switch_value !== (switch_value = /*toast*/ ctx[0].message)) {
-					if (switch_instance) {
-						group_outros();
-						const old_component = switch_instance;
-
-						transition_out(old_component.$$.fragment, 1, 0, () => {
-							destroy_component(old_component, 1);
-						});
-
-						check_outros();
-					}
-
-					if (switch_value) {
-						switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
-						create_component(switch_instance.$$.fragment);
-						transition_in(switch_instance.$$.fragment, 1);
-						mount_component(switch_instance, switch_instance_anchor.parentNode, switch_instance_anchor);
-					} else {
-						switch_instance = null;
-					}
-				} else if (switch_value) {
-					const switch_instance_changes = {};
-					if (dirty & /*toast*/ 1) switch_instance_changes.toast = /*toast*/ ctx[0];
-					switch_instance.$set(switch_instance_changes);
-				}
-			},
-			i(local) {
-				if (current) return;
-				if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(switch_instance_anchor);
-				}
-
-				if (switch_instance) destroy_component(switch_instance, detaching);
-			}
-		};
-	}
-
-	// (5:1) {#if typeof toast.message === 'string'}
-	function create_if_block$3(ctx) {
-		let t_value = /*toast*/ ctx[0].message + "";
-		let t;
-
-		return {
-			c() {
-				t = text(t_value);
-			},
-			m(target, anchor) {
-				insert(target, t, anchor);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*toast*/ 1 && t_value !== (t_value = /*toast*/ ctx[0].message + "")) set_data(t, t_value);
-			},
-			i: noop$1,
-			o: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(t);
-				}
-			}
-		};
-	}
-
-	function create_fragment$5(ctx) {
-		let div;
-		let current_block_type_index;
-		let if_block;
-		let current;
-		const if_block_creators = [create_if_block$3, create_else_block$3];
-		const if_blocks = [];
-
-		function select_block_type(ctx, dirty) {
-			if (typeof /*toast*/ ctx[0].message === 'string') return 0;
-			return 1;
-		}
-
-		current_block_type_index = select_block_type(ctx);
-		if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-		let div_levels = [{ class: "message" }, /*toast*/ ctx[0].ariaProps];
-		let div_data = {};
-
-		for (let i = 0; i < div_levels.length; i += 1) {
-			div_data = assign(div_data, div_levels[i]);
-		}
-
-		return {
-			c() {
-				div = element("div");
-				if_block.c();
-				set_attributes(div, div_data);
-				toggle_class(div, "svelte-1nauejd", true);
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-				if_blocks[current_block_type_index].m(div, null);
-				current = true;
-			},
-			p(ctx, [dirty]) {
-				let previous_block_index = current_block_type_index;
-				current_block_type_index = select_block_type(ctx);
-
-				if (current_block_type_index === previous_block_index) {
-					if_blocks[current_block_type_index].p(ctx, dirty);
-				} else {
-					group_outros();
-
-					transition_out(if_blocks[previous_block_index], 1, 1, () => {
-						if_blocks[previous_block_index] = null;
-					});
-
-					check_outros();
-					if_block = if_blocks[current_block_type_index];
-
-					if (!if_block) {
-						if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-						if_block.c();
-					} else {
-						if_block.p(ctx, dirty);
-					}
-
-					transition_in(if_block, 1);
-					if_block.m(div, null);
-				}
-
-				set_attributes(div, div_data = get_spread_update(div_levels, [{ class: "message" }, dirty & /*toast*/ 1 && /*toast*/ ctx[0].ariaProps]));
-				toggle_class(div, "svelte-1nauejd", true);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(if_block);
-				current = true;
-			},
-			o(local) {
-				transition_out(if_block);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-
-				if_blocks[current_block_type_index].d();
-			}
-		};
-	}
-
-	function instance$4($$self, $$props, $$invalidate) {
-		let { toast } = $$props;
-
-		$$self.$$set = $$props => {
-			if ('toast' in $$props) $$invalidate(0, toast = $$props.toast);
-		};
-
-		return [toast];
-	}
-
-	class ToastMessage extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$4, create_fragment$5, safe_not_equal, { toast: 0 });
-		}
-	}
-
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/ToastBar.svelte generated by Svelte v4.1.2 */
-	const get_default_slot_changes$1 = dirty => ({ toast: dirty & /*toast*/ 1 });
-
-	const get_default_slot_context$1 = ctx => ({
-		ToastIcon,
-		ToastMessage,
-		toast: /*toast*/ ctx[0]
 	});
 
-	// (28:1) {:else}
-	function create_else_block$2(ctx) {
-		let current;
-		const default_slot_template = /*#slots*/ ctx[6].default;
-		const default_slot = create_slot(default_slot_template, ctx, /*$$scope*/ ctx[7], get_default_slot_context$1);
-		const default_slot_or_fallback = default_slot || fallback_block$1(ctx);
-
-		return {
-			c() {
-				if (default_slot_or_fallback) default_slot_or_fallback.c();
-			},
-			m(target, anchor) {
-				if (default_slot_or_fallback) {
-					default_slot_or_fallback.m(target, anchor);
-				}
-
-				current = true;
-			},
-			p(ctx, dirty) {
-				if (default_slot) {
-					if (default_slot.p && (!current || dirty & /*$$scope, toast*/ 129)) {
-						update_slot_base(
-							default_slot,
-							default_slot_template,
-							ctx,
-							/*$$scope*/ ctx[7],
-							!current
-							? get_all_dirty_from_scope(/*$$scope*/ ctx[7])
-							: get_slot_changes(default_slot_template, /*$$scope*/ ctx[7], dirty, get_default_slot_changes$1),
-							get_default_slot_context$1
-						);
-					}
-				} else {
-					if (default_slot_or_fallback && default_slot_or_fallback.p && (!current || dirty & /*toast*/ 1)) {
-						default_slot_or_fallback.p(ctx, !current ? -1 : dirty);
-					}
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(default_slot_or_fallback, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(default_slot_or_fallback, local);
-				current = false;
-			},
-			d(detaching) {
-				if (default_slot_or_fallback) default_slot_or_fallback.d(detaching);
-			}
-		};
+	function isAction(action) {
+	    return action.label !== undefined;
 	}
 
-	// (23:1) {#if Component}
-	function create_if_block$2(ctx) {
-		let switch_instance;
-		let switch_instance_anchor;
-		let current;
-		var switch_value = /*Component*/ ctx[2];
+	/* use-document-hidden.svelte.js generated by Svelte v5.53.7 */
 
-		function switch_props(ctx, dirty) {
-			return {
-				props: {
-					$$slots: {
-						message: [create_message_slot],
-						icon: [create_icon_slot]
-					},
-					$$scope: { ctx }
-				}
-			};
-		}
+	function useDocumentHidden() {
+		let current = tag(state(proxy(strict_equals(typeof document, 'undefined', false) ? document.hidden : false)), 'current');
 
-		if (switch_value) {
-			switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
-		}
-
-		return {
-			c() {
-				if (switch_instance) create_component(switch_instance.$$.fragment);
-				switch_instance_anchor = empty();
-			},
-			m(target, anchor) {
-				if (switch_instance) mount_component(switch_instance, target, anchor);
-				insert(target, switch_instance_anchor, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if (dirty & /*Component*/ 4 && switch_value !== (switch_value = /*Component*/ ctx[2])) {
-					if (switch_instance) {
-						group_outros();
-						const old_component = switch_instance;
-
-						transition_out(old_component.$$.fragment, 1, 0, () => {
-							destroy_component(old_component, 1);
-						});
-
-						check_outros();
-					}
-
-					if (switch_value) {
-						switch_instance = construct_svelte_component(switch_value, switch_props(ctx));
-						create_component(switch_instance.$$.fragment);
-						transition_in(switch_instance.$$.fragment, 1);
-						mount_component(switch_instance, switch_instance_anchor.parentNode, switch_instance_anchor);
-					} else {
-						switch_instance = null;
-					}
-				} else if (switch_value) {
-					const switch_instance_changes = {};
-
-					if (dirty & /*$$scope, toast*/ 129) {
-						switch_instance_changes.$$scope = { dirty, ctx };
-					}
-
-					switch_instance.$set(switch_instance_changes);
-				}
-			},
-			i(local) {
-				if (current) return;
-				if (switch_instance) transition_in(switch_instance.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				if (switch_instance) transition_out(switch_instance.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(switch_instance_anchor);
-				}
-
-				if (switch_instance) destroy_component(switch_instance, detaching);
-			}
-		};
-	}
-
-	// (29:43)     
-	function fallback_block$1(ctx) {
-		let toasticon;
-		let t;
-		let toastmessage;
-		let current;
-		toasticon = new ToastIcon({ props: { toast: /*toast*/ ctx[0] } });
-		toastmessage = new ToastMessage({ props: { toast: /*toast*/ ctx[0] } });
-
-		return {
-			c() {
-				create_component(toasticon.$$.fragment);
-				t = space();
-				create_component(toastmessage.$$.fragment);
-			},
-			m(target, anchor) {
-				mount_component(toasticon, target, anchor);
-				insert(target, t, anchor);
-				mount_component(toastmessage, target, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const toasticon_changes = {};
-				if (dirty & /*toast*/ 1) toasticon_changes.toast = /*toast*/ ctx[0];
-				toasticon.$set(toasticon_changes);
-				const toastmessage_changes = {};
-				if (dirty & /*toast*/ 1) toastmessage_changes.toast = /*toast*/ ctx[0];
-				toastmessage.$set(toastmessage_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(toasticon.$$.fragment, local);
-				transition_in(toastmessage.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(toasticon.$$.fragment, local);
-				transition_out(toastmessage.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(t);
-				}
-
-				destroy_component(toasticon, detaching);
-				destroy_component(toastmessage, detaching);
-			}
-		};
-	}
-
-	// (25:3) 
-	function create_icon_slot(ctx) {
-		let toasticon;
-		let current;
-
-		toasticon = new ToastIcon({
-				props: { toast: /*toast*/ ctx[0], slot: "icon" }
+		user_effect(() => {
+			return on(document, 'visibilitychange', () => {
+				set(current, document.hidden, true);
 			});
-
-		return {
-			c() {
-				create_component(toasticon.$$.fragment);
-			},
-			m(target, anchor) {
-				mount_component(toasticon, target, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const toasticon_changes = {};
-				if (dirty & /*toast*/ 1) toasticon_changes.toast = /*toast*/ ctx[0];
-				toasticon.$set(toasticon_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(toasticon.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(toasticon.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				destroy_component(toasticon, detaching);
-			}
-		};
-	}
-
-	// (26:3) 
-	function create_message_slot(ctx) {
-		let toastmessage;
-		let current;
-
-		toastmessage = new ToastMessage({
-				props: { toast: /*toast*/ ctx[0], slot: "message" }
-			});
-
-		return {
-			c() {
-				create_component(toastmessage.$$.fragment);
-			},
-			m(target, anchor) {
-				mount_component(toastmessage, target, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const toastmessage_changes = {};
-				if (dirty & /*toast*/ 1) toastmessage_changes.toast = /*toast*/ ctx[0];
-				toastmessage.$set(toastmessage_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(toastmessage.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(toastmessage.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				destroy_component(toastmessage, detaching);
-			}
-		};
-	}
-
-	function create_fragment$4(ctx) {
-		let div;
-		let current_block_type_index;
-		let if_block;
-		let div_class_value;
-		let div_style_value;
-		let current;
-		const if_block_creators = [create_if_block$2, create_else_block$2];
-		const if_blocks = [];
-
-		function select_block_type(ctx, dirty) {
-			if (/*Component*/ ctx[2]) return 0;
-			return 1;
-		}
-
-		current_block_type_index = select_block_type(ctx);
-		if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-
-		return {
-			c() {
-				div = element("div");
-				if_block.c();
-
-				attr(div, "class", div_class_value = "base " + (/*toast*/ ctx[0].height
-				? /*animation*/ ctx[4]
-				: 'transparent') + " " + (/*toast*/ ctx[0].className || '') + " svelte-ug60r4");
-
-				attr(div, "style", div_style_value = "" + (/*style*/ ctx[1] + "; " + /*toast*/ ctx[0].style));
-				set_style(div, "--factor", /*factor*/ ctx[3]);
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-				if_blocks[current_block_type_index].m(div, null);
-				current = true;
-			},
-			p(ctx, [dirty]) {
-				let previous_block_index = current_block_type_index;
-				current_block_type_index = select_block_type(ctx);
-
-				if (current_block_type_index === previous_block_index) {
-					if_blocks[current_block_type_index].p(ctx, dirty);
-				} else {
-					group_outros();
-
-					transition_out(if_blocks[previous_block_index], 1, 1, () => {
-						if_blocks[previous_block_index] = null;
-					});
-
-					check_outros();
-					if_block = if_blocks[current_block_type_index];
-
-					if (!if_block) {
-						if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-						if_block.c();
-					} else {
-						if_block.p(ctx, dirty);
-					}
-
-					transition_in(if_block, 1);
-					if_block.m(div, null);
-				}
-
-				if (!current || dirty & /*toast, animation*/ 17 && div_class_value !== (div_class_value = "base " + (/*toast*/ ctx[0].height
-				? /*animation*/ ctx[4]
-				: 'transparent') + " " + (/*toast*/ ctx[0].className || '') + " svelte-ug60r4")) {
-					attr(div, "class", div_class_value);
-				}
-
-				if (!current || dirty & /*style, toast*/ 3 && div_style_value !== (div_style_value = "" + (/*style*/ ctx[1] + "; " + /*toast*/ ctx[0].style))) {
-					attr(div, "style", div_style_value);
-				}
-
-				const style_changed = dirty & /*style, toast*/ 3;
-
-				if (style_changed || dirty & /*factor, style, toast*/ 11) {
-					set_style(div, "--factor", /*factor*/ ctx[3]);
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(if_block);
-				current = true;
-			},
-			o(local) {
-				transition_out(if_block);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-
-				if_blocks[current_block_type_index].d();
-			}
-		};
-	}
-
-	function instance$3($$self, $$props, $$invalidate) {
-		let { $$slots: slots = {}, $$scope } = $$props;
-		let { toast } = $$props;
-		let { position = void 0 } = $$props;
-		let { style = "" } = $$props;
-		let { Component = void 0 } = $$props;
-		let factor;
-		let animation;
-
-		$$self.$$set = $$props => {
-			if ('toast' in $$props) $$invalidate(0, toast = $$props.toast);
-			if ('position' in $$props) $$invalidate(5, position = $$props.position);
-			if ('style' in $$props) $$invalidate(1, style = $$props.style);
-			if ('Component' in $$props) $$invalidate(2, Component = $$props.Component);
-			if ('$$scope' in $$props) $$invalidate(7, $$scope = $$props.$$scope);
-		};
-
-		$$self.$$.update = () => {
-			if ($$self.$$.dirty & /*toast, position*/ 33) {
-				{
-					const top = (toast.position || position || "top-center").includes("top");
-					$$invalidate(3, factor = top ? 1 : -1);
-
-					const [enter, exit] = prefersReducedMotion()
-					? ["fadeIn", "fadeOut"]
-					: ["enter", "exit"];
-
-					$$invalidate(4, animation = toast.visible ? enter : exit);
-				}
-			}
-		};
-
-		return [toast, style, Component, factor, animation, position, slots, $$scope];
-	}
-
-	class ToastBar extends SvelteComponent {
-		constructor(options) {
-			super();
-
-			init(this, options, instance$3, create_fragment$4, safe_not_equal, {
-				toast: 0,
-				position: 5,
-				style: 1,
-				Component: 2
-			});
-		}
-	}
-
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/ToastWrapper.svelte generated by Svelte v4.1.2 */
-	const get_default_slot_changes = dirty => ({ toast: dirty & /*toast*/ 1 });
-	const get_default_slot_context = ctx => ({ toast: /*toast*/ ctx[0] });
-
-	// (34:1) {:else}
-	function create_else_block$1(ctx) {
-		let current;
-		const default_slot_template = /*#slots*/ ctx[8].default;
-		const default_slot = create_slot(default_slot_template, ctx, /*$$scope*/ ctx[7], get_default_slot_context);
-		const default_slot_or_fallback = default_slot || fallback_block(ctx);
-
-		return {
-			c() {
-				if (default_slot_or_fallback) default_slot_or_fallback.c();
-			},
-			m(target, anchor) {
-				if (default_slot_or_fallback) {
-					default_slot_or_fallback.m(target, anchor);
-				}
-
-				current = true;
-			},
-			p(ctx, dirty) {
-				if (default_slot) {
-					if (default_slot.p && (!current || dirty & /*$$scope, toast*/ 129)) {
-						update_slot_base(
-							default_slot,
-							default_slot_template,
-							ctx,
-							/*$$scope*/ ctx[7],
-							!current
-							? get_all_dirty_from_scope(/*$$scope*/ ctx[7])
-							: get_slot_changes(default_slot_template, /*$$scope*/ ctx[7], dirty, get_default_slot_changes),
-							get_default_slot_context
-						);
-					}
-				} else {
-					if (default_slot_or_fallback && default_slot_or_fallback.p && (!current || dirty & /*toast*/ 1)) {
-						default_slot_or_fallback.p(ctx, !current ? -1 : dirty);
-					}
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(default_slot_or_fallback, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(default_slot_or_fallback, local);
-				current = false;
-			},
-			d(detaching) {
-				if (default_slot_or_fallback) default_slot_or_fallback.d(detaching);
-			}
-		};
-	}
-
-	// (32:1) {#if toast.type === 'custom'}
-	function create_if_block$1(ctx) {
-		let toastmessage;
-		let current;
-		toastmessage = new ToastMessage({ props: { toast: /*toast*/ ctx[0] } });
-
-		return {
-			c() {
-				create_component(toastmessage.$$.fragment);
-			},
-			m(target, anchor) {
-				mount_component(toastmessage, target, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const toastmessage_changes = {};
-				if (dirty & /*toast*/ 1) toastmessage_changes.toast = /*toast*/ ctx[0];
-				toastmessage.$set(toastmessage_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(toastmessage.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(toastmessage.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				destroy_component(toastmessage, detaching);
-			}
-		};
-	}
-
-	// (35:16)     
-	function fallback_block(ctx) {
-		let toastbar;
-		let current;
-
-		toastbar = new ToastBar({
-				props: {
-					toast: /*toast*/ ctx[0],
-					position: /*toast*/ ctx[0].position
-				}
-			});
-
-		return {
-			c() {
-				create_component(toastbar.$$.fragment);
-			},
-			m(target, anchor) {
-				mount_component(toastbar, target, anchor);
-				current = true;
-			},
-			p(ctx, dirty) {
-				const toastbar_changes = {};
-				if (dirty & /*toast*/ 1) toastbar_changes.toast = /*toast*/ ctx[0];
-				if (dirty & /*toast*/ 1) toastbar_changes.position = /*toast*/ ctx[0].position;
-				toastbar.$set(toastbar_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(toastbar.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(toastbar.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				destroy_component(toastbar, detaching);
-			}
-		};
-	}
-
-	function create_fragment$3(ctx) {
-		let div;
-		let current_block_type_index;
-		let if_block;
-		let current;
-		const if_block_creators = [create_if_block$1, create_else_block$1];
-		const if_blocks = [];
-
-		function select_block_type(ctx, dirty) {
-			if (/*toast*/ ctx[0].type === 'custom') return 0;
-			return 1;
-		}
-
-		current_block_type_index = select_block_type(ctx);
-		if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-
-		return {
-			c() {
-				div = element("div");
-				if_block.c();
-				attr(div, "class", "wrapper svelte-v01oml");
-				toggle_class(div, "active", /*toast*/ ctx[0].visible);
-				toggle_class(div, "transition", !prefersReducedMotion());
-				set_style(div, "--factor", /*factor*/ ctx[3]);
-				set_style(div, "--offset", /*toast*/ ctx[0].offset);
-				set_style(div, "top", /*top*/ ctx[5]);
-				set_style(div, "bottom", /*bottom*/ ctx[4]);
-				set_style(div, "justify-content", /*justifyContent*/ ctx[2]);
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-				if_blocks[current_block_type_index].m(div, null);
-				/*div_binding*/ ctx[9](div);
-				current = true;
-			},
-			p(ctx, [dirty]) {
-				let previous_block_index = current_block_type_index;
-				current_block_type_index = select_block_type(ctx);
-
-				if (current_block_type_index === previous_block_index) {
-					if_blocks[current_block_type_index].p(ctx, dirty);
-				} else {
-					group_outros();
-
-					transition_out(if_blocks[previous_block_index], 1, 1, () => {
-						if_blocks[previous_block_index] = null;
-					});
-
-					check_outros();
-					if_block = if_blocks[current_block_type_index];
-
-					if (!if_block) {
-						if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-						if_block.c();
-					} else {
-						if_block.p(ctx, dirty);
-					}
-
-					transition_in(if_block, 1);
-					if_block.m(div, null);
-				}
-
-				if (!current || dirty & /*toast*/ 1) {
-					toggle_class(div, "active", /*toast*/ ctx[0].visible);
-				}
-
-				if (dirty & /*factor*/ 8) {
-					set_style(div, "--factor", /*factor*/ ctx[3]);
-				}
-
-				if (dirty & /*toast*/ 1) {
-					set_style(div, "--offset", /*toast*/ ctx[0].offset);
-				}
-
-				if (dirty & /*top*/ 32) {
-					set_style(div, "top", /*top*/ ctx[5]);
-				}
-
-				if (dirty & /*bottom*/ 16) {
-					set_style(div, "bottom", /*bottom*/ ctx[4]);
-				}
-
-				if (dirty & /*justifyContent*/ 4) {
-					set_style(div, "justify-content", /*justifyContent*/ ctx[2]);
-				}
-			},
-			i(local) {
-				if (current) return;
-				transition_in(if_block);
-				current = true;
-			},
-			o(local) {
-				transition_out(if_block);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-
-				if_blocks[current_block_type_index].d();
-				/*div_binding*/ ctx[9](null);
-			}
-		};
-	}
-
-	function instance$2($$self, $$props, $$invalidate) {
-		let top;
-		let bottom;
-		let factor;
-		let justifyContent;
-		let { $$slots: slots = {}, $$scope } = $$props;
-		let { toast } = $$props;
-		let { setHeight } = $$props;
-		let wrapperEl;
-
-		onMount(() => {
-			setHeight(wrapperEl.getBoundingClientRect().height);
 		});
 
-		function div_binding($$value) {
-			binding_callbacks[$$value ? 'unshift' : 'push'](() => {
-				wrapperEl = $$value;
-				$$invalidate(1, wrapperEl);
-			});
-		}
-
-		$$self.$$set = $$props => {
-			if ('toast' in $$props) $$invalidate(0, toast = $$props.toast);
-			if ('setHeight' in $$props) $$invalidate(6, setHeight = $$props.setHeight);
-			if ('$$scope' in $$props) $$invalidate(7, $$scope = $$props.$$scope);
-		};
-
-		$$self.$$.update = () => {
-			if ($$self.$$.dirty & /*toast*/ 1) {
-				$$invalidate(5, top = (toast.position?.includes("top")) ? 0 : null);
-			}
-
-			if ($$self.$$.dirty & /*toast*/ 1) {
-				$$invalidate(4, bottom = (toast.position?.includes("bottom")) ? 0 : null);
-			}
-
-			if ($$self.$$.dirty & /*toast*/ 1) {
-				$$invalidate(3, factor = (toast.position?.includes("top")) ? 1 : -1);
-			}
-
-			if ($$self.$$.dirty & /*toast*/ 1) {
-				$$invalidate(2, justifyContent = toast.position?.includes("center") && "center" || (toast.position?.includes("right") || toast.position?.includes("end")) && "flex-end" || null);
-			}
-		};
-
-		return [
-			toast,
-			wrapperEl,
-			justifyContent,
-			factor,
-			bottom,
-			top,
-			setHeight,
-			$$scope,
-			slots,
-			div_binding
-		];
-	}
-
-	class ToastWrapper extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance$2, create_fragment$3, safe_not_equal, { toast: 0, setHeight: 6 });
-		}
-	}
-
-	/* node_modules/.pnpm/svelte-french-toast@1.2.0_svelte@4.1.2/node_modules/svelte-french-toast/dist/components/Toaster.svelte generated by Svelte v4.1.2 */
-
-	function get_each_context$1(ctx, list, i) {
-		const child_ctx = ctx.slice();
-		child_ctx[11] = list[i];
-		return child_ctx;
-	}
-
-	// (30:1) {#each _toasts as toast (toast.id)}
-	function create_each_block$1(key_1, ctx) {
-		let first;
-		let toastwrapper;
-		let current;
-
-		function func(...args) {
-			return /*func*/ ctx[10](/*toast*/ ctx[11], ...args);
-		}
-
-		toastwrapper = new ToastWrapper({
-				props: {
-					toast: /*toast*/ ctx[11],
-					setHeight: func
-				}
-			});
-
 		return {
-			key: key_1,
-			first: null,
-			c() {
-				first = empty();
-				create_component(toastwrapper.$$.fragment);
-				this.first = first;
-			},
-			m(target, anchor) {
-				insert(target, first, anchor);
-				mount_component(toastwrapper, target, anchor);
-				current = true;
-			},
-			p(new_ctx, dirty) {
-				ctx = new_ctx;
-				const toastwrapper_changes = {};
-				if (dirty & /*_toasts*/ 4) toastwrapper_changes.toast = /*toast*/ ctx[11];
-				if (dirty & /*_toasts*/ 4) toastwrapper_changes.setHeight = func;
-				toastwrapper.$set(toastwrapper_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(toastwrapper.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(toastwrapper.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(first);
-				}
-
-				destroy_component(toastwrapper, detaching);
+			get current() {
+				return get$1(current);
 			}
 		};
 	}
 
-	function create_fragment$2(ctx) {
-		let div;
-		let each_blocks = [];
-		let each_1_lookup = new Map();
-		let div_class_value;
-		let current;
-		let mounted;
-		let dispose;
-		let each_value = ensure_array_like(/*_toasts*/ ctx[2]);
-		const get_key = ctx => /*toast*/ ctx[11].id;
+	Toast[FILENAME] = 'node_modules/svelte-sonner/dist/Toast.svelte';
 
-		for (let i = 0; i < each_value.length; i += 1) {
-			let child_ctx = get_each_context$1(ctx, each_value, i);
-			let key = get_key(child_ctx);
-			each_1_lookup.set(key, each_blocks[i] = create_each_block$1(key, child_ctx));
+	const TOAST_LIFETIME$1 = 4000;
+	const GAP$1 = 14;
+	const SWIPE_THRESHOLD = 45;
+	const TIME_BEFORE_UNMOUNT = 200;
+	const SCALE_MULTIPLIER = 0.05;
+
+	const DEFAULT_TOAST_CLASSES = {
+		toast: '',
+		title: '',
+		description: '',
+		loader: '',
+		closeButton: '',
+		cancelButton: '',
+		actionButton: '',
+		action: '',
+		warning: '',
+		error: '',
+		success: '',
+		default: '',
+		info: '',
+		loading: ''
+	};
+
+	function getDefaultSwipeDirections(position) {
+		const [y, x] = position.split('-');
+		const directions = [];
+
+		if (y) {
+			directions.push(y);
 		}
 
-		return {
-			c() {
-				div = element("div");
+		if (x) {
+			directions.push(x);
+		}
 
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					each_blocks[i].c();
+		return directions;
+	}
+
+	function getDampening(delta) {
+		const factor = Math.abs(delta) / 20;
+
+		return 1 / (1.5 + factor);
+	}
+
+	var root_2$3 = add_locations(from_html(`<div><!></div>`), Toast[FILENAME], [[318, 2]]);
+	var root_4$2 = add_locations(from_html(`<button data-close-button=""><!></button>`), Toast[FILENAME], [[377, 2]]);
+	var root_7$1 = add_locations(from_html(`<div data-icon=""><!> <!></div>`), Toast[FILENAME], [[397, 3]]);
+	var root_20$1 = add_locations(from_html(`<div data-description=""><!></div>`), Toast[FILENAME], [[435, 4]]);
+	var root_25$1 = add_locations(from_html(`<button data-button="" data-cancel=""> </button>`), Toast[FILENAME], [[457, 4]]);
+	var root_28$1 = add_locations(from_html(`<button data-button=""> </button>`), Toast[FILENAME], [[480, 4]]);
+	var root_6$1 = add_locations(from_html(`<!> <div data-content=""><div data-title=""><!></div> <!></div> <!> <!>`, 1), Toast[FILENAME], [[420, 2, [[421, 3]]]]);
+	var root$9 = add_locations(from_html(`<li aria-atomic="true" data-sonner-toast=""><!> <!></li>`), Toast[FILENAME], [[333, 0]]);
+
+	function Toast($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true, Toast);
+
+		const // height index is used to calculate the offset as it gets updated before the toast array, which means we can calculate the new layout faster.
+		// use scaledRectHeight as it's more precise
+		// toast was transitioning its scale, so scaledRectHeight isn't accurate
+		// save the offset for the exit swipe animation
+		// let the toast know it has started
+		// get the elapsed time since the timer started
+		// if the toast has been updated after the initial render,
+		// we want to reset the timer and set the remaining time to the
+		// new duration
+		// ensure we maintain correct pointer capture even when going outside of the toast (e.g. when swiping)
+		// remove only if threshold is met
+		// Determine swipe direction if not already locked
+		// handle vertical swipes
+		// smoothly transition to dampened movement
+		// ensure we don't jump when transition to dampened movement
+		// handle horizontal swipes
+		// Smoothly transition to dampened movement
+		// Ensure we don't jump when transitioning to dampened movement
+		LoadingIcon = wrap_snippet(Toast, function ($$anchor) {
+			validate_snippet_args(...arguments);
+
+			var fragment = comment();
+			var node = first_child(fragment);
+
+			{
+				var consequent = ($$anchor) => {
+					var div = root_2$3();
+					var node_1 = child(div);
+
+					add_svelte_meta(() => snippet(node_1, () => $$props.loadingIcon), 'render', Toast, 322, 3);
+					reset(div);
+
+					template_effect(
+						($0) => {
+							set_class(div, 1, $0);
+							set_attribute(div, 'data-visible', strict_equals(get$1(toastType), 'loading'));
+						},
+						[
+							() => clsx(cn(get$1(classes)?.loader, $$props.toast?.classes?.loader, 'sonner-loader'))
+						]
+					);
+
+					append($$anchor, div);
+				};
+
+				var alternate = ($$anchor) => {
+					{
+						let $0 = user_derived(() => cn(get$1(classes)?.loader, $$props.toast.classes?.loader));
+						let $1 = user_derived(() => strict_equals(get$1(toastType), 'loading'));
+
+						add_svelte_meta(
+							() => Loader($$anchor, {
+								get class() {
+									return get$1($0);
+								},
+
+								get visible() {
+									return get$1($1);
+								}
+							}),
+							'component',
+							Toast,
+							325,
+							2,
+							{ componentTag: 'Loader' }
+						);
+					}
+				};
+
+				add_svelte_meta(
+					() => if_block(node, ($$render) => {
+						if ($$props.loadingIcon) $$render(consequent); else $$render(alternate, -1);
+					}),
+					'if',
+					Toast,
+					317,
+					1
+				);
+			}
+
+			append($$anchor, fragment);
+		});
+
+		let cancelButtonStyle = prop($$props, 'cancelButtonStyle', 3, ''),
+			actionButtonStyle = prop($$props, 'actionButtonStyle', 3, ''),
+			descriptionClass = prop($$props, 'descriptionClass', 3, ''),
+			unstyled = prop($$props, 'unstyled', 3, false),
+			defaultRichColors = prop($$props, 'defaultRichColors', 3, false);
+
+		const defaultClasses = { ...DEFAULT_TOAST_CLASSES };
+		let mounted = tag(state(false), 'mounted');
+		let removed = tag(state(false), 'removed');
+		let swiping = tag(state(false), 'swiping');
+		let swipeOut = tag(state(false), 'swipeOut');
+		let isSwiped = tag(state(false), 'isSwiped');
+		let offsetBeforeRemove = tag(state(0), 'offsetBeforeRemove');
+		let initialHeight = tag(state(0), 'initialHeight');
+		let remainingTime = $$props.toast.duration || $$props.duration || TOAST_LIFETIME$1;
+		let toastRef = tag(state(void 0), 'toastRef');
+		let swipeDirection = tag(state(null), 'swipeDirection');
+		let swipeOutDirection = tag(state(null), 'swipeOutDirection');
+		const isFront = tag(user_derived(() => strict_equals($$props.index, 0)), 'isFront');
+		const isVisible = tag(user_derived(() => $$props.index + 1 <= $$props.visibleToasts), 'isVisible');
+		const toastType = tag(user_derived(() => $$props.toast.type), 'toastType');
+
+		const dismissible = tag(
+			user_derived(() => strict_equals($$props.toast.dismissible, undefined, false)
+				? strict_equals($$props.toast.dismissible, false, false)
+				: strict_equals($$props.toast.dismissable, false, false)),
+			'dismissible'
+		);
+
+		const toastClass = tag(user_derived(() => $$props.toast.class || ''), 'toastClass');
+		const toastDescriptionClass = tag(user_derived(() => $$props.toast.descriptionClass || ''), 'toastDescriptionClass');
+		const heightIndex = tag(user_derived(() => toastState.heights.findIndex((height) => strict_equals(height.toastId, $$props.toast.id)) || 0), 'heightIndex');
+		const closeButton = tag(user_derived(() => $$props.toast.closeButton ?? $$props.closeButton), 'closeButton');
+		const duration = tag(user_derived(() => $$props.toast.duration ?? $$props.duration ?? TOAST_LIFETIME$1), 'duration');
+		let pointerStart = null;
+		const coords = tag(user_derived(() => $$props.position.split('-')), 'coords');
+
+		const toastsHeightBefore = tag(
+			user_derived(() => toastState.heights.reduce(
+				(prev, curr, reducerIndex) => {
+					if (reducerIndex >= get$1(heightIndex)) return prev;
+
+					return prev + curr.height;
+				},
+				0
+			)),
+			'toastsHeightBefore'
+		);
+
+		const isDocumentHidden = useDocumentHidden();
+		const invert = tag(user_derived(() => $$props.toast.invert || $$props.invert), 'invert');
+		const disabled = tag(user_derived(() => strict_equals(get$1(toastType), 'loading')), 'disabled');
+		const classes = tag(user_derived(() => ({ ...defaultClasses, ...$$props.classes })), 'classes');
+		const toastTitle = tag(user_derived(() => $$props.toast.title), 'toastTitle');
+		const toastDescription = tag(user_derived(() => $$props.toast.description), 'toastDescription');
+		let closeTimerStartTime = tag(state(0), 'closeTimerStartTime');
+		let lastCloseTimerStartTime = tag(state(0), 'lastCloseTimerStartTime');
+		const offset = tag(user_derived(() => Math.round(get$1(heightIndex) * GAP$1 + get$1(toastsHeightBefore))), 'offset');
+
+		user_effect(() => {
+			get$1(toastTitle);
+			get$1(toastDescription);
+
+			let scale;
+
+			if ($$props.expanded || $$props.expandByDefault) {
+				scale = 1;
+			} else {
+				scale = 1 - $$props.index * SCALE_MULTIPLIER;
+			}
+
+			const toastEl = untrack(() => get$1(toastRef));
+
+			if (strict_equals(toastEl, undefined)) return;
+
+			toastEl.style.setProperty('height', 'auto');
+
+			const offsetHeight = toastEl.offsetHeight;
+			const rectHeight = toastEl.getBoundingClientRect().height;
+			const scaledRectHeight = Math.round(rectHeight / scale + Number.EPSILON & 100) / 100;
+
+			toastEl.style.removeProperty('height');
+
+			let finalHeight;
+
+			if (Math.abs(scaledRectHeight - offsetHeight) < 1) {
+				// use scaledRectHeight as it's more precise
+				finalHeight = scaledRectHeight;
+			} else {
+				// toast was transitioning its scale, so scaledRectHeight isn't accurate
+				finalHeight = offsetHeight;
+			}
+
+			set(initialHeight, finalHeight, true);
+			toastState.setHeight({ toastId: $$props.toast.id, height: finalHeight });
+		});
+
+		function deleteToast() {
+			set(removed, true);
+
+			// save the offset for the exit swipe animation
+			set(offsetBeforeRemove, get$1(offset), true);
+
+			toastState.removeHeight($$props.toast.id);
+
+			setTimeout(
+				() => {
+					toastState.remove($$props.toast.id);
+				},
+				TIME_BEFORE_UNMOUNT
+			);
+		}
+
+		let timeoutId;
+		const isPromiseLoadingOrInfiniteDuration = tag(user_derived(() => $$props.toast.promise && strict_equals(get$1(toastType), 'loading') || strict_equals($$props.toast.duration, Number.POSITIVE_INFINITY)), 'isPromiseLoadingOrInfiniteDuration');
+
+		function startTimer() {
+			set(closeTimerStartTime, new Date().getTime(), true);
+
+			// let the toast know it has started
+			timeoutId = setTimeout(
+				() => {
+					$$props.toast.onAutoClose?.($$props.toast);
+					deleteToast();
+				},
+				remainingTime
+			);
+		}
+
+		function pauseTimer() {
+			if (get$1(lastCloseTimerStartTime) < get$1(closeTimerStartTime)) {
+				// get the elapsed time since the timer started
+				const elapsedTime = new Date().getTime() - get$1(closeTimerStartTime);
+
+				remainingTime = remainingTime - elapsedTime;
+			}
+
+			set(lastCloseTimerStartTime, new Date().getTime(), true);
+		}
+
+		user_effect(() => {
+			if ($$props.toast.updated) {
+				// if the toast has been updated after the initial render,
+				// we want to reset the timer and set the remaining time to the
+				// new duration
+				clearTimeout(timeoutId);
+
+				remainingTime = get$1(duration);
+				startTimer();
+			}
+		});
+
+		user_effect(() => {
+			if (!get$1(isPromiseLoadingOrInfiniteDuration)) {
+				if ($$props.expanded || $$props.interacting || $$props.pauseWhenPageIsHidden && isDocumentHidden.current) {
+					pauseTimer();
+				} else {
+					startTimer();
+				}
+			}
+
+			return () => clearTimeout(timeoutId);
+		});
+
+		onMount(() => {
+			set(mounted, true);
+
+			const height = get$1(toastRef)?.getBoundingClientRect().height;
+
+			set(initialHeight, height, true);
+			toastState.setHeight({ toastId: $$props.toast.id, height });
+
+			return () => {
+				toastState.removeHeight($$props.toast.id);
+			};
+		});
+
+		user_effect(() => {
+			if ($$props.toast.delete) {
+				untrack(() => {
+					deleteToast();
+					$$props.toast.onDismiss?.($$props.toast);
+				});
+			}
+		});
+
+		const handlePointerDown = (event) => {
+			if (get$1(disabled)) return;
+
+			set(offsetBeforeRemove, get$1(offset), true);
+
+			const target = event.target;
+
+			// ensure we maintain correct pointer capture even when going outside of the toast (e.g. when swiping)
+			target.setPointerCapture(event.pointerId);
+
+			if (strict_equals(target.tagName, 'BUTTON')) return;
+
+			set(swiping, true);
+			pointerStart = { x: event.clientX, y: event.clientY };
+		};
+
+		const handlePointerUp = () => {
+			if (get$1(swipeOut) || !get$1(dismissible)) return;
+
+			pointerStart = null;
+
+			const swipeAmountX = Number(get$1(toastRef)?.style.getPropertyValue('--swipe-amount-x').replace('px', '') || 0);
+			const swipeAmountY = Number(get$1(toastRef)?.style.getPropertyValue('--swipe-amount-y').replace('px', '') || 0);
+			const timeTaken = new Date().getTime() - (0);
+			const swipeAmount = strict_equals(get$1(swipeDirection), 'x') ? swipeAmountX : swipeAmountY;
+			const velocity = Math.abs(swipeAmount) / timeTaken;
+
+			// remove only if threshold is met
+			if (Math.abs(swipeAmount) >= SWIPE_THRESHOLD || velocity > 0.11) {
+				set(offsetBeforeRemove, get$1(offset), true);
+				$$props.toast.onDismiss?.($$props.toast);
+
+				if (strict_equals(get$1(swipeDirection), 'x')) {
+					set(swipeOutDirection, swipeAmountX > 0 ? 'right' : 'left', true);
+				} else {
+					set(swipeOutDirection, swipeAmountY > 0 ? 'down' : 'up', true);
 				}
 
-				attr(div, "class", div_class_value = "toaster " + (/*containerClassName*/ ctx[1] || '') + " svelte-1phplh9");
-				attr(div, "style", /*containerStyle*/ ctx[0]);
-				attr(div, "role", "alert");
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
+				deleteToast();
+				set(swipeOut, true);
 
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					if (each_blocks[i]) {
-						each_blocks[i].m(div, null);
+				return;
+			} else {
+				get$1(toastRef)?.style.setProperty('--swipe-amount-x', '0px');
+				get$1(toastRef)?.style.setProperty('--swipe-amount-y', '0px');
+			}
+
+			set(isSwiped, false);
+			set(swiping, false);
+			set(swipeDirection, null);
+		};
+
+		const handlePointerMove = (event) => {
+			if (!pointerStart || !get$1(dismissible)) return;
+
+			const isHighlighted = (window.getSelection()?.toString().length ?? -1) > 0;
+
+			if (isHighlighted) return;
+
+			const yDelta = event.clientY - pointerStart.y;
+			const xDelta = event.clientX - pointerStart.x;
+			const swipeDirections = $$props.swipeDirections ?? getDefaultSwipeDirections($$props.position);
+
+			// Determine swipe direction if not already locked
+			if (!get$1(swipeDirection) && (Math.abs(xDelta) > 1 || Math.abs(yDelta) > 1)) {
+				set(swipeDirection, Math.abs(xDelta) > Math.abs(yDelta) ? 'x' : 'y', true);
+			}
+
+			let swipeAmount = { x: 0, y: 0 };
+
+			if (strict_equals(get$1(swipeDirection), 'y')) {
+				// handle vertical swipes
+				if (swipeDirections.includes('top') || swipeDirections.includes('bottom')) {
+					if (swipeDirections.includes('top') && yDelta < 0 || swipeDirections.includes('bottom') && yDelta > 0) {
+						swipeAmount.y = yDelta;
+					} else {
+						// smoothly transition to dampened movement
+						const dampenedDelta = yDelta * getDampening(yDelta);
+
+						// ensure we don't jump when transition to dampened movement
+						swipeAmount.y = Math.abs(dampenedDelta) < Math.abs(yDelta) ? dampenedDelta : yDelta;
+					}
+				}
+			} else if (strict_equals(get$1(swipeDirection), 'x')) {
+				// handle horizontal swipes
+				if (swipeDirections.includes('left') || swipeDirections.includes('right')) {
+					if (swipeDirections.includes('left') && xDelta < 0 || swipeDirections.includes('right') && xDelta > 0) {
+						swipeAmount.x = xDelta;
+					} else {
+						// Smoothly transition to dampened movement
+						const dampenedDelta = xDelta * getDampening(xDelta);
+
+						// Ensure we don't jump when transitioning to dampened movement
+						swipeAmount.x = Math.abs(dampenedDelta) < Math.abs(xDelta) ? dampenedDelta : xDelta;
+					}
+				}
+			}
+
+			if (Math.abs(swipeAmount.x) > 0 || Math.abs(swipeAmount.y) > 0) {
+				set(isSwiped, true);
+			}
+
+			get$1(toastRef)?.style.setProperty('--swipe-amount-x', `${swipeAmount.x}px`);
+			get$1(toastRef)?.style.setProperty('--swipe-amount-y', `${swipeAmount.y}px`);
+		};
+
+		const handleDragEnd = () => {
+			set(swiping, false);
+			set(swipeDirection, null);
+			pointerStart = null;
+		};
+
+		const icon = tag(
+			user_derived(() => {
+				if ($$props.toast.icon) return $$props.toast.icon;
+				if (strict_equals(get$1(toastType), 'success')) return $$props.successIcon;
+				if (strict_equals(get$1(toastType), 'error')) return $$props.errorIcon;
+				if (strict_equals(get$1(toastType), 'warning')) return $$props.warningIcon;
+				if (strict_equals(get$1(toastType), 'info')) return $$props.infoIcon;
+				if (strict_equals(get$1(toastType), 'loading')) return $$props.loadingIcon;
+
+				return null;
+			}),
+			'icon'
+		);
+
+		var $$exports = { ...legacy_api() };
+		var li = root$9();
+
+		set_attribute(li, 'tabindex', 0);
+
+		let styles;
+		var node_2 = child(li);
+
+		{
+			var consequent_1 = ($$anchor) => {
+				var button = root_4$2();
+				var node_3 = child(button);
+
+				add_svelte_meta(() => snippet(node_3, () => $$props.closeIcon ?? noop$1), 'render', Toast, 388, 3);
+
+				template_effect(
+					($0) => {
+						set_attribute(button, 'aria-label', $$props.closeButtonAriaLabel);
+						set_attribute(button, 'data-disabled', get$1(disabled));
+						set_class(button, 1, $0);
+					},
+					[
+						() => clsx(cn(get$1(classes)?.closeButton, $$props.toast?.classes?.closeButton))
+					]
+				);
+
+				delegated('click', button, function click() {
+					if (get$1(disabled) || !get$1(dismissible)) return;
+
+					deleteToast();
+					$$props.toast.onDismiss?.($$props.toast);
+				});
+
+				append($$anchor, button);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_2, ($$render) => {
+					if (get$1(closeButton) && !$$props.toast.component && strict_equals(get$1(toastType), 'loading', false) && strict_equals($$props.closeIcon, null, false)) $$render(consequent_1);
+				}),
+				'if',
+				Toast,
+				376,
+				1
+			);
+		}
+
+		var node_4 = sibling(node_2, 2);
+
+		{
+			var consequent_2 = ($$anchor) => {
+				const Component = tag(user_derived(() => $$props.toast.component), 'Component');
+
+				get$1(Component);
+
+				var fragment_2 = comment();
+				var node_5 = first_child(fragment_2);
+
+				add_svelte_meta(
+					() => component(node_5, () => get$1(Component), ($$anchor, Component_1) => {
+						Component_1($$anchor, spread_props(() => $$props.toast.componentProps, { closeToast: deleteToast }));
+					}),
+					'component',
+					Toast,
+					394,
+					2,
+					{ componentTag: 'Component' }
+				);
+
+				append($$anchor, fragment_2);
+			};
+
+			var alternate_4 = ($$anchor) => {
+				var fragment_3 = root_6$1();
+				var node_6 = first_child(fragment_3);
+
+				{
+					var consequent_11 = ($$anchor) => {
+						var div_1 = root_7$1();
+						var node_7 = child(div_1);
+
+						{
+							var consequent_4 = ($$anchor) => {
+								var fragment_4 = comment();
+								var node_8 = first_child(fragment_4);
+
+								{
+									var consequent_3 = ($$anchor) => {
+										var fragment_5 = comment();
+										var node_9 = first_child(fragment_5);
+
+										add_svelte_meta(
+											() => component(node_9, () => $$props.toast.icon, ($$anchor, toast_icon) => {
+												toast_icon($$anchor, {});
+											}),
+											'component',
+											Toast,
+											400,
+											6,
+											{ componentTag: 'toast.icon' }
+										);
+
+										append($$anchor, fragment_5);
+									};
+
+									var alternate_1 = ($$anchor) => {
+										add_svelte_meta(() => LoadingIcon($$anchor), 'render', Toast, 402, 6);
+									};
+
+									add_svelte_meta(
+										() => if_block(node_8, ($$render) => {
+											if ($$props.toast.icon) $$render(consequent_3); else $$render(alternate_1, -1);
+										}),
+										'if',
+										Toast,
+										399,
+										5
+									);
+								}
+
+								append($$anchor, fragment_4);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_7, ($$render) => {
+									if ($$props.toast.promise || strict_equals(get$1(toastType), 'loading')) $$render(consequent_4);
+								}),
+								'if',
+								Toast,
+								398,
+								4
+							);
+						}
+
+						var node_10 = sibling(node_7, 2);
+
+						{
+							var consequent_10 = ($$anchor) => {
+								var fragment_7 = comment();
+								var node_11 = first_child(fragment_7);
+
+								{
+									var consequent_5 = ($$anchor) => {
+										var fragment_8 = comment();
+										var node_12 = first_child(fragment_8);
+
+										add_svelte_meta(
+											() => component(node_12, () => $$props.toast.icon, ($$anchor, toast_icon_1) => {
+												toast_icon_1($$anchor, {});
+											}),
+											'component',
+											Toast,
+											407,
+											6,
+											{ componentTag: 'toast.icon' }
+										);
+
+										append($$anchor, fragment_8);
+									};
+
+									var consequent_6 = ($$anchor) => {
+										var fragment_9 = comment();
+										var node_13 = first_child(fragment_9);
+
+										add_svelte_meta(() => snippet(node_13, () => $$props.successIcon ?? noop$1), 'render', Toast, 409, 6);
+										append($$anchor, fragment_9);
+									};
+
+									var consequent_7 = ($$anchor) => {
+										var fragment_10 = comment();
+										var node_14 = first_child(fragment_10);
+
+										add_svelte_meta(() => snippet(node_14, () => $$props.errorIcon ?? noop$1), 'render', Toast, 411, 6);
+										append($$anchor, fragment_10);
+									};
+
+									var consequent_8 = ($$anchor) => {
+										var fragment_11 = comment();
+										var node_15 = first_child(fragment_11);
+
+										add_svelte_meta(() => snippet(node_15, () => $$props.warningIcon ?? noop$1), 'render', Toast, 413, 6);
+										append($$anchor, fragment_11);
+									};
+
+									var consequent_9 = ($$anchor) => {
+										var fragment_12 = comment();
+										var node_16 = first_child(fragment_12);
+
+										add_svelte_meta(() => snippet(node_16, () => $$props.infoIcon ?? noop$1), 'render', Toast, 415, 6);
+										append($$anchor, fragment_12);
+									};
+
+									add_svelte_meta(
+										() => if_block(node_11, ($$render) => {
+											if ($$props.toast.icon) $$render(consequent_5); else if (strict_equals(get$1(toastType), 'success')) $$render(consequent_6, 1); else if (strict_equals(get$1(toastType), 'error')) $$render(consequent_7, 2); else if (strict_equals(get$1(toastType), 'warning')) $$render(consequent_8, 3); else if (strict_equals(get$1(toastType), 'info')) $$render(consequent_9, 4);
+										}),
+										'if',
+										Toast,
+										406,
+										5
+									);
+								}
+
+								append($$anchor, fragment_7);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_10, ($$render) => {
+									if (strict_equals($$props.toast.type, 'loading', false)) $$render(consequent_10);
+								}),
+								'if',
+								Toast,
+								405,
+								4
+							);
+						}
+
+						template_effect(($0) => set_class(div_1, 1, $0), [
+							() => clsx(cn(get$1(classes)?.icon, $$props.toast?.classes?.icon))
+						]);
+
+						append($$anchor, div_1);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_6, ($$render) => {
+							if ((get$1(toastType) || $$props.toast.icon || $$props.toast.promise) && strict_equals($$props.toast.icon, null, false) && (strict_equals(get$1(icon), null, false) || $$props.toast.icon)) $$render(consequent_11);
+						}),
+						'if',
+						Toast,
+						396,
+						2
+					);
+				}
+
+				var div_2 = sibling(node_6, 2);
+				var div_3 = child(div_2);
+				var node_17 = child(div_3);
+
+				{
+					var consequent_13 = ($$anchor) => {
+						var fragment_13 = comment();
+						var node_18 = first_child(fragment_13);
+
+						{
+							var consequent_12 = ($$anchor) => {
+								const Title = tag(user_derived(() => $$props.toast.title), 'Title');
+
+								get$1(Title);
+
+								var fragment_14 = comment();
+								var node_19 = first_child(fragment_14);
+
+								add_svelte_meta(
+									() => component(node_19, () => get$1(Title), ($$anchor, Title_1) => {
+										Title_1($$anchor, spread_props(() => $$props.toast.componentProps));
+									}),
+									'component',
+									Toast,
+									428,
+									6,
+									{ componentTag: 'Title' }
+								);
+
+								append($$anchor, fragment_14);
+							};
+
+							var alternate_2 = ($$anchor) => {
+								var text$1 = text();
+
+								template_effect(() => set_text(text$1, $$props.toast.title));
+								append($$anchor, text$1);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_18, ($$render) => {
+									if (strict_equals(typeof $$props.toast.title, 'string', false)) $$render(consequent_12); else $$render(alternate_2, -1);
+								}),
+								'if',
+								Toast,
+								426,
+								5
+							);
+						}
+
+						append($$anchor, fragment_13);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_17, ($$render) => {
+							if ($$props.toast.title) $$render(consequent_13);
+						}),
+						'if',
+						Toast,
+						425,
+						4
+					);
+				}
+
+				var node_20 = sibling(div_3, 2);
+
+				{
+					var consequent_15 = ($$anchor) => {
+						var div_4 = root_20$1();
+						var node_21 = child(div_4);
+
+						{
+							var consequent_14 = ($$anchor) => {
+								const Description = tag(user_derived(() => $$props.toast.description), 'Description');
+
+								get$1(Description);
+
+								var fragment_16 = comment();
+								var node_22 = first_child(fragment_16);
+
+								add_svelte_meta(
+									() => component(node_22, () => get$1(Description), ($$anchor, Description_1) => {
+										Description_1($$anchor, spread_props(() => $$props.toast.componentProps));
+									}),
+									'component',
+									Toast,
+									446,
+									6,
+									{ componentTag: 'Description' }
+								);
+
+								append($$anchor, fragment_16);
+							};
+
+							var alternate_3 = ($$anchor) => {
+								var text_1 = text();
+
+								template_effect(() => set_text(text_1, $$props.toast.description));
+								append($$anchor, text_1);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_21, ($$render) => {
+									if (strict_equals(typeof $$props.toast.description, 'string', false)) $$render(consequent_14); else $$render(alternate_3, -1);
+								}),
+								'if',
+								Toast,
+								444,
+								5
+							);
+						}
+
+						template_effect(($0) => set_class(div_4, 1, $0), [
+							() => clsx(cn(descriptionClass(), get$1(toastDescriptionClass), get$1(classes)?.description, $$props.toast.classes?.description))
+						]);
+
+						append($$anchor, div_4);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_20, ($$render) => {
+							if ($$props.toast.description) $$render(consequent_15);
+						}),
+						'if',
+						Toast,
+						434,
+						3
+					);
+				}
+
+				var node_23 = sibling(div_2, 2);
+
+				{
+					var consequent_18 = ($$anchor) => {
+						var fragment_18 = comment();
+						var node_24 = first_child(fragment_18);
+
+						{
+							var consequent_16 = ($$anchor) => {
+								var fragment_19 = comment();
+								var node_25 = first_child(fragment_19);
+
+								add_svelte_meta(
+									() => component(node_25, () => $$props.toast.cancel, ($$anchor, toast_cancel) => {
+										toast_cancel($$anchor, {});
+									}),
+									'component',
+									Toast,
+									455,
+									4,
+									{ componentTag: 'toast.cancel' }
+								);
+
+								append($$anchor, fragment_19);
+							};
+
+							var consequent_17 = ($$anchor) => {
+								var button_1 = root_25$1();
+								var text_2 = child(button_1);
+
+								template_effect(
+									($0) => {
+										set_style(button_1, $$props.toast.cancelButtonStyle ?? cancelButtonStyle());
+										set_class(button_1, 1, $0);
+										set_text(text_2, $$props.toast.cancel.label);
+									},
+									[
+										() => clsx(cn(get$1(classes)?.cancelButton, $$props.toast?.classes?.cancelButton))
+									]
+								);
+
+								delegated('click', button_1, function click_1(event) {
+									if (!isAction($$props.toast.cancel)) return;
+									if (!get$1(dismissible)) return;
+
+									$$props.toast.cancel?.onClick?.(event);
+									deleteToast();
+								});
+
+								append($$anchor, button_1);
+							};
+
+							var d = user_derived(() => isAction($$props.toast.cancel));
+
+							add_svelte_meta(
+								() => if_block(node_24, ($$render) => {
+									if (strict_equals(typeof $$props.toast.cancel, 'function')) $$render(consequent_16); else if (get$1(d)) $$render(consequent_17, 1);
+								}),
+								'if',
+								Toast,
+								454,
+								3
+							);
+						}
+
+						append($$anchor, fragment_18);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_23, ($$render) => {
+							if ($$props.toast.cancel) $$render(consequent_18);
+						}),
+						'if',
+						Toast,
+						453,
+						2
+					);
+				}
+
+				var node_26 = sibling(node_23, 2);
+
+				{
+					var consequent_21 = ($$anchor) => {
+						var fragment_20 = comment();
+						var node_27 = first_child(fragment_20);
+
+						{
+							var consequent_19 = ($$anchor) => {
+								var fragment_21 = comment();
+								var node_28 = first_child(fragment_21);
+
+								add_svelte_meta(
+									() => component(node_28, () => $$props.toast.action, ($$anchor, toast_action) => {
+										toast_action($$anchor, {});
+									}),
+									'component',
+									Toast,
+									478,
+									4,
+									{ componentTag: 'toast.action' }
+								);
+
+								append($$anchor, fragment_21);
+							};
+
+							var consequent_20 = ($$anchor) => {
+								var button_2 = root_28$1();
+								var text_3 = child(button_2);
+
+								template_effect(
+									($0) => {
+										set_style(button_2, $$props.toast.actionButtonStyle ?? actionButtonStyle());
+										set_class(button_2, 1, $0);
+										set_text(text_3, $$props.toast.action.label);
+									},
+									[
+										() => clsx(cn(get$1(classes)?.actionButton, $$props.toast?.classes?.actionButton))
+									]
+								);
+
+								delegated('click', button_2, function click_2(event) {
+									if (!isAction($$props.toast.action)) return;
+
+									$$props.toast.action?.onClick(event);
+
+									if (event.defaultPrevented) return;
+
+									deleteToast();
+								});
+
+								append($$anchor, button_2);
+							};
+
+							var d_1 = user_derived(() => isAction($$props.toast.action));
+
+							add_svelte_meta(
+								() => if_block(node_27, ($$render) => {
+									if (strict_equals(typeof $$props.toast.action, 'function')) $$render(consequent_19); else if (get$1(d_1)) $$render(consequent_20, 1);
+								}),
+								'if',
+								Toast,
+								477,
+								3
+							);
+						}
+
+						append($$anchor, fragment_20);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_26, ($$render) => {
+							if ($$props.toast.action) $$render(consequent_21);
+						}),
+						'if',
+						Toast,
+						476,
+						2
+					);
+				}
+
+				template_effect(
+					($0, $1) => {
+						set_class(div_2, 1, $0);
+						set_class(div_3, 1, $1);
+					},
+					[
+						() => clsx(cn(get$1(classes)?.content, $$props.toast?.classes?.content)),
+						() => clsx(cn(get$1(classes)?.title, $$props.toast?.classes?.title))
+					]
+				);
+
+				append($$anchor, fragment_3);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_4, ($$render) => {
+					if ($$props.toast.component) $$render(consequent_2); else $$render(alternate_4, -1);
+				}),
+				'if',
+				Toast,
+				392,
+				1
+			);
+		}
+		bind_this(li, ($$value) => set(toastRef, $$value), () => get$1(toastRef));
+
+		template_effect(
+			($0, $1, $2) => {
+				set_class(li, 1, $0);
+				set_attribute(li, 'aria-live', $$props.toast.important ? 'assertive' : 'polite');
+				set_attribute(li, 'data-rich-colors', $$props.toast.richColors ?? defaultRichColors());
+				set_attribute(li, 'data-styled', !($$props.toast.component || $$props.toast.unstyled || unstyled()));
+				set_attribute(li, 'data-mounted', get$1(mounted));
+				set_attribute(li, 'data-promise', $1);
+				set_attribute(li, 'data-swiped', get$1(isSwiped));
+				set_attribute(li, 'data-removed', get$1(removed));
+				set_attribute(li, 'data-visible', get$1(isVisible));
+				set_attribute(li, 'data-y-position', get$1(coords)[0]);
+				set_attribute(li, 'data-x-position', get$1(coords)[1]);
+				set_attribute(li, 'data-index', $$props.index);
+				set_attribute(li, 'data-front', get$1(isFront));
+				set_attribute(li, 'data-swiping', get$1(swiping));
+				set_attribute(li, 'data-dismissible', get$1(dismissible));
+				set_attribute(li, 'data-type', get$1(toastType));
+				set_attribute(li, 'data-invert', get$1(invert));
+				set_attribute(li, 'data-swipe-out', get$1(swipeOut));
+				set_attribute(li, 'data-swipe-direction', get$1(swipeOutDirection));
+				set_attribute(li, 'data-expanded', $2);
+
+				styles = set_style(li, `${$$props.style} ${$$props.toast.style}`, styles, {
+					'--index': $$props.index,
+					'--toasts-before': $$props.index,
+					'--z-index': toastState.toasts.length - $$props.index,
+					'--offset': `${get$1(removed) ? get$1(offsetBeforeRemove) : get$1(offset)}px`,
+					'--initial-height': $$props.expandByDefault ? 'auto' : `${get$1(initialHeight)}px`
+				});
+			},
+			[
+				() => clsx(cn($$props.class, get$1(toastClass), get$1(classes)?.toast, $$props.toast?.classes?.toast, get$1(classes)?.[get$1(toastType)], $$props.toast?.classes?.[get$1(toastType)])),
+				() => Boolean($$props.toast.promise),
+				() => Boolean($$props.expanded || $$props.expandByDefault && get$1(mounted))
+			]
+		);
+
+		delegated('pointermove', li, handlePointerMove);
+		delegated('pointerup', li, handlePointerUp);
+		delegated('pointerdown', li, handlePointerDown);
+		event('dragend', li, handleDragEnd);
+		append($$anchor, li);
+
+		return pop($$exports);
+	}
+
+	delegate(['pointermove', 'pointerup', 'pointerdown', 'click']);
+
+	SuccessIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/SuccessIcon.svelte';
+
+	var root$8 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-success-icon=""><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"></path></svg>`), SuccessIcon[FILENAME], [[1, 0, [[9, 1]]]]);
+
+	function SuccessIcon($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, SuccessIcon);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$8();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	ErrorIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/ErrorIcon.svelte';
+
+	var root$7 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-error-icon=""><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"></path></svg>`), ErrorIcon[FILENAME], [[1, 0, [[9, 1]]]]);
+
+	function ErrorIcon($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, ErrorIcon);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$7();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	WarningIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/WarningIcon.svelte';
+
+	var root$6 = add_locations(from_svg(`<svg viewBox="0 0 64 64" fill="currentColor" height="20" width="20" data-sonner-warning-icon="" xmlns="http://www.w3.org/2000/svg"><path d="M32.427,7.987c2.183,0.124 4,1.165 5.096,3.281l17.936,36.208c1.739,3.66 -0.954,8.585 -5.373,8.656l-36.119,0c-4.022,-0.064 -7.322,-4.631 -5.352,-8.696l18.271,-36.207c0.342,-0.65 0.498,-0.838 0.793,-1.179c1.186,-1.375 2.483,-2.111 4.748,-2.063Zm-0.295,3.997c-0.687,0.034 -1.316,0.419 -1.659,1.017c-6.312,11.979 -12.397,24.081 -18.301,36.267c-0.546,1.225 0.391,2.797 1.762,2.863c12.06,0.195 24.125,0.195 36.185,0c1.325,-0.064 2.321,-1.584 1.769,-2.85c-5.793,-12.184 -11.765,-24.286 -17.966,-36.267c-0.366,-0.651 -0.903,-1.042 -1.79,-1.03Z"></path><path d="M33.631,40.581l-3.348,0l-0.368,-16.449l4.1,0l-0.384,16.449Zm-3.828,5.03c0,-0.609 0.197,-1.113 0.592,-1.514c0.396,-0.4 0.935,-0.601 1.618,-0.601c0.684,0 1.223,0.201 1.618,0.601c0.395,0.401 0.593,0.905 0.593,1.514c0,0.587 -0.193,1.078 -0.577,1.473c-0.385,0.395 -0.929,0.593 -1.634,0.593c-0.705,0 -1.249,-0.198 -1.634,-0.593c-0.384,-0.395 -0.576,-0.886 -0.576,-1.473Z"></path></svg>`), WarningIcon[FILENAME], [[1, 0, [[9, 1], [12, 1]]]]);
+
+	function WarningIcon($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, WarningIcon);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$6();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	InfoIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/InfoIcon.svelte';
+
+	var root$5 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-info-icon=""><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"></path></svg>`), InfoIcon[FILENAME], [[1, 0, [[9, 1]]]]);
+
+	function InfoIcon($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, InfoIcon);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$5();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	CloseIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/CloseIcon.svelte';
+
+	var root$4 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-sonner-close-icon=""><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`), CloseIcon[FILENAME], [[1, 0, [[13, 1], [14, 1]]]]);
+
+	function CloseIcon($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, CloseIcon);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$4();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	Toaster[FILENAME] = 'node_modules/svelte-sonner/dist/Toaster.svelte';
+
+	const VISIBLE_TOASTS_AMOUNT = 3;
+	const VIEWPORT_OFFSET = '24px';
+	const MOBILE_VIEWPORT_OFFSET = '16px';
+	const TOAST_LIFETIME = 4000;
+	const TOAST_WIDTH = 356;
+	const GAP = 14;
+	const DARK = 'dark';
+	const LIGHT = 'light';
+
+	function getOffsetObject(defaultOffset, mobileOffset) {
+		const styles = {};
+
+		[defaultOffset, mobileOffset].forEach((offset, index) => {
+			const isMobile = strict_equals(index, 1);
+			const prefix = isMobile ? '--mobile-offset' : '--offset';
+			const defaultValue = isMobile ? MOBILE_VIEWPORT_OFFSET : VIEWPORT_OFFSET;
+
+			function assignAll(offset) {
+				['top', 'right', 'bottom', 'left'].forEach((key) => {
+					styles[`${prefix}-${key}`] = strict_equals(typeof offset, 'number') ? `${offset}px` : offset;
+				});
+			}
+
+			if (strict_equals(typeof offset, 'number') || strict_equals(typeof offset, 'string')) {
+				assignAll(offset);
+			} else if (strict_equals(typeof offset, 'object')) {
+				['top', 'right', 'bottom', 'left'].forEach((key) => {
+					const value = offset[key];
+
+					if (strict_equals(value, undefined)) {
+						styles[`${prefix}-${key}`] = defaultValue;
+					} else {
+						styles[`${prefix}-${key}`] = strict_equals(typeof value, 'number') ? `${value}px` : value;
+					}
+				});
+			} else {
+				assignAll(defaultValue);
+			}
+		});
+
+		return styles;
+	}
+
+	var root_2$2 = add_locations(from_html(`<ol></ol>`), Toaster[FILENAME], [[252, 3]]);
+	var root$3 = add_locations(from_html(`<section aria-live="polite" aria-relevant="additions text" aria-atomic="false" class="svelte-nbs0zk"><!></section>`), Toaster[FILENAME], [[239, 0]]);
+
+	function Toaster($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true, Toaster);
+
+		function getInitialTheme(t) {
+			if (strict_equals(t, 'system', false)) return t;
+
+			if (strict_equals(typeof window, 'undefined', false)) {
+				if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+					return DARK;
+				}
+
+				return LIGHT;
+			}
+
+			return LIGHT;
+		}
+
+		let invert = prop($$props, 'invert', 3, false),
+			position = prop($$props, 'position', 3, 'bottom-right'),
+			hotkey = prop($$props, 'hotkey', 19, () => ['altKey', 'KeyT']),
+			expand = prop($$props, 'expand', 3, false),
+			closeButton = prop($$props, 'closeButton', 3, false),
+			offset = prop($$props, 'offset', 3, VIEWPORT_OFFSET),
+			mobileOffset = prop($$props, 'mobileOffset', 3, MOBILE_VIEWPORT_OFFSET),
+			theme = prop($$props, 'theme', 3, 'light'),
+			richColors = prop($$props, 'richColors', 3, false),
+			duration = prop($$props, 'duration', 3, TOAST_LIFETIME),
+			visibleToasts = prop($$props, 'visibleToasts', 3, VISIBLE_TOASTS_AMOUNT),
+			toastOptions = prop($$props, 'toastOptions', 19, () => ({})),
+			dir = prop($$props, 'dir', 7, 'auto'),
+			gap = prop($$props, 'gap', 3, GAP),
+			pauseWhenPageIsHidden = prop($$props, 'pauseWhenPageIsHidden', 3, false),
+			containerAriaLabel = prop($$props, 'containerAriaLabel', 3, 'Notifications'),
+			closeButtonAriaLabel = prop($$props, 'closeButtonAriaLabel', 3, 'Close toast'),
+			restProps = rest_props(
+				$$props,
+				[
+					'$$slots',
+					'$$events',
+					'$$legacy',
+					'invert',
+					'position',
+					'hotkey',
+					'expand',
+					'closeButton',
+					'offset',
+					'mobileOffset',
+					'theme',
+					'richColors',
+					'duration',
+					'visibleToasts',
+					'toastOptions',
+					'dir',
+					'gap',
+					'pauseWhenPageIsHidden',
+					'loadingIcon',
+					'successIcon',
+					'errorIcon',
+					'warningIcon',
+					'closeIcon',
+					'infoIcon',
+					'containerAriaLabel',
+					'class',
+					'closeButtonAriaLabel',
+					'onblur',
+					'onfocus',
+					'onmouseenter',
+					'onmousemove',
+					'onmouseleave',
+					'ondragend',
+					'onpointerdown',
+					'onpointerup'
+				],
+				'restProps'
+			);
+
+		function getDocumentDirection() {
+			if (strict_equals(dir(), 'auto', false)) return dir();
+			if (strict_equals(typeof window, 'undefined')) return 'ltr';
+			if (strict_equals(typeof document, 'undefined')) return 'ltr'; // For Fresh purpose
+
+			const dirAttribute = document.documentElement.getAttribute('dir');
+
+			if (strict_equals(dirAttribute, 'auto') || !dirAttribute) {
+				untrack(() => dir(window.getComputedStyle(document.documentElement).direction ?? 'ltr'));
+
+				return dir();
+			}
+
+			untrack(() => dir(dirAttribute));
+
+			return dirAttribute;
+		}
+
+		const possiblePositions = tag(
+			user_derived(() => Array.from(new Set([
+				position(),
+				...toastState.toasts.filter((toast) => toast.position).map((toast) => toast.position)
+			].filter(Boolean)))),
+			'possiblePositions'
+		);
+
+		let expanded = tag(state(false), 'expanded');
+		let interacting = tag(state(false), 'interacting');
+		let actualTheme = tag(state(proxy(getInitialTheme(theme()))), 'actualTheme');
+		let listRef = tag(state(void 0), 'listRef');
+		let lastFocusedElementRef = tag(state(null), 'lastFocusedElementRef');
+		let isFocusWithin = tag(state(false), 'isFocusWithin');
+		const hotkeyLabel = tag(user_derived(() => hotkey().join('+').replace(/Key/g, '').replace(/Digit/g, '')), 'hotkeyLabel');
+
+		user_effect(() => {
+			if (toastState.toasts.length <= 1) {
+				set(expanded, false);
+			}
+		});
+
+		// Check for dismissed toasts and remove them. We need to do this to have dismiss animation.
+		user_effect(() => {
+			const toastsToDismiss = toastState.toasts.filter((toast) => toast.dismiss && !toast.delete);
+
+			if (toastsToDismiss.length > 0) {
+				const updatedToasts = toastState.toasts.map((toast) => {
+					const matchingToast = toastsToDismiss.find((dismissToast) => strict_equals(dismissToast.id, toast.id));
+
+					if (matchingToast) {
+						return { ...toast, delete: true };
+					}
+
+					return toast;
+				});
+
+				toastState.toasts = updatedToasts;
+			}
+		});
+
+		user_effect(() => {
+			return () => {
+				if (get$1(listRef) && get$1(lastFocusedElementRef)) {
+					get$1(lastFocusedElementRef).focus({ preventScroll: true });
+					set(lastFocusedElementRef, null);
+					set(isFocusWithin, false);
+				}
+			};
+		});
+
+		onMount(() => {
+			toastState.reset();
+
+			const handleKeydown = (event) => {
+				const isHotkeyPressed = hotkey().every((key
+
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				) => event[key] || strict_equals(event.code, key));
+
+				if (isHotkeyPressed) {
+					set(expanded, true);
+					get$1(listRef)?.focus();
+				}
+
+				if (strict_equals(event.code, 'Escape') && (strict_equals(document.activeElement, get$1(listRef)) || get$1(listRef)?.contains(document.activeElement))) {
+					set(expanded, false);
+				}
+			};
+
+			return on(document, 'keydown', handleKeydown);
+		});
+
+		user_effect(() => {
+			if (strict_equals(theme(), 'system', false)) {
+				set(actualTheme, theme());
+			}
+
+			if (strict_equals(typeof window, 'undefined', false)) {
+				if (strict_equals(theme(), 'system')) {
+					if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+						set(actualTheme, DARK);
+					} else {
+						set(actualTheme, LIGHT);
 					}
 				}
 
-				current = true;
+				const mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
 
-				if (!mounted) {
-					dispose = [
-						listen(div, "mouseenter", /*handlers*/ ctx[4].startPause),
-						listen(div, "mouseleave", /*handlers*/ ctx[4].endPause)
-					];
+				const changeHandler = ({ matches }) => {
+					if (strict_equals(theme(), 'system', false)) return;
 
-					mounted = true;
+					set(actualTheme, matches ? DARK : LIGHT, true);
+				};
+
+				if ('addEventListener' in mediaQueryList) {
+					mediaQueryList.addEventListener('change', changeHandler);
+				} else {
+					// @ts-expect-error deprecated API
+					mediaQueryList.addListener(changeHandler);
 				}
-			},
-			p(ctx, [dirty]) {
-				if (dirty & /*_toasts, handlers*/ 20) {
-					each_value = ensure_array_like(/*_toasts*/ ctx[2]);
-					group_outros();
-					each_blocks = update_keyed_each(each_blocks, dirty, get_key, 1, ctx, each_value, each_1_lookup, div, outro_and_destroy_block, create_each_block$1, null, get_each_context$1);
-					check_outros();
-				}
-
-				if (!current || dirty & /*containerClassName*/ 2 && div_class_value !== (div_class_value = "toaster " + (/*containerClassName*/ ctx[1] || '') + " svelte-1phplh9")) {
-					attr(div, "class", div_class_value);
-				}
-
-				if (!current || dirty & /*containerStyle*/ 1) {
-					attr(div, "style", /*containerStyle*/ ctx[0]);
-				}
-			},
-			i(local) {
-				if (current) return;
-
-				for (let i = 0; i < each_value.length; i += 1) {
-					transition_in(each_blocks[i]);
-				}
-
-				current = true;
-			},
-			o(local) {
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					transition_out(each_blocks[i]);
-				}
-
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-				}
-
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					each_blocks[i].d();
-				}
-
-				mounted = false;
-				run_all(dispose);
 			}
-		};
-	}
+		});
 
-	function instance$1($$self, $$props, $$invalidate) {
-		let $toasts;
-		let { reverseOrder = false } = $$props;
-		let { position = "top-center" } = $$props;
-		let { toastOptions = void 0 } = $$props;
-		let { gutter = 8 } = $$props;
-		let { containerStyle = void 0 } = $$props;
-		let { containerClassName = void 0 } = $$props;
-		const { toasts, handlers } = useToaster(toastOptions);
-		component_subscribe($$self, toasts, value => $$invalidate(9, $toasts = value));
-		let _toasts;
-		const func = (toast, height) => handlers.updateHeight(toast.id, height);
+		const handleBlur = (event) => {
+			$$props.onblur?.(event);
 
-		$$self.$$set = $$props => {
-			if ('reverseOrder' in $$props) $$invalidate(5, reverseOrder = $$props.reverseOrder);
-			if ('position' in $$props) $$invalidate(6, position = $$props.position);
-			if ('toastOptions' in $$props) $$invalidate(7, toastOptions = $$props.toastOptions);
-			if ('gutter' in $$props) $$invalidate(8, gutter = $$props.gutter);
-			if ('containerStyle' in $$props) $$invalidate(0, containerStyle = $$props.containerStyle);
-			if ('containerClassName' in $$props) $$invalidate(1, containerClassName = $$props.containerClassName);
-		};
+			if (get$1(isFocusWithin) && !event.currentTarget.contains(event.relatedTarget)) {
+				set(isFocusWithin, false);
 
-		$$self.$$.update = () => {
-			if ($$self.$$.dirty & /*$toasts, position, reverseOrder, gutter*/ 864) {
-				$$invalidate(2, _toasts = $toasts.map(toast => ({
-					...toast,
-					position: toast.position || position,
-					offset: handlers.calculateOffset(toast, $toasts, {
-						reverseOrder,
-						gutter,
-						defaultPosition: position
-					})
-				})));
+				if (get$1(lastFocusedElementRef)) {
+					get$1(lastFocusedElementRef).focus({ preventScroll: true });
+					set(lastFocusedElementRef, null);
+				}
 			}
 		};
 
-		return [
-			containerStyle,
-			containerClassName,
-			_toasts,
-			toasts,
-			handlers,
-			reverseOrder,
-			position,
-			toastOptions,
-			gutter,
-			$toasts,
-			func
-		];
-	}
+		const handleFocus = (event) => {
+			$$props.onfocus?.(event);
 
-	class Toaster extends SvelteComponent {
-		constructor(options) {
-			super();
+			const isNotDismissable = event.target instanceof HTMLElement && strict_equals(event.target.dataset.dismissible, 'false');
 
-			init(this, options, instance$1, create_fragment$2, safe_not_equal, {
-				reverseOrder: 5,
-				position: 6,
-				toastOptions: 7,
-				gutter: 8,
-				containerStyle: 0,
-				containerClassName: 1
-			});
+			if (isNotDismissable) return;
+
+			if (!get$1(isFocusWithin)) {
+				set(isFocusWithin, true);
+				set(lastFocusedElementRef, event.relatedTarget, true);
+			}
+		};
+
+		const handlePointerDown = (event) => {
+			$$props.onpointerdown?.(event);
+
+			const isNotDismissable = event.target instanceof HTMLElement && strict_equals(event.target.dataset.dismissible, 'false');
+
+			if (isNotDismissable) return;
+
+			set(interacting, true);
+		};
+
+		const handleMouseEnter = (event) => {
+			$$props.onmouseenter?.(event);
+			set(expanded, true);
+		};
+
+		const handleMouseLeave = (event) => {
+			$$props.onmouseleave?.(event);
+
+			if (!get$1(interacting)) {
+				set(expanded, false);
+			}
+		};
+
+		const handleMouseMove = (event) => {
+			$$props.onmousemove?.(event);
+			set(expanded, true);
+		};
+
+		const handleDragEnd = (event) => {
+			$$props.ondragend?.(event);
+			set(expanded, false);
+		};
+
+		const handlePointerUp = (event) => {
+			$$props.onpointerup?.(event);
+			set(interacting, false);
+		};
+
+		sonnerContext.set(new SonnerState());
+
+		var $$exports = { ...legacy_api() };
+		var section = root$3();
+
+		set_attribute(section, 'tabindex', -1);
+
+		var node = child(section);
+
+		{
+			var consequent_10 = ($$anchor) => {
+				var fragment = comment();
+				var node_1 = first_child(fragment);
+
+				add_svelte_meta(
+					() => each(node_1, 18, () => get$1(possiblePositions), (position) => position, ($$anchor, position, index, $$array) => {
+						const computed_const = tag(
+							user_derived(() => {
+								const [y, x] = position.split('-');
+
+								return { y, x };
+							}),
+							'[@const]'
+						);
+
+						get$1(computed_const);
+
+						const offsetObject = tag(user_derived(() => getOffsetObject(offset(), mobileOffset())), 'offsetObject');
+
+						get$1(offsetObject);
+
+						var ol = root_2$2();
+
+						attribute_effect(
+							ol,
+							($0) => ({
+								tabindex: -1,
+								dir: $0,
+								class: $$props.class,
+								'data-sonner-toaster': true,
+								'data-sonner-theme': get$1(actualTheme),
+								'data-y-position': get$1(computed_const).y,
+								'data-x-position': get$1(computed_const).x,
+								style: $$props.style,
+								onblur: handleBlur,
+								onfocus: handleFocus,
+								onmouseenter: handleMouseEnter,
+								onmousemove: handleMouseMove,
+								onmouseleave: handleMouseLeave,
+								ondragend: handleDragEnd,
+								onpointerdown: handlePointerDown,
+								onpointerup: handlePointerUp,
+								...restProps,
+								[STYLE]: {
+									'--front-toast-height': `${toastState.heights[0]?.height}px`,
+									'--width': `${TOAST_WIDTH}px`,
+									'--gap': `${gap()}px`,
+									'--offset-top': get$1(offsetObject)['--offset-top'],
+									'--offset-right': get$1(offsetObject)['--offset-right'],
+									'--offset-bottom': get$1(offsetObject)['--offset-bottom'],
+									'--offset-left': get$1(offsetObject)['--offset-left'],
+									'--mobile-offset-top': get$1(offsetObject)['--mobile-offset-top'],
+									'--mobile-offset-right': get$1(offsetObject)['--mobile-offset-right'],
+									'--mobile-offset-bottom': get$1(offsetObject)['--mobile-offset-bottom'],
+									'--mobile-offset-left': get$1(offsetObject)['--mobile-offset-left']
+								}
+							}),
+							[getDocumentDirection],
+							void 0,
+							void 0,
+							'svelte-nbs0zk'
+						);
+
+						add_svelte_meta(
+							() => each(ol, 23, () => toastState.toasts.filter((toast) => !toast.position && strict_equals(get$1(index), 0) || strict_equals(toast.position, position)), (toast) => toast.id, ($$anchor, toast, index, $$array_1) => {
+								{
+									const successIcon = wrap_snippet(Toaster, function ($$anchor) {
+										validate_snippet_args(...arguments);
+
+										var fragment_2 = comment();
+										var node_2 = first_child(fragment_2);
+
+										{
+											var consequent = ($$anchor) => {
+												var fragment_3 = comment();
+												var node_3 = first_child(fragment_3);
+
+												add_svelte_meta(() => snippet(node_3, () => $$props.successIcon ?? noop$1), 'render', Toaster, 318, 8);
+												append($$anchor, fragment_3);
+											};
+
+											var consequent_1 = ($$anchor) => {
+												add_svelte_meta(() => SuccessIcon($$anchor, {}), 'component', Toaster, 320, 8, { componentTag: 'SuccessIcon' });
+											};
+
+											add_svelte_meta(
+												() => if_block(node_2, ($$render) => {
+													if ($$props.successIcon) $$render(consequent); else if (strict_equals($$props.successIcon, null, false)) $$render(consequent_1, 1);
+												}),
+												'if',
+												Toaster,
+												317,
+												7
+											);
+										}
+
+										append($$anchor, fragment_2);
+									});
+
+									const errorIcon = wrap_snippet(Toaster, function ($$anchor) {
+										validate_snippet_args(...arguments);
+
+										var fragment_5 = comment();
+										var node_4 = first_child(fragment_5);
+
+										{
+											var consequent_2 = ($$anchor) => {
+												var fragment_6 = comment();
+												var node_5 = first_child(fragment_6);
+
+												add_svelte_meta(() => snippet(node_5, () => $$props.errorIcon ?? noop$1), 'render', Toaster, 326, 8);
+												append($$anchor, fragment_6);
+											};
+
+											var consequent_3 = ($$anchor) => {
+												add_svelte_meta(() => ErrorIcon($$anchor, {}), 'component', Toaster, 328, 8, { componentTag: 'ErrorIcon' });
+											};
+
+											add_svelte_meta(
+												() => if_block(node_4, ($$render) => {
+													if ($$props.errorIcon) $$render(consequent_2); else if (strict_equals($$props.errorIcon, null, false)) $$render(consequent_3, 1);
+												}),
+												'if',
+												Toaster,
+												325,
+												7
+											);
+										}
+
+										append($$anchor, fragment_5);
+									});
+
+									const warningIcon = wrap_snippet(Toaster, function ($$anchor) {
+										validate_snippet_args(...arguments);
+
+										var fragment_8 = comment();
+										var node_6 = first_child(fragment_8);
+
+										{
+											var consequent_4 = ($$anchor) => {
+												var fragment_9 = comment();
+												var node_7 = first_child(fragment_9);
+
+												add_svelte_meta(() => snippet(node_7, () => $$props.warningIcon ?? noop$1), 'render', Toaster, 334, 8);
+												append($$anchor, fragment_9);
+											};
+
+											var consequent_5 = ($$anchor) => {
+												add_svelte_meta(() => WarningIcon($$anchor, {}), 'component', Toaster, 336, 8, { componentTag: 'WarningIcon' });
+											};
+
+											add_svelte_meta(
+												() => if_block(node_6, ($$render) => {
+													if ($$props.warningIcon) $$render(consequent_4); else if (strict_equals($$props.warningIcon, null, false)) $$render(consequent_5, 1);
+												}),
+												'if',
+												Toaster,
+												333,
+												7
+											);
+										}
+
+										append($$anchor, fragment_8);
+									});
+
+									const infoIcon = wrap_snippet(Toaster, function ($$anchor) {
+										validate_snippet_args(...arguments);
+
+										var fragment_11 = comment();
+										var node_8 = first_child(fragment_11);
+
+										{
+											var consequent_6 = ($$anchor) => {
+												var fragment_12 = comment();
+												var node_9 = first_child(fragment_12);
+
+												add_svelte_meta(() => snippet(node_9, () => $$props.infoIcon ?? noop$1), 'render', Toaster, 342, 8);
+												append($$anchor, fragment_12);
+											};
+
+											var consequent_7 = ($$anchor) => {
+												add_svelte_meta(() => InfoIcon($$anchor, {}), 'component', Toaster, 344, 8, { componentTag: 'InfoIcon' });
+											};
+
+											add_svelte_meta(
+												() => if_block(node_8, ($$render) => {
+													if ($$props.infoIcon) $$render(consequent_6); else if (strict_equals($$props.infoIcon, null, false)) $$render(consequent_7, 1);
+												}),
+												'if',
+												Toaster,
+												341,
+												7
+											);
+										}
+
+										append($$anchor, fragment_11);
+									});
+
+									const closeIcon = wrap_snippet(Toaster, function ($$anchor) {
+										validate_snippet_args(...arguments);
+
+										var fragment_14 = comment();
+										var node_10 = first_child(fragment_14);
+
+										{
+											var consequent_8 = ($$anchor) => {
+												var fragment_15 = comment();
+												var node_11 = first_child(fragment_15);
+
+												add_svelte_meta(() => snippet(node_11, () => $$props.closeIcon ?? noop$1), 'render', Toaster, 350, 8);
+												append($$anchor, fragment_15);
+											};
+
+											var consequent_9 = ($$anchor) => {
+												add_svelte_meta(() => CloseIcon($$anchor, {}), 'component', Toaster, 352, 8, { componentTag: 'CloseIcon' });
+											};
+
+											add_svelte_meta(
+												() => if_block(node_10, ($$render) => {
+													if ($$props.closeIcon) $$render(consequent_8); else if (strict_equals($$props.closeIcon, null, false)) $$render(consequent_9, 1);
+												}),
+												'if',
+												Toaster,
+												349,
+												7
+											);
+										}
+
+										append($$anchor, fragment_14);
+									});
+
+									let $0 = user_derived(() => toastOptions()?.duration ?? duration());
+									let $1 = user_derived(() => toastOptions()?.class ?? '');
+									let $2 = user_derived(() => toastOptions()?.descriptionClass || '');
+									let $3 = user_derived(() => toastOptions()?.style ?? '');
+									let $4 = user_derived(() => toastOptions().classes || {});
+									let $5 = user_derived(() => toastOptions().unstyled ?? false);
+									let $6 = user_derived(() => toastOptions()?.cancelButtonStyle ?? '');
+									let $7 = user_derived(() => toastOptions()?.actionButtonStyle ?? '');
+									let $8 = user_derived(() => toastOptions()?.closeButtonAriaLabel ?? closeButtonAriaLabel());
+
+									add_svelte_meta(
+										() => Toast($$anchor, {
+											get index() {
+												return get$1(index);
+											},
+
+											get toast() {
+												return get$1(toast);
+											},
+
+											get defaultRichColors() {
+												return richColors();
+											},
+
+											get duration() {
+												return get$1($0);
+											},
+
+											get class() {
+												return get$1($1);
+											},
+
+											get descriptionClass() {
+												return get$1($2);
+											},
+
+											get invert() {
+												return invert();
+											},
+
+											get visibleToasts() {
+												return visibleToasts();
+											},
+
+											get closeButton() {
+												return closeButton();
+											},
+
+											get interacting() {
+												return get$1(interacting);
+											},
+
+											get position() {
+												return position;
+											},
+
+											get style() {
+												return get$1($3);
+											},
+
+											get classes() {
+												return get$1($4);
+											},
+
+											get unstyled() {
+												return get$1($5);
+											},
+
+											get cancelButtonStyle() {
+												return get$1($6);
+											},
+
+											get actionButtonStyle() {
+												return get$1($7);
+											},
+
+											get closeButtonAriaLabel() {
+												return get$1($8);
+											},
+
+											get expandByDefault() {
+												return expand();
+											},
+
+											get expanded() {
+												return get$1(expanded);
+											},
+
+											get pauseWhenPageIsHidden() {
+												return pauseWhenPageIsHidden();
+											},
+
+											get loadingIcon() {
+												return $$props.loadingIcon;
+											},
+											successIcon,
+											errorIcon,
+											warningIcon,
+											infoIcon,
+											closeIcon,
+											$$slots: {
+												successIcon: true,
+												errorIcon: true,
+												warningIcon: true,
+												infoIcon: true,
+												closeIcon: true
+											}
+										}),
+										'component',
+										Toaster,
+										290,
+										5,
+										{ componentTag: 'Toast' }
+									);
+								}
+							}),
+							'each',
+							Toaster,
+							289,
+							4
+						);
+
+						reset(ol);
+						bind_this(ol, ($$value) => set(listRef, $$value), () => get$1(listRef));
+						template_effect(() => ol.dir = ol.dir);
+						append($$anchor, ol);
+					}),
+					'each',
+					Toaster,
+					247,
+					2
+				);
+
+				append($$anchor, fragment);
+			};
+
+			add_svelte_meta(
+				() => if_block(node, ($$render) => {
+					if (toastState.toasts.length > 0) $$render(consequent_10);
+				}),
+				'if',
+				Toaster,
+				246,
+				1
+			);
 		}
+		template_effect(() => set_attribute(section, 'aria-label', `${containerAriaLabel() ?? ''} ${get$1(hotkeyLabel) ?? ''}`));
+		append($$anchor, section);
+
+		return pop($$exports);
 	}
 
+	/**
+	 * Create a bound version of a function with a specified `this` context
+	 *
+	 * @param {Function} fn - The function to bind
+	 * @param {*} thisArg - The value to be passed as the `this` parameter
+	 * @returns {Function} A new function that will call the original function with the specified `this` context
+	 */
 	function bind(fn, thisArg) {
 	  return function wrap() {
 	    return fn.apply(thisArg, arguments);
@@ -6459,29 +13670,30 @@ var app = (function () {
 
 	// utils is a library of generic helper functions non-specific to axios
 
-	const {toString} = Object.prototype;
-	const {getPrototypeOf} = Object;
+	const { toString } = Object.prototype;
+	const { getPrototypeOf } = Object;
+	const { iterator, toStringTag } = Symbol;
 
-	const kindOf = (cache => thing => {
-	    const str = toString.call(thing);
-	    return cache[str] || (cache[str] = str.slice(8, -1).toLowerCase());
+	const kindOf = ((cache) => (thing) => {
+	  const str = toString.call(thing);
+	  return cache[str] || (cache[str] = str.slice(8, -1).toLowerCase());
 	})(Object.create(null));
 
 	const kindOfTest = (type) => {
 	  type = type.toLowerCase();
-	  return (thing) => kindOf(thing) === type
+	  return (thing) => kindOf(thing) === type;
 	};
 
-	const typeOfTest = type => thing => typeof thing === type;
+	const typeOfTest = (type) => (thing) => typeof thing === type;
 
 	/**
-	 * Determine if a value is an Array
+	 * Determine if a value is a non-null object
 	 *
 	 * @param {Object} val The value to test
 	 *
 	 * @returns {boolean} True if value is an Array, otherwise false
 	 */
-	const {isArray} = Array;
+	const { isArray } = Array;
 
 	/**
 	 * Determine if a value is undefined
@@ -6500,8 +13712,14 @@ var app = (function () {
 	 * @returns {boolean} True if value is a Buffer, otherwise false
 	 */
 	function isBuffer(val) {
-	  return val !== null && !isUndefined(val) && val.constructor !== null && !isUndefined(val.constructor)
-	    && isFunction(val.constructor.isBuffer) && val.constructor.isBuffer(val);
+	  return (
+	    val !== null &&
+	    !isUndefined(val) &&
+	    val.constructor !== null &&
+	    !isUndefined(val.constructor) &&
+	    isFunction$1(val.constructor.isBuffer) &&
+	    val.constructor.isBuffer(val)
+	  );
 	}
 
 	/**
@@ -6513,7 +13731,6 @@ var app = (function () {
 	 */
 	const isArrayBuffer = kindOfTest('ArrayBuffer');
 
-
 	/**
 	 * Determine if a value is a view on an ArrayBuffer
 	 *
@@ -6523,10 +13740,10 @@ var app = (function () {
 	 */
 	function isArrayBufferView(val) {
 	  let result;
-	  if ((typeof ArrayBuffer !== 'undefined') && (ArrayBuffer.isView)) {
+	  if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView) {
 	    result = ArrayBuffer.isView(val);
 	  } else {
-	    result = (val) && (val.buffer) && (isArrayBuffer(val.buffer));
+	    result = val && val.buffer && isArrayBuffer(val.buffer);
 	  }
 	  return result;
 	}
@@ -6546,7 +13763,7 @@ var app = (function () {
 	 * @param {*} val The value to test
 	 * @returns {boolean} True if value is a Function, otherwise false
 	 */
-	const isFunction = typeOfTest('function');
+	const isFunction$1 = typeOfTest('function');
 
 	/**
 	 * Determine if a value is a Number
@@ -6572,7 +13789,7 @@ var app = (function () {
 	 * @param {*} thing The value to test
 	 * @returns {boolean} True if value is a Boolean, otherwise false
 	 */
-	const isBoolean = thing => thing === true || thing === false;
+	const isBoolean = (thing) => thing === true || thing === false;
 
 	/**
 	 * Determine if a value is a plain Object
@@ -6587,7 +13804,34 @@ var app = (function () {
 	  }
 
 	  const prototype = getPrototypeOf(val);
-	  return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in val) && !(Symbol.iterator in val);
+	  return (
+	    (prototype === null ||
+	      prototype === Object.prototype ||
+	      Object.getPrototypeOf(prototype) === null) &&
+	    !(toStringTag in val) &&
+	    !(iterator in val)
+	  );
+	};
+
+	/**
+	 * Determine if a value is an empty object (safely handles Buffers)
+	 *
+	 * @param {*} val The value to test
+	 *
+	 * @returns {boolean} True if value is an empty object, otherwise false
+	 */
+	const isEmptyObject = (val) => {
+	  // Early return for non-objects or Buffers to prevent RangeError
+	  if (!isObject(val) || isBuffer(val)) {
+	    return false;
+	  }
+
+	  try {
+	    return Object.keys(val).length === 0 && Object.getPrototypeOf(val) === Object.prototype;
+	  } catch (e) {
+	    // Fallback for any other objects that might cause RangeError with Object.keys()
+	    return false;
+	  }
 	};
 
 	/**
@@ -6607,6 +13851,31 @@ var app = (function () {
 	 * @returns {boolean} True if value is a File, otherwise false
 	 */
 	const isFile = kindOfTest('File');
+
+	/**
+	 * Determine if a value is a React Native Blob
+	 * React Native "blob": an object with a `uri` attribute. Optionally, it can
+	 * also have a `name` and `type` attribute to specify filename and content type
+	 *
+	 * @see https://github.com/facebook/react-native/blob/26684cf3adf4094eb6c405d345a75bf8c7c0bf88/Libraries/Network/FormData.js#L68-L71
+	 * 
+	 * @param {*} value The value to test
+	 * 
+	 * @returns {boolean} True if value is a React Native Blob, otherwise false
+	 */
+	const isReactNativeBlob = (value) => {
+	  return !!(value && typeof value.uri !== 'undefined');
+	};
+
+	/**
+	 * Determine if environment is React Native
+	 * ReactNative `FormData` has a non-standard `getParts()` method
+	 * 
+	 * @param {*} formData The formData to test
+	 * 
+	 * @returns {boolean} True if environment is React Native, otherwise false
+	 */
+	const isReactNative = (formData) => formData && typeof formData.getParts !== 'undefined';
 
 	/**
 	 * Determine if a value is a Blob
@@ -6633,7 +13902,7 @@ var app = (function () {
 	 *
 	 * @returns {boolean} True if value is a Stream, otherwise false
 	 */
-	const isStream = (val) => isObject(val) && isFunction(val.pipe);
+	const isStream = (val) => isObject(val) && isFunction$1(val.pipe);
 
 	/**
 	 * Determine if a value is a FormData
@@ -6642,17 +13911,28 @@ var app = (function () {
 	 *
 	 * @returns {boolean} True if value is an FormData, otherwise false
 	 */
+	function getGlobal() {
+	  if (typeof globalThis !== 'undefined') return globalThis;
+	  if (typeof self !== 'undefined') return self;
+	  if (typeof window !== 'undefined') return window;
+	  if (typeof global !== 'undefined') return global;
+	  return {};
+	}
+
+	const G = getGlobal();
+	const FormDataCtor = typeof G.FormData !== 'undefined' ? G.FormData : undefined;
+
 	const isFormData = (thing) => {
 	  let kind;
 	  return thing && (
-	    (typeof FormData === 'function' && thing instanceof FormData) || (
-	      isFunction(thing.append) && (
+	    (FormDataCtor && thing instanceof FormDataCtor) || (
+	      isFunction$1(thing.append) && (
 	        (kind = kindOf(thing)) === 'formdata' ||
 	        // detect form-data instance
-	        (kind === 'object' && isFunction(thing.toString) && thing.toString() === '[object FormData]')
+	        (kind === 'object' && isFunction$1(thing.toString) && thing.toString() === '[object FormData]')
 	      )
 	    )
-	  )
+	  );
 	};
 
 	/**
@@ -6664,6 +13944,13 @@ var app = (function () {
 	 */
 	const isURLSearchParams = kindOfTest('URLSearchParams');
 
+	const [isReadableStream, isRequest, isResponse, isHeaders] = [
+	  'ReadableStream',
+	  'Request',
+	  'Response',
+	  'Headers',
+	].map(kindOfTest);
+
 	/**
 	 * Trim excess whitespace off the beginning and end of a string
 	 *
@@ -6671,9 +13958,9 @@ var app = (function () {
 	 *
 	 * @returns {String} The String freed of excess whitespace
 	 */
-	const trim = (str) => str.trim ?
-	  str.trim() : str.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
-
+	const trim = (str) => {
+	  return str.trim ? str.trim() : str.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
+	};
 	/**
 	 * Iterate over an Array or an Object invoking a function for each item.
 	 *
@@ -6683,13 +13970,14 @@ var app = (function () {
 	 * If 'obj' is an Object callback will be called passing
 	 * the value, key, and complete object for each property.
 	 *
-	 * @param {Object|Array} obj The object to iterate
+	 * @param {Object|Array<unknown>} obj The object to iterate
 	 * @param {Function} fn The callback to invoke for each item
 	 *
-	 * @param {Boolean} [allOwnKeys = false]
+	 * @param {Object} [options]
+	 * @param {Boolean} [options.allOwnKeys = false]
 	 * @returns {any}
 	 */
-	function forEach(obj, fn, {allOwnKeys = false} = {}) {
+	function forEach(obj, fn, { allOwnKeys = false } = {}) {
 	  // Don't bother if no value provided
 	  if (obj === null || typeof obj === 'undefined') {
 	    return;
@@ -6710,6 +13998,11 @@ var app = (function () {
 	      fn.call(null, obj[i], i, obj);
 	    }
 	  } else {
+	    // Buffer check
+	    if (isBuffer(obj)) {
+	      return;
+	    }
+
 	    // Iterate over object keys
 	    const keys = allOwnKeys ? Object.getOwnPropertyNames(obj) : Object.keys(obj);
 	    const len = keys.length;
@@ -6722,7 +14015,19 @@ var app = (function () {
 	  }
 	}
 
+	/**
+	 * Finds a key in an object, case-insensitive, returning the actual key name.
+	 * Returns null if the object is a Buffer or if no match is found.
+	 *
+	 * @param {Object} obj - The object to search.
+	 * @param {string} key - The key to find (case-insensitive).
+	 * @returns {?string} The actual key name if found, otherwise null.
+	 */
 	function findKey(obj, key) {
+	  if (isBuffer(obj)) {
+	    return null;
+	  }
+
 	  key = key.toLowerCase();
 	  const keys = Object.keys(obj);
 	  let i = keys.length;
@@ -6738,8 +14043,8 @@ var app = (function () {
 
 	const _global = (() => {
 	  /*eslint no-undef:0*/
-	  if (typeof globalThis !== "undefined") return globalThis;
-	  return typeof self !== "undefined" ? self : (typeof window !== 'undefined' ? window : global)
+	  if (typeof globalThis !== 'undefined') return globalThis;
+	  return typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : global;
 	})();
 
 	const isContextDefined = (context) => !isUndefined(context) && context !== _global;
@@ -6754,7 +14059,7 @@ var app = (function () {
 	 * Example:
 	 *
 	 * ```js
-	 * var result = merge({foo: 123}, {foo: 456});
+	 * const result = merge({foo: 123}, {foo: 456});
 	 * console.log(result.foo); // outputs 456
 	 * ```
 	 *
@@ -6763,17 +14068,22 @@ var app = (function () {
 	 * @returns {Object} Result of all merge properties
 	 */
 	function merge(/* obj1, obj2, obj3, ... */) {
-	  const {caseless} = isContextDefined(this) && this || {};
+	  const { caseless, skipUndefined } = (isContextDefined(this) && this) || {};
 	  const result = {};
 	  const assignValue = (val, key) => {
-	    const targetKey = caseless && findKey(result, key) || key;
+	    // Skip dangerous property names to prevent prototype pollution
+	    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+	      return;
+	    }
+
+	    const targetKey = (caseless && findKey(result, key)) || key;
 	    if (isPlainObject(result[targetKey]) && isPlainObject(val)) {
 	      result[targetKey] = merge(result[targetKey], val);
 	    } else if (isPlainObject(val)) {
 	      result[targetKey] = merge({}, val);
 	    } else if (isArray(val)) {
 	      result[targetKey] = val.slice();
-	    } else {
+	    } else if (!skipUndefined || !isUndefined(val)) {
 	      result[targetKey] = val;
 	    }
 	  };
@@ -6791,17 +14101,32 @@ var app = (function () {
 	 * @param {Object} b The object to copy properties from
 	 * @param {Object} thisArg The object to bind function to
 	 *
-	 * @param {Boolean} [allOwnKeys]
+	 * @param {Object} [options]
+	 * @param {Boolean} [options.allOwnKeys]
 	 * @returns {Object} The resulting value of object a
 	 */
-	const extend = (a, b, thisArg, {allOwnKeys}= {}) => {
-	  forEach(b, (val, key) => {
-	    if (thisArg && isFunction(val)) {
-	      a[key] = bind(val, thisArg);
-	    } else {
-	      a[key] = val;
-	    }
-	  }, {allOwnKeys});
+	const extend = (a, b, thisArg, { allOwnKeys } = {}) => {
+	  forEach(
+	    b,
+	    (val, key) => {
+	      if (thisArg && isFunction$1(val)) {
+	        Object.defineProperty(a, key, {
+	          value: bind(val, thisArg),
+	          writable: true,
+	          enumerable: true,
+	          configurable: true,
+	        });
+	      } else {
+	        Object.defineProperty(a, key, {
+	          value: val,
+	          writable: true,
+	          enumerable: true,
+	          configurable: true,
+	        });
+	      }
+	    },
+	    { allOwnKeys }
+	  );
 	  return a;
 	};
 
@@ -6813,7 +14138,7 @@ var app = (function () {
 	 * @returns {string} content value without BOM
 	 */
 	const stripBOM = (content) => {
-	  if (content.charCodeAt(0) === 0xFEFF) {
+	  if (content.charCodeAt(0) === 0xfeff) {
 	    content = content.slice(1);
 	  }
 	  return content;
@@ -6830,9 +14155,14 @@ var app = (function () {
 	 */
 	const inherits = (constructor, superConstructor, props, descriptors) => {
 	  constructor.prototype = Object.create(superConstructor.prototype, descriptors);
-	  constructor.prototype.constructor = constructor;
+	  Object.defineProperty(constructor.prototype, 'constructor', {
+	    value: constructor,
+	    writable: true,
+	    enumerable: false,
+	    configurable: true,
+	  });
 	  Object.defineProperty(constructor, 'super', {
-	    value: superConstructor.prototype
+	    value: superConstructor.prototype,
 	  });
 	  props && Object.assign(constructor.prototype, props);
 	};
@@ -6891,7 +14221,6 @@ var app = (function () {
 	  return lastIndex !== -1 && lastIndex === position;
 	};
 
-
 	/**
 	 * Returns new array from array like object or null if failed
 	 *
@@ -6920,9 +14249,9 @@ var app = (function () {
 	 * @returns {Array}
 	 */
 	// eslint-disable-next-line func-names
-	const isTypedArray = (TypedArray => {
+	const isTypedArray = ((TypedArray) => {
 	  // eslint-disable-next-line func-names
-	  return thing => {
+	  return (thing) => {
 	    return TypedArray && thing instanceof TypedArray;
 	  };
 	})(typeof Uint8Array !== 'undefined' && getPrototypeOf(Uint8Array));
@@ -6936,13 +14265,13 @@ var app = (function () {
 	 * @returns {void}
 	 */
 	const forEachEntry = (obj, fn) => {
-	  const generator = obj && obj[Symbol.iterator];
+	  const generator = obj && obj[iterator];
 
-	  const iterator = generator.call(obj);
+	  const _iterator = generator.call(obj);
 
 	  let result;
 
-	  while ((result = iterator.next()) && !result.done) {
+	  while ((result = _iterator.next()) && !result.done) {
 	    const pair = result.value;
 	    fn.call(obj, pair[0], pair[1]);
 	  }
@@ -6970,16 +14299,18 @@ var app = (function () {
 	/* Checking if the kindOfTest function returns true when passed an HTMLFormElement. */
 	const isHTMLForm = kindOfTest('HTMLFormElement');
 
-	const toCamelCase = str => {
-	  return str.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g,
-	    function replacer(m, p1, p2) {
-	      return p1.toUpperCase() + p2;
-	    }
-	  );
+	const toCamelCase = (str) => {
+	  return str.toLowerCase().replace(/[-_\s]([a-z\d])(\w*)/g, function replacer(m, p1, p2) {
+	    return p1.toUpperCase() + p2;
+	  });
 	};
 
 	/* Creating a function that will check if an object has a property. */
-	const hasOwnProperty = (({hasOwnProperty}) => (obj, prop) => hasOwnProperty.call(obj, prop))(Object.prototype);
+	const hasOwnProperty = (
+	  ({ hasOwnProperty }) =>
+	  (obj, prop) =>
+	    hasOwnProperty.call(obj, prop)
+	)(Object.prototype);
 
 	/**
 	 * Determine if a value is a RegExp object
@@ -6995,8 +14326,9 @@ var app = (function () {
 	  const reducedDescriptors = {};
 
 	  forEach(descriptors, (descriptor, name) => {
-	    if (reducer(descriptor, name, obj) !== false) {
-	      reducedDescriptors[name] = descriptor;
+	    let ret;
+	    if ((ret = reducer(descriptor, name, obj)) !== false) {
+	      reducedDescriptors[name] = ret || descriptor;
 	    }
 	  });
 
@@ -7011,13 +14343,13 @@ var app = (function () {
 	const freezeMethods = (obj) => {
 	  reduceDescriptors(obj, (descriptor, name) => {
 	    // skip restricted props in strict mode
-	    if (isFunction(obj) && ['arguments', 'caller', 'callee'].indexOf(name) !== -1) {
+	    if (isFunction$1(obj) && ['arguments', 'caller', 'callee'].indexOf(name) !== -1) {
 	      return false;
 	    }
 
 	    const value = obj[name];
 
-	    if (!isFunction(value)) return;
+	    if (!isFunction$1(value)) return;
 
 	    descriptor.enumerable = false;
 
@@ -7028,17 +14360,25 @@ var app = (function () {
 
 	    if (!descriptor.set) {
 	      descriptor.set = () => {
-	        throw Error('Can not rewrite read-only method \'' + name + '\'');
+	        throw Error("Can not rewrite read-only method '" + name + "'");
 	      };
 	    }
 	  });
 	};
 
+	/**
+	 * Converts an array or a delimited string into an object set with values as keys and true as values.
+	 * Useful for fast membership checks.
+	 *
+	 * @param {Array|string} arrayOrString - The array or string to convert.
+	 * @param {string} delimiter - The delimiter to use if input is a string.
+	 * @returns {Object} An object with keys from the array or string, values set to true.
+	 */
 	const toObjectSet = (arrayOrString, delimiter) => {
 	  const obj = {};
 
 	  const define = (arr) => {
-	    arr.forEach(value => {
+	    arr.forEach((value) => {
 	      obj[value] = true;
 	    });
 	  };
@@ -7051,28 +14391,7 @@ var app = (function () {
 	const noop = () => {};
 
 	const toFiniteNumber = (value, defaultValue) => {
-	  value = +value;
-	  return Number.isFinite(value) ? value : defaultValue;
-	};
-
-	const ALPHA = 'abcdefghijklmnopqrstuvwxyz';
-
-	const DIGIT = '0123456789';
-
-	const ALPHABET = {
-	  DIGIT,
-	  ALPHA,
-	  ALPHA_DIGIT: ALPHA + ALPHA.toUpperCase() + DIGIT
-	};
-
-	const generateString = (size = 16, alphabet = ALPHABET.ALPHA_DIGIT) => {
-	  let str = '';
-	  const {length} = alphabet;
-	  while (size--) {
-	    str += alphabet[Math.random() * length|0];
-	  }
-
-	  return str;
+	  return value != null && Number.isFinite((value = +value)) ? value : defaultValue;
 	};
 
 	/**
@@ -7083,20 +14402,35 @@ var app = (function () {
 	 * @returns {boolean}
 	 */
 	function isSpecCompliantForm(thing) {
-	  return !!(thing && isFunction(thing.append) && thing[Symbol.toStringTag] === 'FormData' && thing[Symbol.iterator]);
+	  return !!(
+	    thing &&
+	    isFunction$1(thing.append) &&
+	    thing[toStringTag] === 'FormData' &&
+	    thing[iterator]
+	  );
 	}
 
+	/**
+	 * Recursively converts an object to a JSON-compatible object, handling circular references and Buffers.
+	 *
+	 * @param {Object} obj - The object to convert.
+	 * @returns {Object} The JSON-compatible object.
+	 */
 	const toJSONObject = (obj) => {
 	  const stack = new Array(10);
 
 	  const visit = (source, i) => {
-
 	    if (isObject(source)) {
 	      if (stack.indexOf(source) >= 0) {
 	        return;
 	      }
 
-	      if(!('toJSON' in source)) {
+	      //Buffer check
+	      if (isBuffer(source)) {
+	        return source;
+	      }
+
+	      if (!('toJSON' in source)) {
 	        stack[i] = source;
 	        const target = isArray(source) ? [] : {};
 
@@ -7117,12 +14451,78 @@ var app = (function () {
 	  return visit(obj, 0);
 	};
 
+	/**
+	 * Determines if a value is an async function.
+	 *
+	 * @param {*} thing - The value to test.
+	 * @returns {boolean} True if value is an async function, otherwise false.
+	 */
 	const isAsyncFn = kindOfTest('AsyncFunction');
 
+	/**
+	 * Determines if a value is thenable (has then and catch methods).
+	 *
+	 * @param {*} thing - The value to test.
+	 * @returns {boolean} True if value is thenable, otherwise false.
+	 */
 	const isThenable = (thing) =>
-	  thing && (isObject(thing) || isFunction(thing)) && isFunction(thing.then) && isFunction(thing.catch);
+	  thing &&
+	  (isObject(thing) || isFunction$1(thing)) &&
+	  isFunction$1(thing.then) &&
+	  isFunction$1(thing.catch);
 
-	var utils = {
+	// original code
+	// https://github.com/DigitalBrainJS/AxiosPromise/blob/16deab13710ec09779922131f3fa5954320f83ab/lib/utils.js#L11-L34
+
+	/**
+	 * Provides a cross-platform setImmediate implementation.
+	 * Uses native setImmediate if available, otherwise falls back to postMessage or setTimeout.
+	 *
+	 * @param {boolean} setImmediateSupported - Whether setImmediate is supported.
+	 * @param {boolean} postMessageSupported - Whether postMessage is supported.
+	 * @returns {Function} A function to schedule a callback asynchronously.
+	 */
+	const _setImmediate = ((setImmediateSupported, postMessageSupported) => {
+	  if (setImmediateSupported) {
+	    return setImmediate;
+	  }
+
+	  return postMessageSupported
+	    ? ((token, callbacks) => {
+	        _global.addEventListener(
+	          'message',
+	          ({ source, data }) => {
+	            if (source === _global && data === token) {
+	              callbacks.length && callbacks.shift()();
+	            }
+	          },
+	          false
+	        );
+
+	        return (cb) => {
+	          callbacks.push(cb);
+	          _global.postMessage(token, '*');
+	        };
+	      })(`axios@${Math.random()}`, [])
+	    : (cb) => setTimeout(cb);
+	})(typeof setImmediate === 'function', isFunction$1(_global.postMessage));
+
+	/**
+	 * Schedules a microtask or asynchronous callback as soon as possible.
+	 * Uses queueMicrotask if available, otherwise falls back to process.nextTick or _setImmediate.
+	 *
+	 * @type {Function}
+	 */
+	const asap =
+	  typeof queueMicrotask !== 'undefined'
+	    ? queueMicrotask.bind(_global)
+	    : (typeof process !== 'undefined' && process.nextTick) || _setImmediate;
+
+	// *********************
+
+	const isIterable = (thing) => thing != null && isFunction$1(thing[iterator]);
+
+	var utils$1 = {
 	  isArray,
 	  isArrayBuffer,
 	  isBuffer,
@@ -7133,12 +14533,19 @@ var app = (function () {
 	  isBoolean,
 	  isObject,
 	  isPlainObject,
+	  isEmptyObject,
+	  isReadableStream,
+	  isRequest,
+	  isResponse,
+	  isHeaders,
 	  isUndefined,
 	  isDate,
 	  isFile,
+	  isReactNativeBlob,
+	  isReactNative,
 	  isBlob,
 	  isRegExp,
-	  isFunction,
+	  isFunction: isFunction$1,
 	  isStream,
 	  isURLSearchParams,
 	  isTypedArray,
@@ -7168,44 +14575,66 @@ var app = (function () {
 	  findKey,
 	  global: _global,
 	  isContextDefined,
-	  ALPHABET,
-	  generateString,
 	  isSpecCompliantForm,
 	  toJSONObject,
 	  isAsyncFn,
-	  isThenable
+	  isThenable,
+	  setImmediate: _setImmediate,
+	  asap,
+	  isIterable,
 	};
 
-	/**
-	 * Create an Error with the specified message, config, error code, request and response.
-	 *
-	 * @param {string} message The error message.
-	 * @param {string} [code] The error code (for example, 'ECONNABORTED').
-	 * @param {Object} [config] The config.
-	 * @param {Object} [request] The request.
-	 * @param {Object} [response] The response.
-	 *
-	 * @returns {Error} The created error.
-	 */
-	function AxiosError(message, code, config, request, response) {
-	  Error.call(this);
+	let AxiosError$1 = class AxiosError extends Error {
+	  static from(error, code, config, request, response, customProps) {
+	    const axiosError = new AxiosError(error.message, code || error.code, config, request, response);
+	    axiosError.cause = error;
+	    axiosError.name = error.name;
 
-	  if (Error.captureStackTrace) {
-	    Error.captureStackTrace(this, this.constructor);
-	  } else {
-	    this.stack = (new Error()).stack;
+	    // Preserve status from the original error if not already set from response
+	    if (error.status != null && axiosError.status == null) {
+	      axiosError.status = error.status;
+	    }
+
+	    customProps && Object.assign(axiosError, customProps);
+	    return axiosError;
 	  }
 
-	  this.message = message;
-	  this.name = 'AxiosError';
-	  code && (this.code = code);
-	  config && (this.config = config);
-	  request && (this.request = request);
-	  response && (this.response = response);
-	}
+	    /**
+	     * Create an Error with the specified message, config, error code, request and response.
+	     *
+	     * @param {string} message The error message.
+	     * @param {string} [code] The error code (for example, 'ECONNABORTED').
+	     * @param {Object} [config] The config.
+	     * @param {Object} [request] The request.
+	     * @param {Object} [response] The response.
+	     *
+	     * @returns {Error} The created error.
+	     */
+	    constructor(message, code, config, request, response) {
+	      super(message);
+	      
+	      // Make message enumerable to maintain backward compatibility
+	      // The native Error constructor sets message as non-enumerable,
+	      // but axios < v1.13.3 had it as enumerable
+	      Object.defineProperty(this, 'message', {
+	          value: message,
+	          enumerable: true,
+	          writable: true,
+	          configurable: true
+	      });
+	      
+	      this.name = 'AxiosError';
+	      this.isAxiosError = true;
+	      code && (this.code = code);
+	      config && (this.config = config);
+	      request && (this.request = request);
+	      if (response) {
+	          this.response = response;
+	          this.status = response.status;
+	      }
+	    }
 
-	utils.inherits(AxiosError, Error, {
-	  toJSON: function toJSON() {
+	  toJSON() {
 	    return {
 	      // Standard
 	      message: this.message,
@@ -7219,57 +14648,26 @@ var app = (function () {
 	      columnNumber: this.columnNumber,
 	      stack: this.stack,
 	      // Axios
-	      config: utils.toJSONObject(this.config),
+	      config: utils$1.toJSONObject(this.config),
 	      code: this.code,
-	      status: this.response && this.response.status ? this.response.status : null
+	      status: this.status,
 	    };
 	  }
-	});
-
-	const prototype$1 = AxiosError.prototype;
-	const descriptors = {};
-
-	[
-	  'ERR_BAD_OPTION_VALUE',
-	  'ERR_BAD_OPTION',
-	  'ECONNABORTED',
-	  'ETIMEDOUT',
-	  'ERR_NETWORK',
-	  'ERR_FR_TOO_MANY_REDIRECTS',
-	  'ERR_DEPRECATED',
-	  'ERR_BAD_RESPONSE',
-	  'ERR_BAD_REQUEST',
-	  'ERR_CANCELED',
-	  'ERR_NOT_SUPPORT',
-	  'ERR_INVALID_URL'
-	// eslint-disable-next-line func-names
-	].forEach(code => {
-	  descriptors[code] = {value: code};
-	});
-
-	Object.defineProperties(AxiosError, descriptors);
-	Object.defineProperty(prototype$1, 'isAxiosError', {value: true});
-
-	// eslint-disable-next-line func-names
-	AxiosError.from = (error, code, config, request, response, customProps) => {
-	  const axiosError = Object.create(prototype$1);
-
-	  utils.toFlatObject(error, axiosError, function filter(obj) {
-	    return obj !== Error.prototype;
-	  }, prop => {
-	    return prop !== 'isAxiosError';
-	  });
-
-	  AxiosError.call(axiosError, error.message, code, config, request, response);
-
-	  axiosError.cause = error;
-
-	  axiosError.name = error.name;
-
-	  customProps && Object.assign(axiosError, customProps);
-
-	  return axiosError;
 	};
+
+	// This can be changed to static properties as soon as the parser options in .eslint.cjs are updated.
+	AxiosError$1.ERR_BAD_OPTION_VALUE = 'ERR_BAD_OPTION_VALUE';
+	AxiosError$1.ERR_BAD_OPTION = 'ERR_BAD_OPTION';
+	AxiosError$1.ECONNABORTED = 'ECONNABORTED';
+	AxiosError$1.ETIMEDOUT = 'ETIMEDOUT';
+	AxiosError$1.ERR_NETWORK = 'ERR_NETWORK';
+	AxiosError$1.ERR_FR_TOO_MANY_REDIRECTS = 'ERR_FR_TOO_MANY_REDIRECTS';
+	AxiosError$1.ERR_DEPRECATED = 'ERR_DEPRECATED';
+	AxiosError$1.ERR_BAD_RESPONSE = 'ERR_BAD_RESPONSE';
+	AxiosError$1.ERR_BAD_REQUEST = 'ERR_BAD_REQUEST';
+	AxiosError$1.ERR_CANCELED = 'ERR_CANCELED';
+	AxiosError$1.ERR_NOT_SUPPORT = 'ERR_NOT_SUPPORT';
+	AxiosError$1.ERR_INVALID_URL = 'ERR_INVALID_URL';
 
 	// eslint-disable-next-line strict
 	var httpAdapter = null;
@@ -7282,7 +14680,7 @@ var app = (function () {
 	 * @returns {boolean}
 	 */
 	function isVisitable(thing) {
-	  return utils.isPlainObject(thing) || utils.isArray(thing);
+	  return utils$1.isPlainObject(thing) || utils$1.isArray(thing);
 	}
 
 	/**
@@ -7293,7 +14691,7 @@ var app = (function () {
 	 * @returns {string} the key without the brackets.
 	 */
 	function removeBrackets(key) {
-	  return utils.endsWith(key, '[]') ? key.slice(0, -2) : key;
+	  return utils$1.endsWith(key, '[]') ? key.slice(0, -2) : key;
 	}
 
 	/**
@@ -7307,11 +14705,14 @@ var app = (function () {
 	 */
 	function renderKey(path, key, dots) {
 	  if (!path) return key;
-	  return path.concat(key).map(function each(token, i) {
-	    // eslint-disable-next-line no-param-reassign
-	    token = removeBrackets(token);
-	    return !dots && i ? '[' + token + ']' : token;
-	  }).join(dots ? '.' : '');
+	  return path
+	    .concat(key)
+	    .map(function each(token, i) {
+	      // eslint-disable-next-line no-param-reassign
+	      token = removeBrackets(token);
+	      return !dots && i ? '[' + token + ']' : token;
+	    })
+	    .join(dots ? '.' : '');
 	}
 
 	/**
@@ -7322,10 +14723,10 @@ var app = (function () {
 	 * @returns {boolean}
 	 */
 	function isFlatArray(arr) {
-	  return utils.isArray(arr) && !arr.some(isVisitable);
+	  return utils$1.isArray(arr) && !arr.some(isVisitable);
 	}
 
-	const predicates = utils.toFlatObject(utils, {}, null, function filter(prop) {
+	const predicates = utils$1.toFlatObject(utils$1, {}, null, function filter(prop) {
 	  return /^is[A-Z]/.test(prop);
 	});
 
@@ -7352,8 +14753,8 @@ var app = (function () {
 	 *
 	 * @returns
 	 */
-	function toFormData(obj, formData, options) {
-	  if (!utils.isObject(obj)) {
+	function toFormData$1(obj, formData, options) {
+	  if (!utils$1.isObject(obj)) {
 	    throw new TypeError('target must be an object');
 	  }
 
@@ -7361,39 +14762,48 @@ var app = (function () {
 	  formData = formData || new (FormData)();
 
 	  // eslint-disable-next-line no-param-reassign
-	  options = utils.toFlatObject(options, {
-	    metaTokens: true,
-	    dots: false,
-	    indexes: false
-	  }, false, function defined(option, source) {
-	    // eslint-disable-next-line no-eq-null,eqeqeq
-	    return !utils.isUndefined(source[option]);
-	  });
+	  options = utils$1.toFlatObject(
+	    options,
+	    {
+	      metaTokens: true,
+	      dots: false,
+	      indexes: false,
+	    },
+	    false,
+	    function defined(option, source) {
+	      // eslint-disable-next-line no-eq-null,eqeqeq
+	      return !utils$1.isUndefined(source[option]);
+	    }
+	  );
 
 	  const metaTokens = options.metaTokens;
 	  // eslint-disable-next-line no-use-before-define
 	  const visitor = options.visitor || defaultVisitor;
 	  const dots = options.dots;
 	  const indexes = options.indexes;
-	  const _Blob = options.Blob || typeof Blob !== 'undefined' && Blob;
-	  const useBlob = _Blob && utils.isSpecCompliantForm(formData);
+	  const _Blob = options.Blob || (typeof Blob !== 'undefined' && Blob);
+	  const useBlob = _Blob && utils$1.isSpecCompliantForm(formData);
 
-	  if (!utils.isFunction(visitor)) {
+	  if (!utils$1.isFunction(visitor)) {
 	    throw new TypeError('visitor must be a function');
 	  }
 
 	  function convertValue(value) {
 	    if (value === null) return '';
 
-	    if (utils.isDate(value)) {
+	    if (utils$1.isDate(value)) {
 	      return value.toISOString();
 	    }
 
-	    if (!useBlob && utils.isBlob(value)) {
-	      throw new AxiosError('Blob is not supported. Use a Buffer instead.');
+	    if (utils$1.isBoolean(value)) {
+	      return value.toString();
 	    }
 
-	    if (utils.isArrayBuffer(value) || utils.isTypedArray(value)) {
+	    if (!useBlob && utils$1.isBlob(value)) {
+	      throw new AxiosError$1('Blob is not supported. Use a Buffer instead.');
+	    }
+
+	    if (utils$1.isArrayBuffer(value) || utils$1.isTypedArray(value)) {
 	      return useBlob && typeof Blob === 'function' ? new Blob([value]) : Buffer.from(value);
 	    }
 
@@ -7413,25 +14823,35 @@ var app = (function () {
 	  function defaultVisitor(value, key, path) {
 	    let arr = value;
 
+	    if (utils$1.isReactNative(formData) && utils$1.isReactNativeBlob(value)) {
+	      formData.append(renderKey(path, key, dots), convertValue(value));
+	      return false;
+	    }
+
 	    if (value && !path && typeof value === 'object') {
-	      if (utils.endsWith(key, '{}')) {
+	      if (utils$1.endsWith(key, '{}')) {
 	        // eslint-disable-next-line no-param-reassign
 	        key = metaTokens ? key : key.slice(0, -2);
 	        // eslint-disable-next-line no-param-reassign
 	        value = JSON.stringify(value);
 	      } else if (
-	        (utils.isArray(value) && isFlatArray(value)) ||
-	        ((utils.isFileList(value) || utils.endsWith(key, '[]')) && (arr = utils.toArray(value))
-	        )) {
+	        (utils$1.isArray(value) && isFlatArray(value)) ||
+	        ((utils$1.isFileList(value) || utils$1.endsWith(key, '[]')) && (arr = utils$1.toArray(value)))
+	      ) {
 	        // eslint-disable-next-line no-param-reassign
 	        key = removeBrackets(key);
 
 	        arr.forEach(function each(el, index) {
-	          !(utils.isUndefined(el) || el === null) && formData.append(
-	            // eslint-disable-next-line no-nested-ternary
-	            indexes === true ? renderKey([key], index, dots) : (indexes === null ? key : key + '[]'),
-	            convertValue(el)
-	          );
+	          !(utils$1.isUndefined(el) || el === null) &&
+	            formData.append(
+	              // eslint-disable-next-line no-nested-ternary
+	              indexes === true
+	                ? renderKey([key], index, dots)
+	                : indexes === null
+	                  ? key
+	                  : key + '[]',
+	              convertValue(el)
+	            );
 	        });
 	        return false;
 	      }
@@ -7451,11 +14871,11 @@ var app = (function () {
 	  const exposedHelpers = Object.assign(predicates, {
 	    defaultVisitor,
 	    convertValue,
-	    isVisitable
+	    isVisitable,
 	  });
 
 	  function build(value, path) {
-	    if (utils.isUndefined(value)) return;
+	    if (utils$1.isUndefined(value)) return;
 
 	    if (stack.indexOf(value) !== -1) {
 	      throw Error('Circular reference detected in ' + path.join('.'));
@@ -7463,10 +14883,10 @@ var app = (function () {
 
 	    stack.push(value);
 
-	    utils.forEach(value, function each(el, key) {
-	      const result = !(utils.isUndefined(el) || el === null) && visitor.call(
-	        formData, el, utils.isString(key) ? key.trim() : key, path, exposedHelpers
-	      );
+	    utils$1.forEach(value, function each(el, key) {
+	      const result =
+	        !(utils$1.isUndefined(el) || el === null) &&
+	        visitor.call(formData, el, utils$1.isString(key) ? key.trim() : key, path, exposedHelpers);
 
 	      if (result === true) {
 	        build(el, path ? path.concat(key) : [key]);
@@ -7476,7 +14896,7 @@ var app = (function () {
 	    stack.pop();
 	  }
 
-	  if (!utils.isObject(obj)) {
+	  if (!utils$1.isObject(obj)) {
 	    throw new TypeError('data must be an object');
 	  }
 
@@ -7501,7 +14921,7 @@ var app = (function () {
 	    ')': '%29',
 	    '~': '%7E',
 	    '%20': '+',
-	    '%00': '\x00'
+	    '%00': '\x00',
 	  };
 	  return encodeURIComponent(str).replace(/[!'()~]|%20|%00/g, function replacer(match) {
 	    return charMap[match];
@@ -7519,7 +14939,7 @@ var app = (function () {
 	function AxiosURLSearchParams(params, options) {
 	  this._pairs = [];
 
-	  params && toFormData(params, this, options);
+	  params && toFormData$1(params, this, options);
 	}
 
 	const prototype = AxiosURLSearchParams.prototype;
@@ -7529,13 +14949,17 @@ var app = (function () {
 	};
 
 	prototype.toString = function toString(encoder) {
-	  const _encode = encoder ? function(value) {
-	    return encoder.call(this, value, encode$1);
-	  } : encode$1;
+	  const _encode = encoder
+	    ? function (value) {
+	        return encoder.call(this, value, encode$1);
+	      }
+	    : encode$1;
 
-	  return this._pairs.map(function each(pair) {
-	    return _encode(pair[0]) + '=' + _encode(pair[1]);
-	  }, '').join('&');
+	  return this._pairs
+	    .map(function each(pair) {
+	      return _encode(pair[0]) + '=' + _encode(pair[1]);
+	    }, '')
+	    .join('&');
 	};
 
 	/**
@@ -7547,13 +14971,11 @@ var app = (function () {
 	 * @returns {string} The encoded value.
 	 */
 	function encode(val) {
-	  return encodeURIComponent(val).
-	    replace(/%3A/gi, ':').
-	    replace(/%24/g, '$').
-	    replace(/%2C/gi, ',').
-	    replace(/%20/g, '+').
-	    replace(/%5B/gi, '[').
-	    replace(/%5D/gi, ']');
+	  return encodeURIComponent(val)
+	    .replace(/%3A/gi, ':')
+	    .replace(/%24/g, '$')
+	    .replace(/%2C/gi, ',')
+	    .replace(/%20/g, '+');
 	}
 
 	/**
@@ -7561,32 +14983,37 @@ var app = (function () {
 	 *
 	 * @param {string} url The base of the url (e.g., http://www.google.com)
 	 * @param {object} [params] The params to be appended
-	 * @param {?object} options
+	 * @param {?(object|Function)} options
 	 *
 	 * @returns {string} The formatted url
 	 */
 	function buildURL(url, params, options) {
-	  /*eslint no-param-reassign:0*/
 	  if (!params) {
 	    return url;
 	  }
-	  
-	  const _encode = options && options.encode || encode;
 
-	  const serializeFn = options && options.serialize;
+	  const _encode = (options && options.encode) || encode;
+
+	  const _options = utils$1.isFunction(options)
+	    ? {
+	        serialize: options,
+	      }
+	    : options;
+
+	  const serializeFn = _options && _options.serialize;
 
 	  let serializedParams;
 
 	  if (serializeFn) {
-	    serializedParams = serializeFn(params, options);
+	    serializedParams = serializeFn(params, _options);
 	  } else {
-	    serializedParams = utils.isURLSearchParams(params) ?
-	      params.toString() :
-	      new AxiosURLSearchParams(params, options).toString(_encode);
+	    serializedParams = utils$1.isURLSearchParams(params)
+	      ? params.toString()
+	      : new AxiosURLSearchParams(params, _options).toString(_encode);
 	  }
 
 	  if (serializedParams) {
-	    const hashmarkIndex = url.indexOf("#");
+	    const hashmarkIndex = url.indexOf('#');
 
 	    if (hashmarkIndex !== -1) {
 	      url = url.slice(0, hashmarkIndex);
@@ -7607,6 +15034,7 @@ var app = (function () {
 	   *
 	   * @param {Function} fulfilled The function to handle `then` for a `Promise`
 	   * @param {Function} rejected The function to handle `reject` for a `Promise`
+	   * @param {Object} options The options for the interceptor, synchronous and runWhen
 	   *
 	   * @return {Number} An ID used to remove interceptor later
 	   */
@@ -7615,7 +15043,7 @@ var app = (function () {
 	      fulfilled,
 	      rejected,
 	      synchronous: options ? options.synchronous : false,
-	      runWhen: options ? options.runWhen : null
+	      runWhen: options ? options.runWhen : null,
 	    });
 	    return this.handlers.length - 1;
 	  }
@@ -7625,7 +15053,7 @@ var app = (function () {
 	   *
 	   * @param {Number} id The ID that was returned by `use`
 	   *
-	   * @returns {Boolean} `true` if the interceptor was removed, `false` otherwise
+	   * @returns {void}
 	   */
 	  eject(id) {
 	    if (this.handlers[id]) {
@@ -7655,7 +15083,7 @@ var app = (function () {
 	   * @returns {void}
 	   */
 	  forEach(fn) {
-	    utils.forEach(this.handlers, function forEachHandler(h) {
+	    utils$1.forEach(this.handlers, function forEachHandler(h) {
 	      if (h !== null) {
 	        fn(h);
 	      }
@@ -7663,12 +15091,11 @@ var app = (function () {
 	  }
 	}
 
-	var InterceptorManager$1 = InterceptorManager;
-
 	var transitionalDefaults = {
 	  silentJSONParsing: true,
 	  forcedJSONParsing: true,
-	  clarifyTimeoutError: false
+	  clarifyTimeoutError: false,
+	  legacyInterceptorReqResOrdering: true,
 	};
 
 	var URLSearchParams$1 = typeof URLSearchParams !== 'undefined' ? URLSearchParams : AxiosURLSearchParams;
@@ -7676,6 +15103,20 @@ var app = (function () {
 	var FormData$1 = typeof FormData !== 'undefined' ? FormData : null;
 
 	var Blob$1 = typeof Blob !== 'undefined' ? Blob : null;
+
+	var platform$1 = {
+	  isBrowser: true,
+	  classes: {
+	    URLSearchParams: URLSearchParams$1,
+	    FormData: FormData$1,
+	    Blob: Blob$1,
+	  },
+	  protocols: ['http', 'https', 'file', 'blob', 'url', 'data'],
+	};
+
+	const hasBrowserEnv = typeof window !== 'undefined' && typeof document !== 'undefined';
+
+	const _navigator = (typeof navigator === 'object' && navigator) || undefined;
 
 	/**
 	 * Determine if we're running in a standard browser environment
@@ -7694,18 +15135,9 @@ var app = (function () {
 	 *
 	 * @returns {boolean}
 	 */
-	const isStandardBrowserEnv = (() => {
-	  let product;
-	  if (typeof navigator !== 'undefined' && (
-	    (product = navigator.product) === 'ReactNative' ||
-	    product === 'NativeScript' ||
-	    product === 'NS')
-	  ) {
-	    return false;
-	  }
-
-	  return typeof window !== 'undefined' && typeof document !== 'undefined';
-	})();
+	const hasStandardBrowserEnv =
+	  hasBrowserEnv &&
+	  (!_navigator || ['ReactNative', 'NativeScript', 'NS'].indexOf(_navigator.product) < 0);
 
 	/**
 	 * Determine if we're running in a standard browser webWorker environment
@@ -7716,7 +15148,7 @@ var app = (function () {
 	 * `typeof window !== 'undefined' && typeof document !== 'undefined'`.
 	 * This leads to a problem when axios post `FormData` in webWorker
 	 */
-	 const isStandardBrowserWebWorkerEnv = (() => {
+	const hasStandardBrowserWebWorkerEnv = (() => {
 	  return (
 	    typeof WorkerGlobalScope !== 'undefined' &&
 	    // eslint-disable-next-line no-undef
@@ -7725,30 +15157,34 @@ var app = (function () {
 	  );
 	})();
 
+	const origin = (hasBrowserEnv && window.location.href) || 'http://localhost';
+
+	var utils = /*#__PURE__*/Object.freeze({
+		__proto__: null,
+		hasBrowserEnv: hasBrowserEnv,
+		hasStandardBrowserEnv: hasStandardBrowserEnv,
+		hasStandardBrowserWebWorkerEnv: hasStandardBrowserWebWorkerEnv,
+		navigator: _navigator,
+		origin: origin
+	});
 
 	var platform = {
-	  isBrowser: true,
-	  classes: {
-	    URLSearchParams: URLSearchParams$1,
-	    FormData: FormData$1,
-	    Blob: Blob$1
-	  },
-	  isStandardBrowserEnv,
-	  isStandardBrowserWebWorkerEnv,
-	  protocols: ['http', 'https', 'file', 'blob', 'url', 'data']
+	  ...utils,
+	  ...platform$1,
 	};
 
 	function toURLEncodedForm(data, options) {
-	  return toFormData(data, new platform.classes.URLSearchParams(), Object.assign({
-	    visitor: function(value, key, path, helpers) {
-	      if (platform.isNode && utils.isBuffer(value)) {
+	  return toFormData$1(data, new platform.classes.URLSearchParams(), {
+	    visitor: function (value, key, path, helpers) {
+	      if (platform.isNode && utils$1.isBuffer(value)) {
 	        this.append(key, value.toString('base64'));
 	        return false;
 	      }
 
 	      return helpers.defaultVisitor.apply(this, arguments);
-	    }
-	  }, options));
+	    },
+	    ...options,
+	  });
 	}
 
 	/**
@@ -7763,7 +15199,7 @@ var app = (function () {
 	  // foo.x.y.z
 	  // foo-x-y-z
 	  // foo x y z
-	  return utils.matchAll(/\w+|\[(\w*)]/g, name).map(match => {
+	  return utils$1.matchAll(/\w+|\[(\w*)]/g, name).map((match) => {
 	    return match[0] === '[]' ? '' : match[1] || match[0];
 	  });
 	}
@@ -7798,12 +15234,15 @@ var app = (function () {
 	function formDataToJSON(formData) {
 	  function buildPath(path, value, target, index) {
 	    let name = path[index++];
+
+	    if (name === '__proto__') return true;
+
 	    const isNumericKey = Number.isFinite(+name);
 	    const isLast = index >= path.length;
-	    name = !name && utils.isArray(target) ? target.length : name;
+	    name = !name && utils$1.isArray(target) ? target.length : name;
 
 	    if (isLast) {
-	      if (utils.hasOwnProp(target, name)) {
+	      if (utils$1.hasOwnProp(target, name)) {
 	        target[name] = [target[name], value];
 	      } else {
 	        target[name] = value;
@@ -7812,23 +15251,23 @@ var app = (function () {
 	      return !isNumericKey;
 	    }
 
-	    if (!target[name] || !utils.isObject(target[name])) {
+	    if (!target[name] || !utils$1.isObject(target[name])) {
 	      target[name] = [];
 	    }
 
 	    const result = buildPath(path, value, target[name], index);
 
-	    if (result && utils.isArray(target[name])) {
+	    if (result && utils$1.isArray(target[name])) {
 	      target[name] = arrayToObject(target[name]);
 	    }
 
 	    return !isNumericKey;
 	  }
 
-	  if (utils.isFormData(formData) && utils.isFunction(formData.entries)) {
+	  if (utils$1.isFormData(formData) && utils$1.isFunction(formData.entries)) {
 	    const obj = {};
 
-	    utils.forEachEntry(formData, (name, value) => {
+	    utils$1.forEachEntry(formData, (name, value) => {
 	      buildPath(parsePropPath(name), value, obj, 0);
 	    });
 
@@ -7837,10 +15276,6 @@ var app = (function () {
 
 	  return null;
 	}
-
-	const DEFAULT_CONTENT_TYPE = {
-	  'Content-Type': undefined
-	};
 
 	/**
 	 * It takes a string, tries to parse it, and if it fails, it returns the stringified version
@@ -7853,10 +15288,10 @@ var app = (function () {
 	 * @returns {string} A stringified version of the rawValue.
 	 */
 	function stringifySafely(rawValue, parser, encoder) {
-	  if (utils.isString(rawValue)) {
+	  if (utils$1.isString(rawValue)) {
 	    try {
 	      (parser || JSON.parse)(rawValue);
-	      return utils.trim(rawValue);
+	      return utils$1.trim(rawValue);
 	    } catch (e) {
 	      if (e.name !== 'SyntaxError') {
 	        throw e;
@@ -7868,94 +15303,107 @@ var app = (function () {
 	}
 
 	const defaults = {
-
 	  transitional: transitionalDefaults,
 
-	  adapter: ['xhr', 'http'],
+	  adapter: ['xhr', 'http', 'fetch'],
 
-	  transformRequest: [function transformRequest(data, headers) {
-	    const contentType = headers.getContentType() || '';
-	    const hasJSONContentType = contentType.indexOf('application/json') > -1;
-	    const isObjectPayload = utils.isObject(data);
+	  transformRequest: [
+	    function transformRequest(data, headers) {
+	      const contentType = headers.getContentType() || '';
+	      const hasJSONContentType = contentType.indexOf('application/json') > -1;
+	      const isObjectPayload = utils$1.isObject(data);
 
-	    if (isObjectPayload && utils.isHTMLForm(data)) {
-	      data = new FormData(data);
-	    }
+	      if (isObjectPayload && utils$1.isHTMLForm(data)) {
+	        data = new FormData(data);
+	      }
 
-	    const isFormData = utils.isFormData(data);
+	      const isFormData = utils$1.isFormData(data);
 
-	    if (isFormData) {
-	      if (!hasJSONContentType) {
+	      if (isFormData) {
+	        return hasJSONContentType ? JSON.stringify(formDataToJSON(data)) : data;
+	      }
+
+	      if (
+	        utils$1.isArrayBuffer(data) ||
+	        utils$1.isBuffer(data) ||
+	        utils$1.isStream(data) ||
+	        utils$1.isFile(data) ||
+	        utils$1.isBlob(data) ||
+	        utils$1.isReadableStream(data)
+	      ) {
 	        return data;
 	      }
-	      return hasJSONContentType ? JSON.stringify(formDataToJSON(data)) : data;
-	    }
-
-	    if (utils.isArrayBuffer(data) ||
-	      utils.isBuffer(data) ||
-	      utils.isStream(data) ||
-	      utils.isFile(data) ||
-	      utils.isBlob(data)
-	    ) {
-	      return data;
-	    }
-	    if (utils.isArrayBufferView(data)) {
-	      return data.buffer;
-	    }
-	    if (utils.isURLSearchParams(data)) {
-	      headers.setContentType('application/x-www-form-urlencoded;charset=utf-8', false);
-	      return data.toString();
-	    }
-
-	    let isFileList;
-
-	    if (isObjectPayload) {
-	      if (contentType.indexOf('application/x-www-form-urlencoded') > -1) {
-	        return toURLEncodedForm(data, this.formSerializer).toString();
+	      if (utils$1.isArrayBufferView(data)) {
+	        return data.buffer;
+	      }
+	      if (utils$1.isURLSearchParams(data)) {
+	        headers.setContentType('application/x-www-form-urlencoded;charset=utf-8', false);
+	        return data.toString();
 	      }
 
-	      if ((isFileList = utils.isFileList(data)) || contentType.indexOf('multipart/form-data') > -1) {
-	        const _FormData = this.env && this.env.FormData;
+	      let isFileList;
 
-	        return toFormData(
-	          isFileList ? {'files[]': data} : data,
-	          _FormData && new _FormData(),
-	          this.formSerializer
-	        );
-	      }
-	    }
+	      if (isObjectPayload) {
+	        if (contentType.indexOf('application/x-www-form-urlencoded') > -1) {
+	          return toURLEncodedForm(data, this.formSerializer).toString();
+	        }
 
-	    if (isObjectPayload || hasJSONContentType ) {
-	      headers.setContentType('application/json', false);
-	      return stringifySafely(data);
-	    }
+	        if (
+	          (isFileList = utils$1.isFileList(data)) ||
+	          contentType.indexOf('multipart/form-data') > -1
+	        ) {
+	          const _FormData = this.env && this.env.FormData;
 
-	    return data;
-	  }],
-
-	  transformResponse: [function transformResponse(data) {
-	    const transitional = this.transitional || defaults.transitional;
-	    const forcedJSONParsing = transitional && transitional.forcedJSONParsing;
-	    const JSONRequested = this.responseType === 'json';
-
-	    if (data && utils.isString(data) && ((forcedJSONParsing && !this.responseType) || JSONRequested)) {
-	      const silentJSONParsing = transitional && transitional.silentJSONParsing;
-	      const strictJSONParsing = !silentJSONParsing && JSONRequested;
-
-	      try {
-	        return JSON.parse(data);
-	      } catch (e) {
-	        if (strictJSONParsing) {
-	          if (e.name === 'SyntaxError') {
-	            throw AxiosError.from(e, AxiosError.ERR_BAD_RESPONSE, this, null, this.response);
-	          }
-	          throw e;
+	          return toFormData$1(
+	            isFileList ? { 'files[]': data } : data,
+	            _FormData && new _FormData(),
+	            this.formSerializer
+	          );
 	        }
 	      }
-	    }
 
-	    return data;
-	  }],
+	      if (isObjectPayload || hasJSONContentType) {
+	        headers.setContentType('application/json', false);
+	        return stringifySafely(data);
+	      }
+
+	      return data;
+	    },
+	  ],
+
+	  transformResponse: [
+	    function transformResponse(data) {
+	      const transitional = this.transitional || defaults.transitional;
+	      const forcedJSONParsing = transitional && transitional.forcedJSONParsing;
+	      const JSONRequested = this.responseType === 'json';
+
+	      if (utils$1.isResponse(data) || utils$1.isReadableStream(data)) {
+	        return data;
+	      }
+
+	      if (
+	        data &&
+	        utils$1.isString(data) &&
+	        ((forcedJSONParsing && !this.responseType) || JSONRequested)
+	      ) {
+	        const silentJSONParsing = transitional && transitional.silentJSONParsing;
+	        const strictJSONParsing = !silentJSONParsing && JSONRequested;
+
+	        try {
+	          return JSON.parse(data, this.parseReviver);
+	        } catch (e) {
+	          if (strictJSONParsing) {
+	            if (e.name === 'SyntaxError') {
+	              throw AxiosError$1.from(e, AxiosError$1.ERR_BAD_RESPONSE, this, null, this.response);
+	            }
+	            throw e;
+	          }
+	        }
+	      }
+
+	      return data;
+	    },
+	  ],
 
 	  /**
 	   * A timeout in milliseconds to abort a request. If set to 0 (default) a
@@ -7971,7 +15419,7 @@ var app = (function () {
 
 	  env: {
 	    FormData: platform.classes.FormData,
-	    Blob: platform.classes.Blob
+	    Blob: platform.classes.Blob,
 	  },
 
 	  validateStatus: function validateStatus(status) {
@@ -7980,28 +15428,36 @@ var app = (function () {
 
 	  headers: {
 	    common: {
-	      'Accept': 'application/json, text/plain, */*'
-	    }
-	  }
+	      Accept: 'application/json, text/plain, */*',
+	      'Content-Type': undefined,
+	    },
+	  },
 	};
 
-	utils.forEach(['delete', 'get', 'head'], function forEachMethodNoData(method) {
+	utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch'], (method) => {
 	  defaults.headers[method] = {};
 	});
 
-	utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
-	  defaults.headers[method] = utils.merge(DEFAULT_CONTENT_TYPE);
-	});
-
-	var defaults$1 = defaults;
-
 	// RawAxiosHeaders whose duplicates are ignored by node
 	// c.f. https://nodejs.org/api/http.html#http_message_headers
-	const ignoreDuplicateOf = utils.toObjectSet([
-	  'age', 'authorization', 'content-length', 'content-type', 'etag',
-	  'expires', 'from', 'host', 'if-modified-since', 'if-unmodified-since',
-	  'last-modified', 'location', 'max-forwards', 'proxy-authorization',
-	  'referer', 'retry-after', 'user-agent'
+	const ignoreDuplicateOf = utils$1.toObjectSet([
+	  'age',
+	  'authorization',
+	  'content-length',
+	  'content-type',
+	  'etag',
+	  'expires',
+	  'from',
+	  'host',
+	  'if-modified-since',
+	  'if-unmodified-since',
+	  'last-modified',
+	  'location',
+	  'max-forwards',
+	  'proxy-authorization',
+	  'referer',
+	  'retry-after',
+	  'user-agent',
 	]);
 
 	/**
@@ -8018,31 +15474,32 @@ var app = (function () {
 	 *
 	 * @returns {Object} Headers parsed into an object
 	 */
-	var parseHeaders = rawHeaders => {
+	var parseHeaders = (rawHeaders) => {
 	  const parsed = {};
 	  let key;
 	  let val;
 	  let i;
 
-	  rawHeaders && rawHeaders.split('\n').forEach(function parser(line) {
-	    i = line.indexOf(':');
-	    key = line.substring(0, i).trim().toLowerCase();
-	    val = line.substring(i + 1).trim();
+	  rawHeaders &&
+	    rawHeaders.split('\n').forEach(function parser(line) {
+	      i = line.indexOf(':');
+	      key = line.substring(0, i).trim().toLowerCase();
+	      val = line.substring(i + 1).trim();
 
-	    if (!key || (parsed[key] && ignoreDuplicateOf[key])) {
-	      return;
-	    }
-
-	    if (key === 'set-cookie') {
-	      if (parsed[key]) {
-	        parsed[key].push(val);
-	      } else {
-	        parsed[key] = [val];
+	      if (!key || (parsed[key] && ignoreDuplicateOf[key])) {
+	        return;
 	      }
-	    } else {
-	      parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
-	    }
-	  });
+
+	      if (key === 'set-cookie') {
+	        if (parsed[key]) {
+	          parsed[key].push(val);
+	        } else {
+	          parsed[key] = [val];
+	        }
+	      } else {
+	        parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+	      }
+	    });
 
 	  return parsed;
 	};
@@ -8058,7 +15515,7 @@ var app = (function () {
 	    return value;
 	  }
 
-	  return utils.isArray(value) ? value.map(normalizeValue) : String(value);
+	  return utils$1.isArray(value) ? value.map(normalizeValue) : String(value);
 	}
 
 	function parseTokens(str) {
@@ -8076,7 +15533,7 @@ var app = (function () {
 	const isValidHeaderName = (str) => /^[-_a-zA-Z0-9^`|~,!#$%&'*+.]+$/.test(str.trim());
 
 	function matchHeaderValue(context, value, header, filter, isHeaderNameFilter) {
-	  if (utils.isFunction(filter)) {
+	  if (utils$1.isFunction(filter)) {
 	    return filter.call(this, value, header);
 	  }
 
@@ -8084,38 +15541,40 @@ var app = (function () {
 	    value = header;
 	  }
 
-	  if (!utils.isString(value)) return;
+	  if (!utils$1.isString(value)) return;
 
-	  if (utils.isString(filter)) {
+	  if (utils$1.isString(filter)) {
 	    return value.indexOf(filter) !== -1;
 	  }
 
-	  if (utils.isRegExp(filter)) {
+	  if (utils$1.isRegExp(filter)) {
 	    return filter.test(value);
 	  }
 	}
 
 	function formatHeader(header) {
-	  return header.trim()
-	    .toLowerCase().replace(/([a-z\d])(\w*)/g, (w, char, str) => {
+	  return header
+	    .trim()
+	    .toLowerCase()
+	    .replace(/([a-z\d])(\w*)/g, (w, char, str) => {
 	      return char.toUpperCase() + str;
 	    });
 	}
 
 	function buildAccessors(obj, header) {
-	  const accessorName = utils.toCamelCase(' ' + header);
+	  const accessorName = utils$1.toCamelCase(' ' + header);
 
-	  ['get', 'set', 'has'].forEach(methodName => {
+	  ['get', 'set', 'has'].forEach((methodName) => {
 	    Object.defineProperty(obj, methodName + accessorName, {
-	      value: function(arg1, arg2, arg3) {
+	      value: function (arg1, arg2, arg3) {
 	        return this[methodName].call(this, header, arg1, arg2, arg3);
 	      },
-	      configurable: true
+	      configurable: true,
 	    });
 	  });
 	}
 
-	class AxiosHeaders {
+	let AxiosHeaders$1 = class AxiosHeaders {
 	  constructor(headers) {
 	    headers && this.set(headers);
 	  }
@@ -8130,20 +15589,42 @@ var app = (function () {
 	        throw new Error('header name must be a non-empty string');
 	      }
 
-	      const key = utils.findKey(self, lHeader);
+	      const key = utils$1.findKey(self, lHeader);
 
-	      if(!key || self[key] === undefined || _rewrite === true || (_rewrite === undefined && self[key] !== false)) {
+	      if (
+	        !key ||
+	        self[key] === undefined ||
+	        _rewrite === true ||
+	        (_rewrite === undefined && self[key] !== false)
+	      ) {
 	        self[key || _header] = normalizeValue(_value);
 	      }
 	    }
 
 	    const setHeaders = (headers, _rewrite) =>
-	      utils.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
+	      utils$1.forEach(headers, (_value, _header) => setHeader(_value, _header, _rewrite));
 
-	    if (utils.isPlainObject(header) || header instanceof this.constructor) {
+	    if (utils$1.isPlainObject(header) || header instanceof this.constructor) {
 	      setHeaders(header, valueOrRewrite);
-	    } else if(utils.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
+	    } else if (utils$1.isString(header) && (header = header.trim()) && !isValidHeaderName(header)) {
 	      setHeaders(parseHeaders(header), valueOrRewrite);
+	    } else if (utils$1.isObject(header) && utils$1.isIterable(header)) {
+	      let obj = {},
+	        dest,
+	        key;
+	      for (const entry of header) {
+	        if (!utils$1.isArray(entry)) {
+	          throw TypeError('Object iterator must return a key-value pair');
+	        }
+
+	        obj[(key = entry[0])] = (dest = obj[key])
+	          ? utils$1.isArray(dest)
+	            ? [...dest, entry[1]]
+	            : [dest, entry[1]]
+	          : entry[1];
+	      }
+
+	      setHeaders(obj, valueOrRewrite);
 	    } else {
 	      header != null && setHeader(valueOrRewrite, header, rewrite);
 	    }
@@ -8155,7 +15636,7 @@ var app = (function () {
 	    header = normalizeHeader(header);
 
 	    if (header) {
-	      const key = utils.findKey(this, header);
+	      const key = utils$1.findKey(this, header);
 
 	      if (key) {
 	        const value = this[key];
@@ -8168,11 +15649,11 @@ var app = (function () {
 	          return parseTokens(value);
 	        }
 
-	        if (utils.isFunction(parser)) {
+	        if (utils$1.isFunction(parser)) {
 	          return parser.call(this, value, key);
 	        }
 
-	        if (utils.isRegExp(parser)) {
+	        if (utils$1.isRegExp(parser)) {
 	          return parser.exec(value);
 	        }
 
@@ -8185,9 +15666,13 @@ var app = (function () {
 	    header = normalizeHeader(header);
 
 	    if (header) {
-	      const key = utils.findKey(this, header);
+	      const key = utils$1.findKey(this, header);
 
-	      return !!(key && this[key] !== undefined && (!matcher || matchHeaderValue(this, this[key], key, matcher)));
+	      return !!(
+	        key &&
+	        this[key] !== undefined &&
+	        (!matcher || matchHeaderValue(this, this[key], key, matcher))
+	      );
 	    }
 
 	    return false;
@@ -8201,7 +15686,7 @@ var app = (function () {
 	      _header = normalizeHeader(_header);
 
 	      if (_header) {
-	        const key = utils.findKey(self, _header);
+	        const key = utils$1.findKey(self, _header);
 
 	        if (key && (!matcher || matchHeaderValue(self, self[key], key, matcher))) {
 	          delete self[key];
@@ -8211,7 +15696,7 @@ var app = (function () {
 	      }
 	    }
 
-	    if (utils.isArray(header)) {
+	    if (utils$1.isArray(header)) {
 	      header.forEach(deleteHeader);
 	    } else {
 	      deleteHeader(header);
@@ -8227,7 +15712,7 @@ var app = (function () {
 
 	    while (i--) {
 	      const key = keys[i];
-	      if(!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
+	      if (!matcher || matchHeaderValue(this, this[key], key, matcher, true)) {
 	        delete this[key];
 	        deleted = true;
 	      }
@@ -8240,8 +15725,8 @@ var app = (function () {
 	    const self = this;
 	    const headers = {};
 
-	    utils.forEach(this, (value, header) => {
-	      const key = utils.findKey(headers, header);
+	    utils$1.forEach(this, (value, header) => {
+	      const key = utils$1.findKey(headers, header);
 
 	      if (key) {
 	        self[key] = normalizeValue(value);
@@ -8270,8 +15755,10 @@ var app = (function () {
 	  toJSON(asStrings) {
 	    const obj = Object.create(null);
 
-	    utils.forEach(this, (value, header) => {
-	      value != null && value !== false && (obj[header] = asStrings && utils.isArray(value) ? value.join(', ') : value);
+	    utils$1.forEach(this, (value, header) => {
+	      value != null &&
+	        value !== false &&
+	        (obj[header] = asStrings && utils$1.isArray(value) ? value.join(', ') : value);
 	    });
 
 	    return obj;
@@ -8282,7 +15769,13 @@ var app = (function () {
 	  }
 
 	  toString() {
-	    return Object.entries(this.toJSON()).map(([header, value]) => header + ': ' + value).join('\n');
+	    return Object.entries(this.toJSON())
+	      .map(([header, value]) => header + ': ' + value)
+	      .join('\n');
+	  }
+
+	  getSetCookie() {
+	    return this.get('set-cookie') || [];
 	  }
 
 	  get [Symbol.toStringTag]() {
@@ -8302,9 +15795,12 @@ var app = (function () {
 	  }
 
 	  static accessor(header) {
-	    const internals = this[$internals] = (this[$internals] = {
-	      accessors: {}
-	    });
+	    const internals =
+	      (this[$internals] =
+	      this[$internals] =
+	        {
+	          accessors: {},
+	        });
 
 	    const accessors = internals.accessors;
 	    const prototype = this.prototype;
@@ -8318,18 +15814,33 @@ var app = (function () {
 	      }
 	    }
 
-	    utils.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
+	    utils$1.isArray(header) ? header.forEach(defineAccessor) : defineAccessor(header);
 
 	    return this;
 	  }
-	}
+	};
 
-	AxiosHeaders.accessor(['Content-Type', 'Content-Length', 'Accept', 'Accept-Encoding', 'User-Agent', 'Authorization']);
+	AxiosHeaders$1.accessor([
+	  'Content-Type',
+	  'Content-Length',
+	  'Accept',
+	  'Accept-Encoding',
+	  'User-Agent',
+	  'Authorization',
+	]);
 
-	utils.freezeMethods(AxiosHeaders.prototype);
-	utils.freezeMethods(AxiosHeaders);
+	// reserved names hotfix
+	utils$1.reduceDescriptors(AxiosHeaders$1.prototype, ({ value }, key) => {
+	  let mapped = key[0].toUpperCase() + key.slice(1); // map `set` => `Set`
+	  return {
+	    get: () => value,
+	    set(headerValue) {
+	      this[mapped] = headerValue;
+	    },
+	  };
+	});
 
-	var AxiosHeaders$1 = AxiosHeaders;
+	utils$1.freezeMethods(AxiosHeaders$1);
 
 	/**
 	 * Transform the data for a request or a response
@@ -8340,12 +15851,12 @@ var app = (function () {
 	 * @returns {*} The resulting transformed data
 	 */
 	function transformData(fns, response) {
-	  const config = this || defaults$1;
+	  const config = this || defaults;
 	  const context = response || config;
 	  const headers = AxiosHeaders$1.from(context.headers);
 	  let data = context.data;
 
-	  utils.forEach(fns, function transform(fn) {
+	  utils$1.forEach(fns, function transform(fn) {
 	    data = fn.call(config, data, headers.normalize(), response ? response.status : undefined);
 	  });
 
@@ -8354,28 +15865,26 @@ var app = (function () {
 	  return data;
 	}
 
-	function isCancel(value) {
+	function isCancel$1(value) {
 	  return !!(value && value.__CANCEL__);
 	}
 
-	/**
-	 * A `CanceledError` is an object that is thrown when an operation is canceled.
-	 *
-	 * @param {string=} message The message.
-	 * @param {Object=} config The config.
-	 * @param {Object=} request The request.
-	 *
-	 * @returns {CanceledError} The created error.
-	 */
-	function CanceledError(message, config, request) {
-	  // eslint-disable-next-line no-eq-null,eqeqeq
-	  AxiosError.call(this, message == null ? 'canceled' : message, AxiosError.ERR_CANCELED, config, request);
-	  this.name = 'CanceledError';
-	}
-
-	utils.inherits(CanceledError, AxiosError, {
-	  __CANCEL__: true
-	});
+	let CanceledError$1 = class CanceledError extends AxiosError$1 {
+	  /**
+	   * A `CanceledError` is an object that is thrown when an operation is canceled.
+	   *
+	   * @param {string=} message The message.
+	   * @param {Object=} config The config.
+	   * @param {Object=} request The request.
+	   *
+	   * @returns {CanceledError} The created error.
+	   */
+	  constructor(message, config, request) {
+	    super(message == null ? 'canceled' : message, AxiosError$1.ERR_CANCELED, config, request);
+	    this.name = 'CanceledError';
+	    this.__CANCEL__ = true;
+	  }
+	};
 
 	/**
 	 * Resolve or reject a Promise based on response status.
@@ -8391,175 +15900,23 @@ var app = (function () {
 	  if (!response.status || !validateStatus || validateStatus(response.status)) {
 	    resolve(response);
 	  } else {
-	    reject(new AxiosError(
-	      'Request failed with status code ' + response.status,
-	      [AxiosError.ERR_BAD_REQUEST, AxiosError.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
-	      response.config,
-	      response.request,
-	      response
-	    ));
+	    reject(
+	      new AxiosError$1(
+	        'Request failed with status code ' + response.status,
+	        [AxiosError$1.ERR_BAD_REQUEST, AxiosError$1.ERR_BAD_RESPONSE][
+	          Math.floor(response.status / 100) - 4
+	        ],
+	        response.config,
+	        response.request,
+	        response
+	      )
+	    );
 	  }
 	}
-
-	var cookies = platform.isStandardBrowserEnv ?
-
-	// Standard browser envs support document.cookie
-	  (function standardBrowserEnv() {
-	    return {
-	      write: function write(name, value, expires, path, domain, secure) {
-	        const cookie = [];
-	        cookie.push(name + '=' + encodeURIComponent(value));
-
-	        if (utils.isNumber(expires)) {
-	          cookie.push('expires=' + new Date(expires).toGMTString());
-	        }
-
-	        if (utils.isString(path)) {
-	          cookie.push('path=' + path);
-	        }
-
-	        if (utils.isString(domain)) {
-	          cookie.push('domain=' + domain);
-	        }
-
-	        if (secure === true) {
-	          cookie.push('secure');
-	        }
-
-	        document.cookie = cookie.join('; ');
-	      },
-
-	      read: function read(name) {
-	        const match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-	        return (match ? decodeURIComponent(match[3]) : null);
-	      },
-
-	      remove: function remove(name) {
-	        this.write(name, '', Date.now() - 86400000);
-	      }
-	    };
-	  })() :
-
-	// Non standard browser env (web workers, react-native) lack needed support.
-	  (function nonStandardBrowserEnv() {
-	    return {
-	      write: function write() {},
-	      read: function read() { return null; },
-	      remove: function remove() {}
-	    };
-	  })();
-
-	/**
-	 * Determines whether the specified URL is absolute
-	 *
-	 * @param {string} url The URL to test
-	 *
-	 * @returns {boolean} True if the specified URL is absolute, otherwise false
-	 */
-	function isAbsoluteURL(url) {
-	  // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
-	  // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
-	  // by any combination of letters, digits, plus, period, or hyphen.
-	  return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url);
-	}
-
-	/**
-	 * Creates a new URL by combining the specified URLs
-	 *
-	 * @param {string} baseURL The base URL
-	 * @param {string} relativeURL The relative URL
-	 *
-	 * @returns {string} The combined URL
-	 */
-	function combineURLs(baseURL, relativeURL) {
-	  return relativeURL
-	    ? baseURL.replace(/\/+$/, '') + '/' + relativeURL.replace(/^\/+/, '')
-	    : baseURL;
-	}
-
-	/**
-	 * Creates a new URL by combining the baseURL with the requestedURL,
-	 * only when the requestedURL is not already an absolute URL.
-	 * If the requestURL is absolute, this function returns the requestedURL untouched.
-	 *
-	 * @param {string} baseURL The base URL
-	 * @param {string} requestedURL Absolute or relative URL to combine
-	 *
-	 * @returns {string} The combined full path
-	 */
-	function buildFullPath(baseURL, requestedURL) {
-	  if (baseURL && !isAbsoluteURL(requestedURL)) {
-	    return combineURLs(baseURL, requestedURL);
-	  }
-	  return requestedURL;
-	}
-
-	var isURLSameOrigin = platform.isStandardBrowserEnv ?
-
-	// Standard browser envs have full support of the APIs needed to test
-	// whether the request URL is of the same origin as current location.
-	  (function standardBrowserEnv() {
-	    const msie = /(msie|trident)/i.test(navigator.userAgent);
-	    const urlParsingNode = document.createElement('a');
-	    let originURL;
-
-	    /**
-	    * Parse a URL to discover it's components
-	    *
-	    * @param {String} url The URL to be parsed
-	    * @returns {Object}
-	    */
-	    function resolveURL(url) {
-	      let href = url;
-
-	      if (msie) {
-	        // IE needs attribute set twice to normalize properties
-	        urlParsingNode.setAttribute('href', href);
-	        href = urlParsingNode.href;
-	      }
-
-	      urlParsingNode.setAttribute('href', href);
-
-	      // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
-	      return {
-	        href: urlParsingNode.href,
-	        protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
-	        host: urlParsingNode.host,
-	        search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
-	        hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
-	        hostname: urlParsingNode.hostname,
-	        port: urlParsingNode.port,
-	        pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
-	          urlParsingNode.pathname :
-	          '/' + urlParsingNode.pathname
-	      };
-	    }
-
-	    originURL = resolveURL(window.location.href);
-
-	    /**
-	    * Determine if a URL shares the same origin as the current location
-	    *
-	    * @param {String} requestURL The URL to test
-	    * @returns {boolean} True if URL shares the same origin, otherwise false
-	    */
-	    return function isURLSameOrigin(requestURL) {
-	      const parsed = (utils.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
-	      return (parsed.protocol === originURL.protocol &&
-	          parsed.host === originURL.host);
-	    };
-	  })() :
-
-	  // Non standard browser envs (web workers, react-native) lack needed support.
-	  (function nonStandardBrowserEnv() {
-	    return function isURLSameOrigin() {
-	      return true;
-	    };
-	  })();
 
 	function parseProtocol(url) {
 	  const match = /^([-+\w]{1,25})(:?\/\/|:)/.exec(url);
-	  return match && match[1] || '';
+	  return (match && match[1]) || '';
 	}
 
 	/**
@@ -8610,15 +15967,58 @@ var app = (function () {
 
 	    const passed = startedAt && now - startedAt;
 
-	    return passed ? Math.round(bytesCount * 1000 / passed) : undefined;
+	    return passed ? Math.round((bytesCount * 1000) / passed) : undefined;
 	  };
 	}
 
-	function progressEventReducer(listener, isDownloadStream) {
+	/**
+	 * Throttle decorator
+	 * @param {Function} fn
+	 * @param {Number} freq
+	 * @return {Function}
+	 */
+	function throttle(fn, freq) {
+	  let timestamp = 0;
+	  let threshold = 1000 / freq;
+	  let lastArgs;
+	  let timer;
+
+	  const invoke = (args, now = Date.now()) => {
+	    timestamp = now;
+	    lastArgs = null;
+	    if (timer) {
+	      clearTimeout(timer);
+	      timer = null;
+	    }
+	    fn(...args);
+	  };
+
+	  const throttled = (...args) => {
+	    const now = Date.now();
+	    const passed = now - timestamp;
+	    if (passed >= threshold) {
+	      invoke(args, now);
+	    } else {
+	      lastArgs = args;
+	      if (!timer) {
+	        timer = setTimeout(() => {
+	          timer = null;
+	          invoke(lastArgs);
+	        }, threshold - passed);
+	      }
+	    }
+	  };
+
+	  const flush = () => lastArgs && invoke(lastArgs);
+
+	  return [throttled, flush];
+	}
+
+	const progressEventReducer = (listener, isDownloadStream, freq = 3) => {
 	  let bytesNotified = 0;
 	  const _speedometer = speedometer(50, 250);
 
-	  return e => {
+	  return throttle((e) => {
 	    const loaded = e.loaded;
 	    const total = e.lengthComputable ? e.total : undefined;
 	    const progressBytes = loaded - bytesNotified;
@@ -8630,357 +16030,150 @@ var app = (function () {
 	    const data = {
 	      loaded,
 	      total,
-	      progress: total ? (loaded / total) : undefined,
+	      progress: total ? loaded / total : undefined,
 	      bytes: progressBytes,
 	      rate: rate ? rate : undefined,
 	      estimated: rate && total && inRange ? (total - loaded) / rate : undefined,
-	      event: e
+	      event: e,
+	      lengthComputable: total != null,
+	      [isDownloadStream ? 'download' : 'upload']: true,
 	    };
-
-	    data[isDownloadStream ? 'download' : 'upload'] = true;
 
 	    listener(data);
-	  };
-	}
+	  }, freq);
+	};
 
-	const isXHRAdapterSupported = typeof XMLHttpRequest !== 'undefined';
+	const progressEventDecorator = (total, throttled) => {
+	  const lengthComputable = total != null;
 
-	var xhrAdapter = isXHRAdapterSupported && function (config) {
-	  return new Promise(function dispatchXhrRequest(resolve, reject) {
-	    let requestData = config.data;
-	    const requestHeaders = AxiosHeaders$1.from(config.headers).normalize();
-	    const responseType = config.responseType;
-	    let onCanceled;
-	    function done() {
-	      if (config.cancelToken) {
-	        config.cancelToken.unsubscribe(onCanceled);
-	      }
+	  return [
+	    (loaded) =>
+	      throttled[0]({
+	        lengthComputable,
+	        total,
+	        loaded,
+	      }),
+	    throttled[1],
+	  ];
+	};
 
-	      if (config.signal) {
-	        config.signal.removeEventListener('abort', onCanceled);
-	      }
-	    }
+	const asyncDecorator =
+	  (fn) =>
+	  (...args) =>
+	    utils$1.asap(() => fn(...args));
 
-	    if (utils.isFormData(requestData)) {
-	      if (platform.isStandardBrowserEnv || platform.isStandardBrowserWebWorkerEnv) {
-	        requestHeaders.setContentType(false); // Let the browser set it
-	      } else {
-	        requestHeaders.setContentType('multipart/form-data;', false); // mobile/desktop app frameworks
-	      }
-	    }
+	var isURLSameOrigin = platform.hasStandardBrowserEnv
+	  ? ((origin, isMSIE) => (url) => {
+	      url = new URL(url, platform.origin);
 
-	    let request = new XMLHttpRequest();
-
-	    // HTTP basic authentication
-	    if (config.auth) {
-	      const username = config.auth.username || '';
-	      const password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
-	      requestHeaders.set('Authorization', 'Basic ' + btoa(username + ':' + password));
-	    }
-
-	    const fullPath = buildFullPath(config.baseURL, config.url);
-
-	    request.open(config.method.toUpperCase(), buildURL(fullPath, config.params, config.paramsSerializer), true);
-
-	    // Set the request timeout in MS
-	    request.timeout = config.timeout;
-
-	    function onloadend() {
-	      if (!request) {
-	        return;
-	      }
-	      // Prepare the response
-	      const responseHeaders = AxiosHeaders$1.from(
-	        'getAllResponseHeaders' in request && request.getAllResponseHeaders()
+	      return (
+	        origin.protocol === url.protocol &&
+	        origin.host === url.host &&
+	        (isMSIE || origin.port === url.port)
 	      );
-	      const responseData = !responseType || responseType === 'text' || responseType === 'json' ?
-	        request.responseText : request.response;
-	      const response = {
-	        data: responseData,
-	        status: request.status,
-	        statusText: request.statusText,
-	        headers: responseHeaders,
-	        config,
-	        request
-	      };
+	    })(
+	      new URL(platform.origin),
+	      platform.navigator && /(msie|trident)/i.test(platform.navigator.userAgent)
+	    )
+	  : () => true;
 
-	      settle(function _resolve(value) {
-	        resolve(value);
-	        done();
-	      }, function _reject(err) {
-	        reject(err);
-	        done();
-	      }, response);
+	var cookies = platform.hasStandardBrowserEnv
+	  ? // Standard browser envs support document.cookie
+	    {
+	      write(name, value, expires, path, domain, secure, sameSite) {
+	        if (typeof document === 'undefined') return;
 
-	      // Clean up request
-	      request = null;
-	    }
+	        const cookie = [`${name}=${encodeURIComponent(value)}`];
 
-	    if ('onloadend' in request) {
-	      // Use onloadend if available
-	      request.onloadend = onloadend;
-	    } else {
-	      // Listen for ready state to emulate onloadend
-	      request.onreadystatechange = function handleLoad() {
-	        if (!request || request.readyState !== 4) {
-	          return;
+	        if (utils$1.isNumber(expires)) {
+	          cookie.push(`expires=${new Date(expires).toUTCString()}`);
+	        }
+	        if (utils$1.isString(path)) {
+	          cookie.push(`path=${path}`);
+	        }
+	        if (utils$1.isString(domain)) {
+	          cookie.push(`domain=${domain}`);
+	        }
+	        if (secure === true) {
+	          cookie.push('secure');
+	        }
+	        if (utils$1.isString(sameSite)) {
+	          cookie.push(`SameSite=${sameSite}`);
 	        }
 
-	        // The request errored out and we didn't get a response, this will be
-	        // handled by onerror instead
-	        // With one exception: request that using file: protocol, most browsers
-	        // will return status as 0 even though it's a successful request
-	        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
-	          return;
-	        }
-	        // readystate handler is calling before onerror or ontimeout handlers,
-	        // so we should call onloadend on the next 'tick'
-	        setTimeout(onloadend);
-	      };
+	        document.cookie = cookie.join('; ');
+	      },
+
+	      read(name) {
+	        if (typeof document === 'undefined') return null;
+	        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+	        return match ? decodeURIComponent(match[1]) : null;
+	      },
+
+	      remove(name) {
+	        this.write(name, '', Date.now() - 86400000, '/');
+	      },
 	    }
-
-	    // Handle browser request cancellation (as opposed to a manual cancellation)
-	    request.onabort = function handleAbort() {
-	      if (!request) {
-	        return;
-	      }
-
-	      reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
-
-	      // Clean up request
-	      request = null;
+	  : // Non-standard browser env (web workers, react-native) lack needed support.
+	    {
+	      write() {},
+	      read() {
+	        return null;
+	      },
+	      remove() {},
 	    };
-
-	    // Handle low level network errors
-	    request.onerror = function handleError() {
-	      // Real errors are hidden from us by the browser
-	      // onerror should only fire if it's a network error
-	      reject(new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request));
-
-	      // Clean up request
-	      request = null;
-	    };
-
-	    // Handle timeout
-	    request.ontimeout = function handleTimeout() {
-	      let timeoutErrorMessage = config.timeout ? 'timeout of ' + config.timeout + 'ms exceeded' : 'timeout exceeded';
-	      const transitional = config.transitional || transitionalDefaults;
-	      if (config.timeoutErrorMessage) {
-	        timeoutErrorMessage = config.timeoutErrorMessage;
-	      }
-	      reject(new AxiosError(
-	        timeoutErrorMessage,
-	        transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED,
-	        config,
-	        request));
-
-	      // Clean up request
-	      request = null;
-	    };
-
-	    // Add xsrf header
-	    // This is only done if running in a standard browser environment.
-	    // Specifically not if we're in a web worker, or react-native.
-	    if (platform.isStandardBrowserEnv) {
-	      // Add xsrf header
-	      const xsrfValue = (config.withCredentials || isURLSameOrigin(fullPath))
-	        && config.xsrfCookieName && cookies.read(config.xsrfCookieName);
-
-	      if (xsrfValue) {
-	        requestHeaders.set(config.xsrfHeaderName, xsrfValue);
-	      }
-	    }
-
-	    // Remove Content-Type if data is undefined
-	    requestData === undefined && requestHeaders.setContentType(null);
-
-	    // Add headers to the request
-	    if ('setRequestHeader' in request) {
-	      utils.forEach(requestHeaders.toJSON(), function setRequestHeader(val, key) {
-	        request.setRequestHeader(key, val);
-	      });
-	    }
-
-	    // Add withCredentials to request if needed
-	    if (!utils.isUndefined(config.withCredentials)) {
-	      request.withCredentials = !!config.withCredentials;
-	    }
-
-	    // Add responseType to request if needed
-	    if (responseType && responseType !== 'json') {
-	      request.responseType = config.responseType;
-	    }
-
-	    // Handle progress if needed
-	    if (typeof config.onDownloadProgress === 'function') {
-	      request.addEventListener('progress', progressEventReducer(config.onDownloadProgress, true));
-	    }
-
-	    // Not all browsers support upload events
-	    if (typeof config.onUploadProgress === 'function' && request.upload) {
-	      request.upload.addEventListener('progress', progressEventReducer(config.onUploadProgress));
-	    }
-
-	    if (config.cancelToken || config.signal) {
-	      // Handle cancellation
-	      // eslint-disable-next-line func-names
-	      onCanceled = cancel => {
-	        if (!request) {
-	          return;
-	        }
-	        reject(!cancel || cancel.type ? new CanceledError(null, config, request) : cancel);
-	        request.abort();
-	        request = null;
-	      };
-
-	      config.cancelToken && config.cancelToken.subscribe(onCanceled);
-	      if (config.signal) {
-	        config.signal.aborted ? onCanceled() : config.signal.addEventListener('abort', onCanceled);
-	      }
-	    }
-
-	    const protocol = parseProtocol(fullPath);
-
-	    if (protocol && platform.protocols.indexOf(protocol) === -1) {
-	      reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
-	      return;
-	    }
-
-
-	    // Send the request
-	    request.send(requestData || null);
-	  });
-	};
-
-	const knownAdapters = {
-	  http: httpAdapter,
-	  xhr: xhrAdapter
-	};
-
-	utils.forEach(knownAdapters, (fn, value) => {
-	  if(fn) {
-	    try {
-	      Object.defineProperty(fn, 'name', {value});
-	    } catch (e) {
-	      // eslint-disable-next-line no-empty
-	    }
-	    Object.defineProperty(fn, 'adapterName', {value});
-	  }
-	});
-
-	var adapters = {
-	  getAdapter: (adapters) => {
-	    adapters = utils.isArray(adapters) ? adapters : [adapters];
-
-	    const {length} = adapters;
-	    let nameOrAdapter;
-	    let adapter;
-
-	    for (let i = 0; i < length; i++) {
-	      nameOrAdapter = adapters[i];
-	      if((adapter = utils.isString(nameOrAdapter) ? knownAdapters[nameOrAdapter.toLowerCase()] : nameOrAdapter)) {
-	        break;
-	      }
-	    }
-
-	    if (!adapter) {
-	      if (adapter === false) {
-	        throw new AxiosError(
-	          `Adapter ${nameOrAdapter} is not supported by the environment`,
-	          'ERR_NOT_SUPPORT'
-	        );
-	      }
-
-	      throw new Error(
-	        utils.hasOwnProp(knownAdapters, nameOrAdapter) ?
-	          `Adapter '${nameOrAdapter}' is not available in the build` :
-	          `Unknown adapter '${nameOrAdapter}'`
-	      );
-	    }
-
-	    if (!utils.isFunction(adapter)) {
-	      throw new TypeError('adapter is not a function');
-	    }
-
-	    return adapter;
-	  },
-	  adapters: knownAdapters
-	};
 
 	/**
-	 * Throws a `CanceledError` if cancellation has been requested.
+	 * Determines whether the specified URL is absolute
 	 *
-	 * @param {Object} config The config that is to be used for the request
+	 * @param {string} url The URL to test
 	 *
-	 * @returns {void}
+	 * @returns {boolean} True if the specified URL is absolute, otherwise false
 	 */
-	function throwIfCancellationRequested(config) {
-	  if (config.cancelToken) {
-	    config.cancelToken.throwIfRequested();
+	function isAbsoluteURL(url) {
+	  // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
+	  // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
+	  // by any combination of letters, digits, plus, period, or hyphen.
+	  if (typeof url !== 'string') {
+	    return false;
 	  }
 
-	  if (config.signal && config.signal.aborted) {
-	    throw new CanceledError(null, config);
-	  }
+	  return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url);
 	}
 
 	/**
-	 * Dispatch a request to the server using the configured adapter.
+	 * Creates a new URL by combining the specified URLs
 	 *
-	 * @param {object} config The config that is to be used for the request
+	 * @param {string} baseURL The base URL
+	 * @param {string} relativeURL The relative URL
 	 *
-	 * @returns {Promise} The Promise to be fulfilled
+	 * @returns {string} The combined URL
 	 */
-	function dispatchRequest(config) {
-	  throwIfCancellationRequested(config);
-
-	  config.headers = AxiosHeaders$1.from(config.headers);
-
-	  // Transform request data
-	  config.data = transformData.call(
-	    config,
-	    config.transformRequest
-	  );
-
-	  if (['post', 'put', 'patch'].indexOf(config.method) !== -1) {
-	    config.headers.setContentType('application/x-www-form-urlencoded', false);
-	  }
-
-	  const adapter = adapters.getAdapter(config.adapter || defaults$1.adapter);
-
-	  return adapter(config).then(function onAdapterResolution(response) {
-	    throwIfCancellationRequested(config);
-
-	    // Transform response data
-	    response.data = transformData.call(
-	      config,
-	      config.transformResponse,
-	      response
-	    );
-
-	    response.headers = AxiosHeaders$1.from(response.headers);
-
-	    return response;
-	  }, function onAdapterRejection(reason) {
-	    if (!isCancel(reason)) {
-	      throwIfCancellationRequested(config);
-
-	      // Transform response data
-	      if (reason && reason.response) {
-	        reason.response.data = transformData.call(
-	          config,
-	          config.transformResponse,
-	          reason.response
-	        );
-	        reason.response.headers = AxiosHeaders$1.from(reason.response.headers);
-	      }
-	    }
-
-	    return Promise.reject(reason);
-	  });
+	function combineURLs(baseURL, relativeURL) {
+	  return relativeURL
+	    ? baseURL.replace(/\/?\/$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+	    : baseURL;
 	}
 
-	const headersToObject = (thing) => thing instanceof AxiosHeaders$1 ? thing.toJSON() : thing;
+	/**
+	 * Creates a new URL by combining the baseURL with the requestedURL,
+	 * only when the requestedURL is not already an absolute URL.
+	 * If the requestURL is absolute, this function returns the requestedURL untouched.
+	 *
+	 * @param {string} baseURL The base URL
+	 * @param {string} requestedURL Absolute or relative URL to combine
+	 *
+	 * @returns {string} The combined full path
+	 */
+	function buildFullPath(baseURL, requestedURL, allowAbsoluteUrls) {
+	  let isRelativeUrl = !isAbsoluteURL(requestedURL);
+	  if (baseURL && (isRelativeUrl || allowAbsoluteUrls == false)) {
+	    return combineURLs(baseURL, requestedURL);
+	  }
+	  return requestedURL;
+	}
+
+	const headersToObject = (thing) => (thing instanceof AxiosHeaders$1 ? { ...thing } : thing);
 
 	/**
 	 * Config-specific merge-function which creates a new config-object
@@ -8991,43 +16184,42 @@ var app = (function () {
 	 *
 	 * @returns {Object} New object resulting from merging config2 to config1
 	 */
-	function mergeConfig(config1, config2) {
+	function mergeConfig$1(config1, config2) {
 	  // eslint-disable-next-line no-param-reassign
 	  config2 = config2 || {};
 	  const config = {};
 
-	  function getMergedValue(target, source, caseless) {
-	    if (utils.isPlainObject(target) && utils.isPlainObject(source)) {
-	      return utils.merge.call({caseless}, target, source);
-	    } else if (utils.isPlainObject(source)) {
-	      return utils.merge({}, source);
-	    } else if (utils.isArray(source)) {
+	  function getMergedValue(target, source, prop, caseless) {
+	    if (utils$1.isPlainObject(target) && utils$1.isPlainObject(source)) {
+	      return utils$1.merge.call({ caseless }, target, source);
+	    } else if (utils$1.isPlainObject(source)) {
+	      return utils$1.merge({}, source);
+	    } else if (utils$1.isArray(source)) {
 	      return source.slice();
 	    }
 	    return source;
 	  }
 
-	  // eslint-disable-next-line consistent-return
-	  function mergeDeepProperties(a, b, caseless) {
-	    if (!utils.isUndefined(b)) {
-	      return getMergedValue(a, b, caseless);
-	    } else if (!utils.isUndefined(a)) {
-	      return getMergedValue(undefined, a, caseless);
+	  function mergeDeepProperties(a, b, prop, caseless) {
+	    if (!utils$1.isUndefined(b)) {
+	      return getMergedValue(a, b, prop, caseless);
+	    } else if (!utils$1.isUndefined(a)) {
+	      return getMergedValue(undefined, a, prop, caseless);
 	    }
 	  }
 
 	  // eslint-disable-next-line consistent-return
 	  function valueFromConfig2(a, b) {
-	    if (!utils.isUndefined(b)) {
+	    if (!utils$1.isUndefined(b)) {
 	      return getMergedValue(undefined, b);
 	    }
 	  }
 
 	  // eslint-disable-next-line consistent-return
 	  function defaultToConfig2(a, b) {
-	    if (!utils.isUndefined(b)) {
+	    if (!utils$1.isUndefined(b)) {
 	      return getMergedValue(undefined, b);
-	    } else if (!utils.isUndefined(a)) {
+	    } else if (!utils$1.isUndefined(a)) {
 	      return getMergedValue(undefined, a);
 	    }
 	  }
@@ -9052,6 +16244,7 @@ var app = (function () {
 	    timeout: defaultToConfig2,
 	    timeoutMessage: defaultToConfig2,
 	    withCredentials: defaultToConfig2,
+	    withXSRFToken: defaultToConfig2,
 	    adapter: defaultToConfig2,
 	    responseType: defaultToConfig2,
 	    xsrfCookieName: defaultToConfig2,
@@ -9069,19 +16262,949 @@ var app = (function () {
 	    socketPath: defaultToConfig2,
 	    responseEncoding: defaultToConfig2,
 	    validateStatus: mergeDirectKeys,
-	    headers: (a, b) => mergeDeepProperties(headersToObject(a), headersToObject(b), true)
+	    headers: (a, b, prop) =>
+	      mergeDeepProperties(headersToObject(a), headersToObject(b), prop, true),
 	  };
 
-	  utils.forEach(Object.keys(Object.assign({}, config1, config2)), function computeConfigValue(prop) {
-	    const merge = mergeMap[prop] || mergeDeepProperties;
+	  utils$1.forEach(Object.keys({ ...config1, ...config2 }), function computeConfigValue(prop) {
+	    if (prop === '__proto__' || prop === 'constructor' || prop === 'prototype') return;
+	    const merge = utils$1.hasOwnProp(mergeMap, prop) ? mergeMap[prop] : mergeDeepProperties;
 	    const configValue = merge(config1[prop], config2[prop], prop);
-	    (utils.isUndefined(configValue) && merge !== mergeDirectKeys) || (config[prop] = configValue);
+	    (utils$1.isUndefined(configValue) && merge !== mergeDirectKeys) || (config[prop] = configValue);
 	  });
 
 	  return config;
 	}
 
-	const VERSION = "1.4.0";
+	var resolveConfig = (config) => {
+	  const newConfig = mergeConfig$1({}, config);
+
+	  let { data, withXSRFToken, xsrfHeaderName, xsrfCookieName, headers, auth } = newConfig;
+
+	  newConfig.headers = headers = AxiosHeaders$1.from(headers);
+
+	  newConfig.url = buildURL(
+	    buildFullPath(newConfig.baseURL, newConfig.url, newConfig.allowAbsoluteUrls),
+	    config.params,
+	    config.paramsSerializer
+	  );
+
+	  // HTTP basic authentication
+	  if (auth) {
+	    headers.set(
+	      'Authorization',
+	      'Basic ' +
+	        btoa(
+	          (auth.username || '') +
+	            ':' +
+	            (auth.password ? unescape(encodeURIComponent(auth.password)) : '')
+	        )
+	    );
+	  }
+
+	  if (utils$1.isFormData(data)) {
+	    if (platform.hasStandardBrowserEnv || platform.hasStandardBrowserWebWorkerEnv) {
+	      headers.setContentType(undefined); // browser handles it
+	    } else if (utils$1.isFunction(data.getHeaders)) {
+	      // Node.js FormData (like form-data package)
+	      const formHeaders = data.getHeaders();
+	      // Only set safe headers to avoid overwriting security headers
+	      const allowedHeaders = ['content-type', 'content-length'];
+	      Object.entries(formHeaders).forEach(([key, val]) => {
+	        if (allowedHeaders.includes(key.toLowerCase())) {
+	          headers.set(key, val);
+	        }
+	      });
+	    }
+	  }
+
+	  // Add xsrf header
+	  // This is only done if running in a standard browser environment.
+	  // Specifically not if we're in a web worker, or react-native.
+
+	  if (platform.hasStandardBrowserEnv) {
+	    withXSRFToken && utils$1.isFunction(withXSRFToken) && (withXSRFToken = withXSRFToken(newConfig));
+
+	    if (withXSRFToken || (withXSRFToken !== false && isURLSameOrigin(newConfig.url))) {
+	      // Add xsrf header
+	      const xsrfValue = xsrfHeaderName && xsrfCookieName && cookies.read(xsrfCookieName);
+
+	      if (xsrfValue) {
+	        headers.set(xsrfHeaderName, xsrfValue);
+	      }
+	    }
+	  }
+
+	  return newConfig;
+	};
+
+	const isXHRAdapterSupported = typeof XMLHttpRequest !== 'undefined';
+
+	var xhrAdapter = isXHRAdapterSupported &&
+	  function (config) {
+	    return new Promise(function dispatchXhrRequest(resolve, reject) {
+	      const _config = resolveConfig(config);
+	      let requestData = _config.data;
+	      const requestHeaders = AxiosHeaders$1.from(_config.headers).normalize();
+	      let { responseType, onUploadProgress, onDownloadProgress } = _config;
+	      let onCanceled;
+	      let uploadThrottled, downloadThrottled;
+	      let flushUpload, flushDownload;
+
+	      function done() {
+	        flushUpload && flushUpload(); // flush events
+	        flushDownload && flushDownload(); // flush events
+
+	        _config.cancelToken && _config.cancelToken.unsubscribe(onCanceled);
+
+	        _config.signal && _config.signal.removeEventListener('abort', onCanceled);
+	      }
+
+	      let request = new XMLHttpRequest();
+
+	      request.open(_config.method.toUpperCase(), _config.url, true);
+
+	      // Set the request timeout in MS
+	      request.timeout = _config.timeout;
+
+	      function onloadend() {
+	        if (!request) {
+	          return;
+	        }
+	        // Prepare the response
+	        const responseHeaders = AxiosHeaders$1.from(
+	          'getAllResponseHeaders' in request && request.getAllResponseHeaders()
+	        );
+	        const responseData =
+	          !responseType || responseType === 'text' || responseType === 'json'
+	            ? request.responseText
+	            : request.response;
+	        const response = {
+	          data: responseData,
+	          status: request.status,
+	          statusText: request.statusText,
+	          headers: responseHeaders,
+	          config,
+	          request,
+	        };
+
+	        settle(
+	          function _resolve(value) {
+	            resolve(value);
+	            done();
+	          },
+	          function _reject(err) {
+	            reject(err);
+	            done();
+	          },
+	          response
+	        );
+
+	        // Clean up request
+	        request = null;
+	      }
+
+	      if ('onloadend' in request) {
+	        // Use onloadend if available
+	        request.onloadend = onloadend;
+	      } else {
+	        // Listen for ready state to emulate onloadend
+	        request.onreadystatechange = function handleLoad() {
+	          if (!request || request.readyState !== 4) {
+	            return;
+	          }
+
+	          // The request errored out and we didn't get a response, this will be
+	          // handled by onerror instead
+	          // With one exception: request that using file: protocol, most browsers
+	          // will return status as 0 even though it's a successful request
+	          if (
+	            request.status === 0 &&
+	            !(request.responseURL && request.responseURL.indexOf('file:') === 0)
+	          ) {
+	            return;
+	          }
+	          // readystate handler is calling before onerror or ontimeout handlers,
+	          // so we should call onloadend on the next 'tick'
+	          setTimeout(onloadend);
+	        };
+	      }
+
+	      // Handle browser request cancellation (as opposed to a manual cancellation)
+	      request.onabort = function handleAbort() {
+	        if (!request) {
+	          return;
+	        }
+
+	        reject(new AxiosError$1('Request aborted', AxiosError$1.ECONNABORTED, config, request));
+
+	        // Clean up request
+	        request = null;
+	      };
+
+	      // Handle low level network errors
+	      request.onerror = function handleError(event) {
+	        // Browsers deliver a ProgressEvent in XHR onerror
+	        // (message may be empty; when present, surface it)
+	        // See https://developer.mozilla.org/docs/Web/API/XMLHttpRequest/error_event
+	        const msg = event && event.message ? event.message : 'Network Error';
+	        const err = new AxiosError$1(msg, AxiosError$1.ERR_NETWORK, config, request);
+	        // attach the underlying event for consumers who want details
+	        err.event = event || null;
+	        reject(err);
+	        request = null;
+	      };
+
+	      // Handle timeout
+	      request.ontimeout = function handleTimeout() {
+	        let timeoutErrorMessage = _config.timeout
+	          ? 'timeout of ' + _config.timeout + 'ms exceeded'
+	          : 'timeout exceeded';
+	        const transitional = _config.transitional || transitionalDefaults;
+	        if (_config.timeoutErrorMessage) {
+	          timeoutErrorMessage = _config.timeoutErrorMessage;
+	        }
+	        reject(
+	          new AxiosError$1(
+	            timeoutErrorMessage,
+	            transitional.clarifyTimeoutError ? AxiosError$1.ETIMEDOUT : AxiosError$1.ECONNABORTED,
+	            config,
+	            request
+	          )
+	        );
+
+	        // Clean up request
+	        request = null;
+	      };
+
+	      // Remove Content-Type if data is undefined
+	      requestData === undefined && requestHeaders.setContentType(null);
+
+	      // Add headers to the request
+	      if ('setRequestHeader' in request) {
+	        utils$1.forEach(requestHeaders.toJSON(), function setRequestHeader(val, key) {
+	          request.setRequestHeader(key, val);
+	        });
+	      }
+
+	      // Add withCredentials to request if needed
+	      if (!utils$1.isUndefined(_config.withCredentials)) {
+	        request.withCredentials = !!_config.withCredentials;
+	      }
+
+	      // Add responseType to request if needed
+	      if (responseType && responseType !== 'json') {
+	        request.responseType = _config.responseType;
+	      }
+
+	      // Handle progress if needed
+	      if (onDownloadProgress) {
+	        [downloadThrottled, flushDownload] = progressEventReducer(onDownloadProgress, true);
+	        request.addEventListener('progress', downloadThrottled);
+	      }
+
+	      // Not all browsers support upload events
+	      if (onUploadProgress && request.upload) {
+	        [uploadThrottled, flushUpload] = progressEventReducer(onUploadProgress);
+
+	        request.upload.addEventListener('progress', uploadThrottled);
+
+	        request.upload.addEventListener('loadend', flushUpload);
+	      }
+
+	      if (_config.cancelToken || _config.signal) {
+	        // Handle cancellation
+	        // eslint-disable-next-line func-names
+	        onCanceled = (cancel) => {
+	          if (!request) {
+	            return;
+	          }
+	          reject(!cancel || cancel.type ? new CanceledError$1(null, config, request) : cancel);
+	          request.abort();
+	          request = null;
+	        };
+
+	        _config.cancelToken && _config.cancelToken.subscribe(onCanceled);
+	        if (_config.signal) {
+	          _config.signal.aborted
+	            ? onCanceled()
+	            : _config.signal.addEventListener('abort', onCanceled);
+	        }
+	      }
+
+	      const protocol = parseProtocol(_config.url);
+
+	      if (protocol && platform.protocols.indexOf(protocol) === -1) {
+	        reject(
+	          new AxiosError$1(
+	            'Unsupported protocol ' + protocol + ':',
+	            AxiosError$1.ERR_BAD_REQUEST,
+	            config
+	          )
+	        );
+	        return;
+	      }
+
+	      // Send the request
+	      request.send(requestData || null);
+	    });
+	  };
+
+	const composeSignals = (signals, timeout) => {
+	  const { length } = (signals = signals ? signals.filter(Boolean) : []);
+
+	  if (timeout || length) {
+	    let controller = new AbortController();
+
+	    let aborted;
+
+	    const onabort = function (reason) {
+	      if (!aborted) {
+	        aborted = true;
+	        unsubscribe();
+	        const err = reason instanceof Error ? reason : this.reason;
+	        controller.abort(
+	          err instanceof AxiosError$1
+	            ? err
+	            : new CanceledError$1(err instanceof Error ? err.message : err)
+	        );
+	      }
+	    };
+
+	    let timer =
+	      timeout &&
+	      setTimeout(() => {
+	        timer = null;
+	        onabort(new AxiosError$1(`timeout of ${timeout}ms exceeded`, AxiosError$1.ETIMEDOUT));
+	      }, timeout);
+
+	    const unsubscribe = () => {
+	      if (signals) {
+	        timer && clearTimeout(timer);
+	        timer = null;
+	        signals.forEach((signal) => {
+	          signal.unsubscribe
+	            ? signal.unsubscribe(onabort)
+	            : signal.removeEventListener('abort', onabort);
+	        });
+	        signals = null;
+	      }
+	    };
+
+	    signals.forEach((signal) => signal.addEventListener('abort', onabort));
+
+	    const { signal } = controller;
+
+	    signal.unsubscribe = () => utils$1.asap(unsubscribe);
+
+	    return signal;
+	  }
+	};
+
+	const streamChunk = function* (chunk, chunkSize) {
+	  let len = chunk.byteLength;
+
+	  if (len < chunkSize) {
+	    yield chunk;
+	    return;
+	  }
+
+	  let pos = 0;
+	  let end;
+
+	  while (pos < len) {
+	    end = pos + chunkSize;
+	    yield chunk.slice(pos, end);
+	    pos = end;
+	  }
+	};
+
+	const readBytes = async function* (iterable, chunkSize) {
+	  for await (const chunk of readStream(iterable)) {
+	    yield* streamChunk(chunk, chunkSize);
+	  }
+	};
+
+	const readStream = async function* (stream) {
+	  if (stream[Symbol.asyncIterator]) {
+	    yield* stream;
+	    return;
+	  }
+
+	  const reader = stream.getReader();
+	  try {
+	    for (;;) {
+	      const { done, value } = await reader.read();
+	      if (done) {
+	        break;
+	      }
+	      yield value;
+	    }
+	  } finally {
+	    await reader.cancel();
+	  }
+	};
+
+	const trackStream = (stream, chunkSize, onProgress, onFinish) => {
+	  const iterator = readBytes(stream, chunkSize);
+
+	  let bytes = 0;
+	  let done;
+	  let _onFinish = (e) => {
+	    if (!done) {
+	      done = true;
+	      onFinish && onFinish(e);
+	    }
+	  };
+
+	  return new ReadableStream(
+	    {
+	      async pull(controller) {
+	        try {
+	          const { done, value } = await iterator.next();
+
+	          if (done) {
+	            _onFinish();
+	            controller.close();
+	            return;
+	          }
+
+	          let len = value.byteLength;
+	          if (onProgress) {
+	            let loadedBytes = (bytes += len);
+	            onProgress(loadedBytes);
+	          }
+	          controller.enqueue(new Uint8Array(value));
+	        } catch (err) {
+	          _onFinish(err);
+	          throw err;
+	        }
+	      },
+	      cancel(reason) {
+	        _onFinish(reason);
+	        return iterator.return();
+	      },
+	    },
+	    {
+	      highWaterMark: 2,
+	    }
+	  );
+	};
+
+	const DEFAULT_CHUNK_SIZE = 64 * 1024;
+
+	const { isFunction } = utils$1;
+
+	const globalFetchAPI = (({ Request, Response }) => ({
+	  Request,
+	  Response,
+	}))(utils$1.global);
+
+	const { ReadableStream: ReadableStream$1, TextEncoder } = utils$1.global;
+
+	const test = (fn, ...args) => {
+	  try {
+	    return !!fn(...args);
+	  } catch (e) {
+	    return false;
+	  }
+	};
+
+	const factory = (env) => {
+	  env = utils$1.merge.call(
+	    {
+	      skipUndefined: true,
+	    },
+	    globalFetchAPI,
+	    env
+	  );
+
+	  const { fetch: envFetch, Request, Response } = env;
+	  const isFetchSupported = envFetch ? isFunction(envFetch) : typeof fetch === 'function';
+	  const isRequestSupported = isFunction(Request);
+	  const isResponseSupported = isFunction(Response);
+
+	  if (!isFetchSupported) {
+	    return false;
+	  }
+
+	  const isReadableStreamSupported = isFetchSupported && isFunction(ReadableStream$1);
+
+	  const encodeText =
+	    isFetchSupported &&
+	    (typeof TextEncoder === 'function'
+	      ? (
+	          (encoder) => (str) =>
+	            encoder.encode(str)
+	        )(new TextEncoder())
+	      : async (str) => new Uint8Array(await new Request(str).arrayBuffer()));
+
+	  const supportsRequestStream =
+	    isRequestSupported &&
+	    isReadableStreamSupported &&
+	    test(() => {
+	      let duplexAccessed = false;
+
+	      const hasContentType = new Request(platform.origin, {
+	        body: new ReadableStream$1(),
+	        method: 'POST',
+	        get duplex() {
+	          duplexAccessed = true;
+	          return 'half';
+	        },
+	      }).headers.has('Content-Type');
+
+	      return duplexAccessed && !hasContentType;
+	    });
+
+	  const supportsResponseStream =
+	    isResponseSupported &&
+	    isReadableStreamSupported &&
+	    test(() => utils$1.isReadableStream(new Response('').body));
+
+	  const resolvers = {
+	    stream: supportsResponseStream && ((res) => res.body),
+	  };
+
+	  isFetchSupported &&
+	    (() => {
+	      ['text', 'arrayBuffer', 'blob', 'formData', 'stream'].forEach((type) => {
+	        !resolvers[type] &&
+	          (resolvers[type] = (res, config) => {
+	            let method = res && res[type];
+
+	            if (method) {
+	              return method.call(res);
+	            }
+
+	            throw new AxiosError$1(
+	              `Response type '${type}' is not supported`,
+	              AxiosError$1.ERR_NOT_SUPPORT,
+	              config
+	            );
+	          });
+	      });
+	    })();
+
+	  const getBodyLength = async (body) => {
+	    if (body == null) {
+	      return 0;
+	    }
+
+	    if (utils$1.isBlob(body)) {
+	      return body.size;
+	    }
+
+	    if (utils$1.isSpecCompliantForm(body)) {
+	      const _request = new Request(platform.origin, {
+	        method: 'POST',
+	        body,
+	      });
+	      return (await _request.arrayBuffer()).byteLength;
+	    }
+
+	    if (utils$1.isArrayBufferView(body) || utils$1.isArrayBuffer(body)) {
+	      return body.byteLength;
+	    }
+
+	    if (utils$1.isURLSearchParams(body)) {
+	      body = body + '';
+	    }
+
+	    if (utils$1.isString(body)) {
+	      return (await encodeText(body)).byteLength;
+	    }
+	  };
+
+	  const resolveBodyLength = async (headers, body) => {
+	    const length = utils$1.toFiniteNumber(headers.getContentLength());
+
+	    return length == null ? getBodyLength(body) : length;
+	  };
+
+	  return async (config) => {
+	    let {
+	      url,
+	      method,
+	      data,
+	      signal,
+	      cancelToken,
+	      timeout,
+	      onDownloadProgress,
+	      onUploadProgress,
+	      responseType,
+	      headers,
+	      withCredentials = 'same-origin',
+	      fetchOptions,
+	    } = resolveConfig(config);
+
+	    let _fetch = envFetch || fetch;
+
+	    responseType = responseType ? (responseType + '').toLowerCase() : 'text';
+
+	    let composedSignal = composeSignals(
+	      [signal, cancelToken && cancelToken.toAbortSignal()],
+	      timeout
+	    );
+
+	    let request = null;
+
+	    const unsubscribe =
+	      composedSignal &&
+	      composedSignal.unsubscribe &&
+	      (() => {
+	        composedSignal.unsubscribe();
+	      });
+
+	    let requestContentLength;
+
+	    try {
+	      if (
+	        onUploadProgress &&
+	        supportsRequestStream &&
+	        method !== 'get' &&
+	        method !== 'head' &&
+	        (requestContentLength = await resolveBodyLength(headers, data)) !== 0
+	      ) {
+	        let _request = new Request(url, {
+	          method: 'POST',
+	          body: data,
+	          duplex: 'half',
+	        });
+
+	        let contentTypeHeader;
+
+	        if (utils$1.isFormData(data) && (contentTypeHeader = _request.headers.get('content-type'))) {
+	          headers.setContentType(contentTypeHeader);
+	        }
+
+	        if (_request.body) {
+	          const [onProgress, flush] = progressEventDecorator(
+	            requestContentLength,
+	            progressEventReducer(asyncDecorator(onUploadProgress))
+	          );
+
+	          data = trackStream(_request.body, DEFAULT_CHUNK_SIZE, onProgress, flush);
+	        }
+	      }
+
+	      if (!utils$1.isString(withCredentials)) {
+	        withCredentials = withCredentials ? 'include' : 'omit';
+	      }
+
+	      // Cloudflare Workers throws when credentials are defined
+	      // see https://github.com/cloudflare/workerd/issues/902
+	      const isCredentialsSupported = isRequestSupported && 'credentials' in Request.prototype;
+
+	      const resolvedOptions = {
+	        ...fetchOptions,
+	        signal: composedSignal,
+	        method: method.toUpperCase(),
+	        headers: headers.normalize().toJSON(),
+	        body: data,
+	        duplex: 'half',
+	        credentials: isCredentialsSupported ? withCredentials : undefined,
+	      };
+
+	      request = isRequestSupported && new Request(url, resolvedOptions);
+
+	      let response = await (isRequestSupported
+	        ? _fetch(request, fetchOptions)
+	        : _fetch(url, resolvedOptions));
+
+	      const isStreamResponse =
+	        supportsResponseStream && (responseType === 'stream' || responseType === 'response');
+
+	      if (supportsResponseStream && (onDownloadProgress || (isStreamResponse && unsubscribe))) {
+	        const options = {};
+
+	        ['status', 'statusText', 'headers'].forEach((prop) => {
+	          options[prop] = response[prop];
+	        });
+
+	        const responseContentLength = utils$1.toFiniteNumber(response.headers.get('content-length'));
+
+	        const [onProgress, flush] =
+	          (onDownloadProgress &&
+	            progressEventDecorator(
+	              responseContentLength,
+	              progressEventReducer(asyncDecorator(onDownloadProgress), true)
+	            )) ||
+	          [];
+
+	        response = new Response(
+	          trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
+	            flush && flush();
+	            unsubscribe && unsubscribe();
+	          }),
+	          options
+	        );
+	      }
+
+	      responseType = responseType || 'text';
+
+	      let responseData = await resolvers[utils$1.findKey(resolvers, responseType) || 'text'](
+	        response,
+	        config
+	      );
+
+	      !isStreamResponse && unsubscribe && unsubscribe();
+
+	      return await new Promise((resolve, reject) => {
+	        settle(resolve, reject, {
+	          data: responseData,
+	          headers: AxiosHeaders$1.from(response.headers),
+	          status: response.status,
+	          statusText: response.statusText,
+	          config,
+	          request,
+	        });
+	      });
+	    } catch (err) {
+	      unsubscribe && unsubscribe();
+
+	      if (err && err.name === 'TypeError' && /Load failed|fetch/i.test(err.message)) {
+	        throw Object.assign(
+	          new AxiosError$1(
+	            'Network Error',
+	            AxiosError$1.ERR_NETWORK,
+	            config,
+	            request,
+	            err && err.response
+	          ),
+	          {
+	            cause: err.cause || err,
+	          }
+	        );
+	      }
+
+	      throw AxiosError$1.from(err, err && err.code, config, request, err && err.response);
+	    }
+	  };
+	};
+
+	const seedCache = new Map();
+
+	const getFetch = (config) => {
+	  let env = (config && config.env) || {};
+	  const { fetch, Request, Response } = env;
+	  const seeds = [Request, Response, fetch];
+
+	  let len = seeds.length,
+	    i = len,
+	    seed,
+	    target,
+	    map = seedCache;
+
+	  while (i--) {
+	    seed = seeds[i];
+	    target = map.get(seed);
+
+	    target === undefined && map.set(seed, (target = i ? new Map() : factory(env)));
+
+	    map = target;
+	  }
+
+	  return target;
+	};
+
+	getFetch();
+
+	/**
+	 * Known adapters mapping.
+	 * Provides environment-specific adapters for Axios:
+	 * - `http` for Node.js
+	 * - `xhr` for browsers
+	 * - `fetch` for fetch API-based requests
+	 *
+	 * @type {Object<string, Function|Object>}
+	 */
+	const knownAdapters = {
+	  http: httpAdapter,
+	  xhr: xhrAdapter,
+	  fetch: {
+	    get: getFetch,
+	  },
+	};
+
+	// Assign adapter names for easier debugging and identification
+	utils$1.forEach(knownAdapters, (fn, value) => {
+	  if (fn) {
+	    try {
+	      Object.defineProperty(fn, 'name', { value });
+	    } catch (e) {
+	      // eslint-disable-next-line no-empty
+	    }
+	    Object.defineProperty(fn, 'adapterName', { value });
+	  }
+	});
+
+	/**
+	 * Render a rejection reason string for unknown or unsupported adapters
+	 *
+	 * @param {string} reason
+	 * @returns {string}
+	 */
+	const renderReason = (reason) => `- ${reason}`;
+
+	/**
+	 * Check if the adapter is resolved (function, null, or false)
+	 *
+	 * @param {Function|null|false} adapter
+	 * @returns {boolean}
+	 */
+	const isResolvedHandle = (adapter) =>
+	  utils$1.isFunction(adapter) || adapter === null || adapter === false;
+
+	/**
+	 * Get the first suitable adapter from the provided list.
+	 * Tries each adapter in order until a supported one is found.
+	 * Throws an AxiosError if no adapter is suitable.
+	 *
+	 * @param {Array<string|Function>|string|Function} adapters - Adapter(s) by name or function.
+	 * @param {Object} config - Axios request configuration
+	 * @throws {AxiosError} If no suitable adapter is available
+	 * @returns {Function} The resolved adapter function
+	 */
+	function getAdapter$1(adapters, config) {
+	  adapters = utils$1.isArray(adapters) ? adapters : [adapters];
+
+	  const { length } = adapters;
+	  let nameOrAdapter;
+	  let adapter;
+
+	  const rejectedReasons = {};
+
+	  for (let i = 0; i < length; i++) {
+	    nameOrAdapter = adapters[i];
+	    let id;
+
+	    adapter = nameOrAdapter;
+
+	    if (!isResolvedHandle(nameOrAdapter)) {
+	      adapter = knownAdapters[(id = String(nameOrAdapter)).toLowerCase()];
+
+	      if (adapter === undefined) {
+	        throw new AxiosError$1(`Unknown adapter '${id}'`);
+	      }
+	    }
+
+	    if (adapter && (utils$1.isFunction(adapter) || (adapter = adapter.get(config)))) {
+	      break;
+	    }
+
+	    rejectedReasons[id || '#' + i] = adapter;
+	  }
+
+	  if (!adapter) {
+	    const reasons = Object.entries(rejectedReasons).map(
+	      ([id, state]) =>
+	        `adapter ${id} ` +
+	        (state === false ? 'is not supported by the environment' : 'is not available in the build')
+	    );
+
+	    let s = length
+	      ? reasons.length > 1
+	        ? 'since :\n' + reasons.map(renderReason).join('\n')
+	        : ' ' + renderReason(reasons[0])
+	      : 'as no adapter specified';
+
+	    throw new AxiosError$1(
+	      `There is no suitable adapter to dispatch the request ` + s,
+	      'ERR_NOT_SUPPORT'
+	    );
+	  }
+
+	  return adapter;
+	}
+
+	/**
+	 * Exports Axios adapters and utility to resolve an adapter
+	 */
+	var adapters = {
+	  /**
+	   * Resolve an adapter from a list of adapter names or functions.
+	   * @type {Function}
+	   */
+	  getAdapter: getAdapter$1,
+
+	  /**
+	   * Exposes all known adapters
+	   * @type {Object<string, Function|Object>}
+	   */
+	  adapters: knownAdapters,
+	};
+
+	/**
+	 * Throws a `CanceledError` if cancellation has been requested.
+	 *
+	 * @param {Object} config The config that is to be used for the request
+	 *
+	 * @returns {void}
+	 */
+	function throwIfCancellationRequested(config) {
+	  if (config.cancelToken) {
+	    config.cancelToken.throwIfRequested();
+	  }
+
+	  if (config.signal && config.signal.aborted) {
+	    throw new CanceledError$1(null, config);
+	  }
+	}
+
+	/**
+	 * Dispatch a request to the server using the configured adapter.
+	 *
+	 * @param {object} config The config that is to be used for the request
+	 *
+	 * @returns {Promise} The Promise to be fulfilled
+	 */
+	function dispatchRequest(config) {
+	  throwIfCancellationRequested(config);
+
+	  config.headers = AxiosHeaders$1.from(config.headers);
+
+	  // Transform request data
+	  config.data = transformData.call(config, config.transformRequest);
+
+	  if (['post', 'put', 'patch'].indexOf(config.method) !== -1) {
+	    config.headers.setContentType('application/x-www-form-urlencoded', false);
+	  }
+
+	  const adapter = adapters.getAdapter(config.adapter || defaults.adapter, config);
+
+	  return adapter(config).then(
+	    function onAdapterResolution(response) {
+	      throwIfCancellationRequested(config);
+
+	      // Transform response data
+	      response.data = transformData.call(config, config.transformResponse, response);
+
+	      response.headers = AxiosHeaders$1.from(response.headers);
+
+	      return response;
+	    },
+	    function onAdapterRejection(reason) {
+	      if (!isCancel$1(reason)) {
+	        throwIfCancellationRequested(config);
+
+	        // Transform response data
+	        if (reason && reason.response) {
+	          reason.response.data = transformData.call(
+	            config,
+	            config.transformResponse,
+	            reason.response
+	          );
+	          reason.response.headers = AxiosHeaders$1.from(reason.response.headers);
+	        }
+	      }
+
+	      return Promise.reject(reason);
+	    }
+	  );
+	}
+
+	const VERSION$1 = "1.13.6";
 
 	const validators$1 = {};
 
@@ -9105,15 +17228,23 @@ var app = (function () {
 	 */
 	validators$1.transitional = function transitional(validator, version, message) {
 	  function formatMessage(opt, desc) {
-	    return '[Axios v' + VERSION + '] Transitional option \'' + opt + '\'' + desc + (message ? '. ' + message : '');
+	    return (
+	      '[Axios v' +
+	      VERSION$1 +
+	      "] Transitional option '" +
+	      opt +
+	      "'" +
+	      desc +
+	      (message ? '. ' + message : '')
+	    );
 	  }
 
 	  // eslint-disable-next-line func-names
 	  return (value, opt, opts) => {
 	    if (validator === false) {
-	      throw new AxiosError(
+	      throw new AxiosError$1(
 	        formatMessage(opt, ' has been removed' + (version ? ' in ' + version : '')),
-	        AxiosError.ERR_DEPRECATED
+	        AxiosError$1.ERR_DEPRECATED
 	      );
 	    }
 
@@ -9132,6 +17263,14 @@ var app = (function () {
 	  };
 	};
 
+	validators$1.spelling = function spelling(correctSpelling) {
+	  return (value, opt) => {
+	    // eslint-disable-next-line no-console
+	    console.warn(`${opt} is likely a misspelling of ${correctSpelling}`);
+	    return true;
+	  };
+	};
+
 	/**
 	 * Assert object's properties type
 	 *
@@ -9144,7 +17283,7 @@ var app = (function () {
 
 	function assertOptions(options, schema, allowUnknown) {
 	  if (typeof options !== 'object') {
-	    throw new AxiosError('options must be an object', AxiosError.ERR_BAD_OPTION_VALUE);
+	    throw new AxiosError$1('options must be an object', AxiosError$1.ERR_BAD_OPTION_VALUE);
 	  }
 	  const keys = Object.keys(options);
 	  let i = keys.length;
@@ -9155,19 +17294,22 @@ var app = (function () {
 	      const value = options[opt];
 	      const result = value === undefined || validator(value, opt, options);
 	      if (result !== true) {
-	        throw new AxiosError('option ' + opt + ' must be ' + result, AxiosError.ERR_BAD_OPTION_VALUE);
+	        throw new AxiosError$1(
+	          'option ' + opt + ' must be ' + result,
+	          AxiosError$1.ERR_BAD_OPTION_VALUE
+	        );
 	      }
 	      continue;
 	    }
 	    if (allowUnknown !== true) {
-	      throw new AxiosError('Unknown option ' + opt, AxiosError.ERR_BAD_OPTION);
+	      throw new AxiosError$1('Unknown option ' + opt, AxiosError$1.ERR_BAD_OPTION);
 	    }
 	  }
 	}
 
 	var validator = {
 	  assertOptions,
-	  validators: validators$1
+	  validators: validators$1,
 	};
 
 	const validators = validator.validators;
@@ -9179,12 +17321,12 @@ var app = (function () {
 	 *
 	 * @return {Axios} A new instance of Axios
 	 */
-	class Axios {
+	let Axios$1 = class Axios {
 	  constructor(instanceConfig) {
-	    this.defaults = instanceConfig;
+	    this.defaults = instanceConfig || {};
 	    this.interceptors = {
-	      request: new InterceptorManager$1(),
-	      response: new InterceptorManager$1()
+	      request: new InterceptorManager(),
+	      response: new InterceptorManager(),
 	    };
 	  }
 
@@ -9196,7 +17338,34 @@ var app = (function () {
 	   *
 	   * @returns {Promise} The Promise to be fulfilled
 	   */
-	  request(configOrUrl, config) {
+	  async request(configOrUrl, config) {
+	    try {
+	      return await this._request(configOrUrl, config);
+	    } catch (err) {
+	      if (err instanceof Error) {
+	        let dummy = {};
+
+	        Error.captureStackTrace ? Error.captureStackTrace(dummy) : (dummy = new Error());
+
+	        // slice off the Error: ... line
+	        const stack = dummy.stack ? dummy.stack.replace(/^.+\n/, '') : '';
+	        try {
+	          if (!err.stack) {
+	            err.stack = stack;
+	            // match without the 2 top stack lines
+	          } else if (stack && !String(err.stack).endsWith(stack.replace(/^.+\n.+\n/, ''))) {
+	            err.stack += '\n' + stack;
+	          }
+	        } catch (e) {
+	          // ignore the case where "stack" is an un-writable property
+	        }
+	      }
+
+	      throw err;
+	    }
+	  }
+
+	  _request(configOrUrl, config) {
 	    /*eslint no-param-reassign:0*/
 	    // Allow for axios('example/url'[, config]) a la fetch API
 	    if (typeof configOrUrl === 'string') {
@@ -9206,48 +17375,66 @@ var app = (function () {
 	      config = configOrUrl || {};
 	    }
 
-	    config = mergeConfig(this.defaults, config);
+	    config = mergeConfig$1(this.defaults, config);
 
-	    const {transitional, paramsSerializer, headers} = config;
+	    const { transitional, paramsSerializer, headers } = config;
 
 	    if (transitional !== undefined) {
-	      validator.assertOptions(transitional, {
-	        silentJSONParsing: validators.transitional(validators.boolean),
-	        forcedJSONParsing: validators.transitional(validators.boolean),
-	        clarifyTimeoutError: validators.transitional(validators.boolean)
-	      }, false);
+	      validator.assertOptions(
+	        transitional,
+	        {
+	          silentJSONParsing: validators.transitional(validators.boolean),
+	          forcedJSONParsing: validators.transitional(validators.boolean),
+	          clarifyTimeoutError: validators.transitional(validators.boolean),
+	          legacyInterceptorReqResOrdering: validators.transitional(validators.boolean),
+	        },
+	        false
+	      );
 	    }
 
 	    if (paramsSerializer != null) {
-	      if (utils.isFunction(paramsSerializer)) {
+	      if (utils$1.isFunction(paramsSerializer)) {
 	        config.paramsSerializer = {
-	          serialize: paramsSerializer
+	          serialize: paramsSerializer,
 	        };
 	      } else {
-	        validator.assertOptions(paramsSerializer, {
-	          encode: validators.function,
-	          serialize: validators.function
-	        }, true);
+	        validator.assertOptions(
+	          paramsSerializer,
+	          {
+	            encode: validators.function,
+	            serialize: validators.function,
+	          },
+	          true
+	        );
 	      }
 	    }
+
+	    // Set config.allowAbsoluteUrls
+	    if (config.allowAbsoluteUrls !== undefined) ; else if (this.defaults.allowAbsoluteUrls !== undefined) {
+	      config.allowAbsoluteUrls = this.defaults.allowAbsoluteUrls;
+	    } else {
+	      config.allowAbsoluteUrls = true;
+	    }
+
+	    validator.assertOptions(
+	      config,
+	      {
+	        baseUrl: validators.spelling('baseURL'),
+	        withXsrfToken: validators.spelling('withXSRFToken'),
+	      },
+	      true
+	    );
 
 	    // Set config.method
 	    config.method = (config.method || this.defaults.method || 'get').toLowerCase();
 
-	    let contextHeaders;
-
 	    // Flatten headers
-	    contextHeaders = headers && utils.merge(
-	      headers.common,
-	      headers[config.method]
-	    );
+	    let contextHeaders = headers && utils$1.merge(headers.common, headers[config.method]);
 
-	    contextHeaders && utils.forEach(
-	      ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
-	      (method) => {
+	    headers &&
+	      utils$1.forEach(['delete', 'get', 'head', 'post', 'put', 'patch', 'common'], (method) => {
 	        delete headers[method];
-	      }
-	    );
+	      });
 
 	    config.headers = AxiosHeaders$1.concat(contextHeaders, headers);
 
@@ -9261,7 +17448,15 @@ var app = (function () {
 
 	      synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
 
-	      requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
+	      const transitional = config.transitional || transitionalDefaults;
+	      const legacyInterceptorReqResOrdering =
+	        transitional && transitional.legacyInterceptorReqResOrdering;
+
+	      if (legacyInterceptorReqResOrdering) {
+	        requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
+	      } else {
+	        requestInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
+	      }
 	    });
 
 	    const responseInterceptorChain = [];
@@ -9275,8 +17470,8 @@ var app = (function () {
 
 	    if (!synchronousRequestInterceptors) {
 	      const chain = [dispatchRequest.bind(this), undefined];
-	      chain.unshift.apply(chain, requestInterceptorChain);
-	      chain.push.apply(chain, responseInterceptorChain);
+	      chain.unshift(...requestInterceptorChain);
+	      chain.push(...responseInterceptorChain);
 	      len = chain.length;
 
 	      promise = Promise.resolve(config);
@@ -9291,8 +17486,6 @@ var app = (function () {
 	    len = requestInterceptorChain.length;
 
 	    let newConfig = config;
-
-	    i = 0;
 
 	    while (i < len) {
 	      const onFulfilled = requestInterceptorChain[i++];
@@ -9322,46 +17515,50 @@ var app = (function () {
 	  }
 
 	  getUri(config) {
-	    config = mergeConfig(this.defaults, config);
-	    const fullPath = buildFullPath(config.baseURL, config.url);
+	    config = mergeConfig$1(this.defaults, config);
+	    const fullPath = buildFullPath(config.baseURL, config.url, config.allowAbsoluteUrls);
 	    return buildURL(fullPath, config.params, config.paramsSerializer);
 	  }
-	}
+	};
 
 	// Provide aliases for supported request methods
-	utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
+	utils$1.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
 	  /*eslint func-names:0*/
-	  Axios.prototype[method] = function(url, config) {
-	    return this.request(mergeConfig(config || {}, {
-	      method,
-	      url,
-	      data: (config || {}).data
-	    }));
+	  Axios$1.prototype[method] = function (url, config) {
+	    return this.request(
+	      mergeConfig$1(config || {}, {
+	        method,
+	        url,
+	        data: (config || {}).data,
+	      })
+	    );
 	  };
 	});
 
-	utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+	utils$1.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
 	  /*eslint func-names:0*/
 
 	  function generateHTTPMethod(isForm) {
 	    return function httpMethod(url, data, config) {
-	      return this.request(mergeConfig(config || {}, {
-	        method,
-	        headers: isForm ? {
-	          'Content-Type': 'multipart/form-data'
-	        } : {},
-	        url,
-	        data
-	      }));
+	      return this.request(
+	        mergeConfig$1(config || {}, {
+	          method,
+	          headers: isForm
+	            ? {
+	                'Content-Type': 'multipart/form-data',
+	              }
+	            : {},
+	          url,
+	          data,
+	        })
+	      );
 	    };
 	  }
 
-	  Axios.prototype[method] = generateHTTPMethod();
+	  Axios$1.prototype[method] = generateHTTPMethod();
 
-	  Axios.prototype[method + 'Form'] = generateHTTPMethod(true);
+	  Axios$1.prototype[method + 'Form'] = generateHTTPMethod(true);
 	});
-
-	var Axios$1 = Axios;
 
 	/**
 	 * A `CancelToken` is an object that can be used to request cancellation of an operation.
@@ -9370,7 +17567,7 @@ var app = (function () {
 	 *
 	 * @returns {CancelToken}
 	 */
-	class CancelToken {
+	let CancelToken$1 = class CancelToken {
 	  constructor(executor) {
 	    if (typeof executor !== 'function') {
 	      throw new TypeError('executor must be a function.');
@@ -9385,7 +17582,7 @@ var app = (function () {
 	    const token = this;
 
 	    // eslint-disable-next-line func-names
-	    this.promise.then(cancel => {
+	    this.promise.then((cancel) => {
 	      if (!token._listeners) return;
 
 	      let i = token._listeners.length;
@@ -9397,10 +17594,10 @@ var app = (function () {
 	    });
 
 	    // eslint-disable-next-line func-names
-	    this.promise.then = onfulfilled => {
+	    this.promise.then = (onfulfilled) => {
 	      let _resolve;
 	      // eslint-disable-next-line func-names
-	      const promise = new Promise(resolve => {
+	      const promise = new Promise((resolve) => {
 	        token.subscribe(resolve);
 	        _resolve = resolve;
 	      }).then(onfulfilled);
@@ -9418,7 +17615,7 @@ var app = (function () {
 	        return;
 	      }
 
-	      token.reason = new CanceledError(message, config, request);
+	      token.reason = new CanceledError$1(message, config, request);
 	      resolvePromise(token.reason);
 	    });
 	  }
@@ -9463,6 +17660,20 @@ var app = (function () {
 	    }
 	  }
 
+	  toAbortSignal() {
+	    const controller = new AbortController();
+
+	    const abort = (err) => {
+	      controller.abort(err);
+	    };
+
+	    this.subscribe(abort);
+
+	    controller.signal.unsubscribe = () => this.unsubscribe(abort);
+
+	    return controller.signal;
+	  }
+
 	  /**
 	   * Returns an object that contains a new `CancelToken` and a function that, when called,
 	   * cancels the `CancelToken`.
@@ -9474,12 +17685,10 @@ var app = (function () {
 	    });
 	    return {
 	      token,
-	      cancel
+	      cancel,
 	    };
 	  }
-	}
-
-	var CancelToken$1 = CancelToken;
+	};
 
 	/**
 	 * Syntactic sugar for invoking a function and expanding an array for arguments.
@@ -9488,7 +17697,7 @@ var app = (function () {
 	 *
 	 *  ```js
 	 *  function f(x, y, z) {}
-	 *  var args = [1, 2, 3];
+	 *  const args = [1, 2, 3];
 	 *  f.apply(null, args);
 	 *  ```
 	 *
@@ -9502,7 +17711,7 @@ var app = (function () {
 	 *
 	 * @returns {Function}
 	 */
-	function spread(callback) {
+	function spread$1(callback) {
 	  return function wrap(arr) {
 	    return callback.apply(null, arr);
 	  };
@@ -9515,11 +17724,11 @@ var app = (function () {
 	 *
 	 * @returns {boolean} True if the payload is an error thrown by Axios, otherwise false
 	 */
-	function isAxiosError(payload) {
-	  return utils.isObject(payload) && (payload.isAxiosError === true);
+	function isAxiosError$1(payload) {
+	  return utils$1.isObject(payload) && payload.isAxiosError === true;
 	}
 
-	const HttpStatusCode = {
+	const HttpStatusCode$1 = {
 	  Continue: 100,
 	  SwitchingProtocols: 101,
 	  Processing: 102,
@@ -9583,13 +17792,17 @@ var app = (function () {
 	  LoopDetected: 508,
 	  NotExtended: 510,
 	  NetworkAuthenticationRequired: 511,
+	  WebServerIsDown: 521,
+	  ConnectionTimedOut: 522,
+	  OriginIsUnreachable: 523,
+	  TimeoutOccurred: 524,
+	  SslHandshakeFailed: 525,
+	  InvalidSslCertificate: 526,
 	};
 
-	Object.entries(HttpStatusCode).forEach(([key, value]) => {
-	  HttpStatusCode[value] = key;
+	Object.entries(HttpStatusCode$1).forEach(([key, value]) => {
+	  HttpStatusCode$1[value] = key;
 	});
-
-	var HttpStatusCode$1 = HttpStatusCode;
 
 	/**
 	 * Create an instance of Axios
@@ -9603,34 +17816,34 @@ var app = (function () {
 	  const instance = bind(Axios$1.prototype.request, context);
 
 	  // Copy axios.prototype to instance
-	  utils.extend(instance, Axios$1.prototype, context, {allOwnKeys: true});
+	  utils$1.extend(instance, Axios$1.prototype, context, { allOwnKeys: true });
 
 	  // Copy context to instance
-	  utils.extend(instance, context, null, {allOwnKeys: true});
+	  utils$1.extend(instance, context, null, { allOwnKeys: true });
 
 	  // Factory for creating new instances
 	  instance.create = function create(instanceConfig) {
-	    return createInstance(mergeConfig(defaultConfig, instanceConfig));
+	    return createInstance(mergeConfig$1(defaultConfig, instanceConfig));
 	  };
 
 	  return instance;
 	}
 
 	// Create the default instance to be exported
-	const axios = createInstance(defaults$1);
+	const axios = createInstance(defaults);
 
 	// Expose Axios class to allow class inheritance
 	axios.Axios = Axios$1;
 
 	// Expose Cancel & CancelToken
-	axios.CanceledError = CanceledError;
+	axios.CanceledError = CanceledError$1;
 	axios.CancelToken = CancelToken$1;
-	axios.isCancel = isCancel;
-	axios.VERSION = VERSION;
-	axios.toFormData = toFormData;
+	axios.isCancel = isCancel$1;
+	axios.VERSION = VERSION$1;
+	axios.toFormData = toFormData$1;
 
 	// Expose AxiosError class
-	axios.AxiosError = AxiosError;
+	axios.AxiosError = AxiosError$1;
 
 	// alias for CanceledError for backward compatibility
 	axios.Cancel = axios.CanceledError;
@@ -9640,1137 +17853,1196 @@ var app = (function () {
 	  return Promise.all(promises);
 	};
 
-	axios.spread = spread;
+	axios.spread = spread$1;
 
 	// Expose isAxiosError
-	axios.isAxiosError = isAxiosError;
+	axios.isAxiosError = isAxiosError$1;
 
 	// Expose mergeConfig
-	axios.mergeConfig = mergeConfig;
+	axios.mergeConfig = mergeConfig$1;
 
 	axios.AxiosHeaders = AxiosHeaders$1;
 
-	axios.formToJSON = thing => formDataToJSON(utils.isHTMLForm(thing) ? new FormData(thing) : thing);
+	axios.formToJSON = (thing) => formDataToJSON(utils$1.isHTMLForm(thing) ? new FormData(thing) : thing);
+
+	axios.getAdapter = adapters.getAdapter;
 
 	axios.HttpStatusCode = HttpStatusCode$1;
 
 	axios.default = axios;
 
-	// this module should only have a default export
-	var axios$1 = axios;
+	// This module is intended to unwrap Axios default export as named.
+	// Keep top-level export same with static properties
+	// so that it can keep same with es module or cjs
+	const {
+	  Axios,
+	  AxiosError,
+	  CanceledError,
+	  isCancel,
+	  CancelToken,
+	  VERSION,
+	  all,
+	  Cancel,
+	  isAxiosError,
+	  spread,
+	  toFormData,
+	  AxiosHeaders,
+	  HttpStatusCode,
+	  formToJSON,
+	  getAdapter,
+	  mergeConfig,
+	} = axios;
 
-	const getPackageInfo = (packageName) => {
-		return axios$1
-			.get("https://registry.npmjs.org/" + packageName + "/latest")
-			.then((res) => res.data);
+	const CACHE_TTL = 30 * 60 * 1000; // 30 minutes in-memory cache
+	const cache = new Map(); // name → { data, ts }
+
+	const client = axios.create({
+		baseURL: "https://registry.npmjs.org/",
+		timeout: 10000,
+	});
+
+	/**
+	 * Fetch the latest package info from npm registry with in-memory caching.
+	 */
+	const getPackageInfo = async (packageName) => {
+		const hit = cache.get(packageName);
+		if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
+
+		const { data } = await client.get(`/${encodeURIComponent(packageName)}/latest`);
+		cache.set(packageName, { data, ts: Date.now() });
+		return data;
 	};
 
-	/* src/components/main.svelte generated by Svelte v4.1.2 */
-
-	function get_each_context(ctx, list, i) {
-		const child_ctx = ctx.slice();
-		child_ctx[8] = list[i].id;
-		child_ctx[9] = list[i].name;
-		child_ctx[10] = list[i].current;
-		child_ctx[11] = list[i].dev;
-		child_ctx[12] = list[i].version;
-		child_ctx[13] = list[i].bugs;
-		child_ctx[14] = list[i].homepage;
-		child_ctx[15] = list[i].repository;
-		return child_ctx;
-	}
-
-	// (101:2) {:else}
-	function create_else_block(ctx) {
-		let previous_key = /*currentProjectID*/ ctx[0];
-		let key_block_anchor;
-		let key_block = create_key_block(ctx);
-
-		return {
-			c() {
-				key_block.c();
-				key_block_anchor = empty();
-			},
-			m(target, anchor) {
-				key_block.m(target, anchor);
-				insert(target, key_block_anchor, anchor);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*currentProjectID*/ 1 && safe_not_equal(previous_key, previous_key = /*currentProjectID*/ ctx[0])) {
-					group_outros();
-					transition_out(key_block, 1, 1, noop$1);
-					check_outros();
-					key_block = create_key_block(ctx);
-					key_block.c();
-					transition_in(key_block, 1);
-					key_block.m(key_block_anchor.parentNode, key_block_anchor);
-				} else {
-					key_block.p(ctx, dirty);
-				}
-			},
-			i(local) {
-				transition_in(key_block);
-			},
-			o(local) {
-				transition_out(key_block);
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(key_block_anchor);
-				}
-
-				key_block.d(detaching);
-			}
-		};
-	}
-
-	// (67:2) {#if !currentProject}
-	function create_if_block(ctx) {
-		let section;
-		let img;
-		let img_src_value;
-		let t0;
-		let h1;
-		let t2;
-		let button;
-		let section_transition;
-		let current;
-		let mounted;
-		let dispose;
-
-		return {
-			c() {
-				section = element("section");
-				img = element("img");
-				t0 = space();
-				h1 = element("h1");
-				h1.textContent = "Select Project to start";
-				t2 = space();
-				button = element("button");
-				button.textContent = "Add Project";
-				if (!src_url_equal(img.src, img_src_value = "./images/add.png")) attr(img, "src", img_src_value);
-				attr(img, "width", "300");
-				attr(img, "alt", "");
-				attr(img, "class", "svelte-inm9vu");
-				attr(button, "class", "svelte-inm9vu");
-				attr(section, "class", "empty svelte-inm9vu");
-			},
-			m(target, anchor) {
-				insert(target, section, anchor);
-				append(section, img);
-				append(section, t0);
-				append(section, h1);
-				append(section, t2);
-				append(section, button);
-				current = true;
-
-				if (!mounted) {
-					dispose = listen(button, "click", /*click_handler*/ ctx[4]);
-					mounted = true;
-				}
-			},
-			p: noop$1,
-			i(local) {
-				if (current) return;
-
-				if (local) {
-					add_render_callback(() => {
-						if (!current) return;
-						if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, true);
-						section_transition.run(1);
-					});
-				}
-
-				current = true;
-			},
-			o(local) {
-				if (local) {
-					if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, false);
-					section_transition.run(0);
-				}
-
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(section);
-				}
-
-				if (detaching && section_transition) section_transition.end();
-				mounted = false;
-				dispose();
-			}
-		};
-	}
-
-	// (115:7) {#if packages}
-	function create_if_block_1(ctx) {
-		let each_1_anchor;
-		let each_value = ensure_array_like(/*packages*/ ctx[2]);
-		let each_blocks = [];
-
-		for (let i = 0; i < each_value.length; i += 1) {
-			each_blocks[i] = create_each_block(get_each_context(ctx, each_value, i));
-		}
-
-		return {
-			c() {
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					each_blocks[i].c();
-				}
-
-				each_1_anchor = empty();
-			},
-			m(target, anchor) {
-				for (let i = 0; i < each_blocks.length; i += 1) {
-					if (each_blocks[i]) {
-						each_blocks[i].m(target, anchor);
-					}
-				}
-
-				insert(target, each_1_anchor, anchor);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*packages*/ 4) {
-					each_value = ensure_array_like(/*packages*/ ctx[2]);
-					let i;
-
-					for (i = 0; i < each_value.length; i += 1) {
-						const child_ctx = get_each_context(ctx, each_value, i);
-
-						if (each_blocks[i]) {
-							each_blocks[i].p(child_ctx, dirty);
-						} else {
-							each_blocks[i] = create_each_block(child_ctx);
-							each_blocks[i].c();
-							each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
-						}
-					}
-
-					for (; i < each_blocks.length; i += 1) {
-						each_blocks[i].d(1);
-					}
-
-					each_blocks.length = each_value.length;
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(each_1_anchor);
-				}
-
-				destroy_each(each_blocks, detaching);
-			}
-		};
-	}
-
-	// (132:11) {:else}
-	function create_else_block_2(ctx) {
-		let t0;
-		let t1_value = /*version*/ ctx[12] + "";
-		let t1;
-		let t2;
-
-		return {
-			c() {
-				t0 = text("(Latest ");
-				t1 = text(t1_value);
-				t2 = text(")");
-			},
-			m(target, anchor) {
-				insert(target, t0, anchor);
-				insert(target, t1, anchor);
-				insert(target, t2, anchor);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*packages*/ 4 && t1_value !== (t1_value = /*version*/ ctx[12] + "")) set_data(t1, t1_value);
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(t0);
-					detach(t1);
-					detach(t2);
-				}
-			}
-		};
-	}
-
-	// (123:58) 
-	function create_if_block_8(ctx) {
-		let svg;
-		let path;
-		let polyline;
-
-		return {
-			c() {
-				svg = svg_element("svg");
-				path = svg_element("path");
-				polyline = svg_element("polyline");
-				attr(path, "d", "M22 11.08V12a10 10 0 1 1-5.93-9.14");
-				attr(polyline, "points", "22 4 12 14.01 9 11.01");
-				attr(svg, "class", "projectTable__versionCheck svelte-inm9vu");
-				attr(svg, "viewBox", "0 0 24 24");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-			},
-			m(target, anchor) {
-				insert(target, svg, anchor);
-				append(svg, path);
-				append(svg, polyline);
-			},
-			p: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(svg);
-				}
-			}
-		};
-	}
-
-	// (121:11) {#if !version}
-	function create_if_block_7(ctx) {
-		let span;
-
-		return {
-			c() {
-				span = element("span");
-				attr(span, "class", "skeleton svelte-inm9vu");
-			},
-			m(target, anchor) {
-				insert(target, span, anchor);
-			},
-			p: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(span);
-				}
-			}
-		};
-	}
-
-	// (135:11) {#if dev}
-	function create_if_block_6(ctx) {
-		let t;
-
-		return {
-			c() {
-				t = text("dev");
-			},
-			m(target, anchor) {
-				insert(target, t, anchor);
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(t);
-				}
-			}
-		};
-	}
-
-	// (140:11) {:else}
-	function create_else_block_1(ctx) {
-		let t0;
-		let t1;
-		let a;
-		let svg;
-		let path;
-		let t2;
-		let span;
-		let a_href_value;
-		let t4;
-		let if_block2_anchor;
-		let if_block0 = /*bugs*/ ctx[13] && create_if_block_5(ctx);
-		let if_block1 = /*homepage*/ ctx[14] && create_if_block_4(ctx);
-		let if_block2 = /*repository*/ ctx[15] && create_if_block_3(ctx);
-
-		return {
-			c() {
-				if (if_block0) if_block0.c();
-				t0 = space();
-				if (if_block1) if_block1.c();
-				t1 = space();
-				a = element("a");
-				svg = svg_element("svg");
-				path = svg_element("path");
-				t2 = space();
-				span = element("span");
-				span.textContent = "Npm";
-				t4 = space();
-				if (if_block2) if_block2.c();
-				if_block2_anchor = empty();
-				attr(path, "d", "M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32\n                            21 L 32 10 L 0 10 z M 1.7773438 11.777344 L\n                            8.8886719 11.777344 L 8.890625 11.777344 L 8.890625\n                            19.445312 L 7.1113281 19.445312 L 7.1113281\n                            13.556641 L 5.3339844 13.556641 L 5.3339844\n                            19.445312 L 1.7773438 19.445312 L 1.7773438\n                            11.777344 z M 10.667969 11.777344 L 17.777344\n                            11.777344 L 17.779297 11.777344 L 17.779297\n                            19.443359 L 14.222656 19.443359 L 14.222656\n                            21.222656 L 10.667969 21.222656 L 10.667969\n                            11.777344 z M 19.556641 11.777344 L 30.222656\n                            11.777344 L 30.224609 11.777344 L 30.224609\n                            19.445312 L 28.445312 19.445312 L 28.445312\n                            13.556641 L 26.667969 13.556641 L 26.667969\n                            19.445312 L 24.890625 19.445312 L 24.890625\n                            13.556641 L 23.111328 13.556641 L 23.111328\n                            19.445312 L 19.556641 19.445312 L 19.556641\n                            11.777344 z M 14.222656 13.556641 L 14.222656\n                            17.667969 L 16 17.667969 L 16 13.556641 L 14.222656\n                            13.556641 z");
-				attr(svg, "viewBox", "0 0 32 32");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltipText svelte-inm9vu");
-				attr(a, "class", "projectAction svelte-inm9vu");
-				attr(a, "href", a_href_value = `https://www.npmjs.com/package/${/*name*/ ctx[9]}`);
-				attr(a, "title", "Npm");
-			},
-			m(target, anchor) {
-				if (if_block0) if_block0.m(target, anchor);
-				insert(target, t0, anchor);
-				if (if_block1) if_block1.m(target, anchor);
-				insert(target, t1, anchor);
-				insert(target, a, anchor);
-				append(a, svg);
-				append(svg, path);
-				append(a, t2);
-				append(a, span);
-				insert(target, t4, anchor);
-				if (if_block2) if_block2.m(target, anchor);
-				insert(target, if_block2_anchor, anchor);
-			},
-			p(ctx, dirty) {
-				if (/*bugs*/ ctx[13]) {
-					if (if_block0) {
-						if_block0.p(ctx, dirty);
-					} else {
-						if_block0 = create_if_block_5(ctx);
-						if_block0.c();
-						if_block0.m(t0.parentNode, t0);
-					}
-				} else if (if_block0) {
-					if_block0.d(1);
-					if_block0 = null;
-				}
-
-				if (/*homepage*/ ctx[14]) {
-					if (if_block1) {
-						if_block1.p(ctx, dirty);
-					} else {
-						if_block1 = create_if_block_4(ctx);
-						if_block1.c();
-						if_block1.m(t1.parentNode, t1);
-					}
-				} else if (if_block1) {
-					if_block1.d(1);
-					if_block1 = null;
-				}
-
-				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = `https://www.npmjs.com/package/${/*name*/ ctx[9]}`)) {
-					attr(a, "href", a_href_value);
-				}
-
-				if (/*repository*/ ctx[15]) {
-					if (if_block2) {
-						if_block2.p(ctx, dirty);
-					} else {
-						if_block2 = create_if_block_3(ctx);
-						if_block2.c();
-						if_block2.m(if_block2_anchor.parentNode, if_block2_anchor);
-					}
-				} else if (if_block2) {
-					if_block2.d(1);
-					if_block2 = null;
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(t0);
-					detach(t1);
-					detach(a);
-					detach(t4);
-					detach(if_block2_anchor);
-				}
-
-				if (if_block0) if_block0.d(detaching);
-				if (if_block1) if_block1.d(detaching);
-				if (if_block2) if_block2.d(detaching);
-			}
-		};
-	}
-
-	// (138:11) {#if !bugs && !homepage && !repository}
-	function create_if_block_2(ctx) {
-		let span;
-
-		return {
-			c() {
-				span = element("span");
-				attr(span, "class", "skeleton svelte-inm9vu");
-			},
-			m(target, anchor) {
-				insert(target, span, anchor);
-			},
-			p: noop$1,
-			d(detaching) {
-				if (detaching) {
-					detach(span);
-				}
-			}
-		};
-	}
-
-	// (141:12) {#if bugs}
-	function create_if_block_5(ctx) {
-		let a;
-		let svg;
-		let path;
-		let t0;
-		let span;
-		let a_href_value;
-
-		return {
-			c() {
-				a = element("a");
-				svg = svg_element("svg");
-				path = svg_element("path");
-				t0 = space();
-				span = element("span");
-				span.textContent = "Issues";
-				attr(path, "d", "M1608 897q65 2 122 27.5t99 68.5 66.5 100.5T1920\n                            1216v192h-128v-192q0-32-10.5-61.5t-29-54-44.5-42-57-26.5q6\n                            29 9.5 59.5t3.5 60.5v256q0 7-1 13t-2 13l6-6q60 60 92\n                            138t32 163-32 162.5-92 137.5l-90-90q42-42\n                            64-95.5t22-113.5q0-68-31-132-31 100-90.5 183T1402\n                            1923t-176.5 92-201.5\n                            33-201.5-33-176.5-92-139.5-142-90.5-183q-31 64-31\n                            132 0 60 22 113.5t64 95.5l-90\n                            90q-60-60-92.5-137.5T256 1729t32.5-163 92.5-138l6\n                            6q-1-7-2-13t-1-13v-256q0-30 3.5-60.5t9.5-59.5q-31\n                            9-57 26.5t-44.5 42-29 54T256 1216v192H128v-192q0-65\n                            24.5-122.5T219 993t99-68.5T440 897q31-70\n                            80-135-57-10-105.5-38.5T331 653t-55-94.5T256\n                            448V256h128v192q0 40 15 75t41 61 61 41 75\n                            15h64v3q47-35 96-59-15-32-23.5-66.5T704 448q0-70\n                            31-135L595 173l90-90 127 127q45-39 98.5-60.5T1024\n                            128t113.5 21.5T1236 210l127-127 90 90-140 140q31 65\n                            31 135 0 35-8.5 69.5T1312 584q26 13 49.5 27.5T1408\n                            643v-3h64q40 0 75-15t61-41 41-61 15-75V256h128v192q0\n                            58-20 110.5t-55 94.5-83.5 70.5T1528 762q49 65 80\n                            135zm-584-641q-40 0-75 15t-61 41-41 61-15 75q0 50 24\n                            90 42-11 83.5-17.5t84.5-6.5 84.5 6.5T1192 538q24-40\n                            24-90 0-40-15-75t-41-61-61-41-75-15zm512\n                            896q0-104-41-197t-110.5-163T1222 681t-198-41-198\n                            41-162.5 111T553 955t-41 197v256q0 106 40.5 199t110\n                            162.5 162.5 110 199 40.5 199-40.5 162.5-110\n                            110-162.5 40.5-199v-256z");
-				attr(svg, "viewBox", "0 0 2048 2048");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltipText svelte-inm9vu");
-				attr(a, "class", "projectAction svelte-inm9vu");
-				attr(a, "href", a_href_value = /*bugs*/ ctx[13].url);
-				attr(a, "title", "Issues");
-			},
-			m(target, anchor) {
-				insert(target, a, anchor);
-				append(a, svg);
-				append(svg, path);
-				append(a, t0);
-				append(a, span);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = /*bugs*/ ctx[13].url)) {
-					attr(a, "href", a_href_value);
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(a);
-				}
-			}
-		};
-	}
-
-	// (184:12) {#if homepage}
-	function create_if_block_4(ctx) {
-		let a;
-		let svg;
-		let path;
-		let t0;
-		let span;
-		let a_href_value;
-
-		return {
-			c() {
-				a = element("a");
-				svg = svg_element("svg");
-				path = svg_element("path");
-				t0 = space();
-				span = element("span");
-				span.textContent = "Home Page";
-				attr(path, "d", "M 16 2.59375 L 15.28125 3.28125 L 2.28125\n                            16.28125 L 3.71875 17.71875 L 5 16.4375 L 5 28 L 14\n                            28 L 14 18 L 18 18 L 18 28 L 27 28 L 27 16.4375 L\n                            28.28125 17.71875 L 29.71875 16.28125 L 16.71875\n                            3.28125 Z M 16 5.4375 L 25 14.4375 L 25 26 L 20 26 L\n                            20 16 L 12 16 L 12 26 L 7 26 L 7 14.4375 Z");
-				attr(svg, "viewBox", "0 0 32 32");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltipText svelte-inm9vu");
-				attr(a, "class", "projectAction svelte-inm9vu");
-				attr(a, "href", a_href_value = /*homepage*/ ctx[14]);
-				attr(a, "title", "Home Page");
-			},
-			m(target, anchor) {
-				insert(target, a, anchor);
-				append(a, svg);
-				append(svg, path);
-				append(a, t0);
-				append(a, span);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = /*homepage*/ ctx[14])) {
-					attr(a, "href", a_href_value);
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(a);
-				}
-			}
-		};
-	}
-
-	// (240:12) {#if repository}
-	function create_if_block_3(ctx) {
-		let a;
-		let svg;
-		let g1;
-		let g0;
-		let path;
-		let t0;
-		let span;
-		let a_href_value;
-
-		return {
-			c() {
-				a = element("a");
-				svg = svg_element("svg");
-				g1 = svg_element("g");
-				g0 = svg_element("g");
-				path = svg_element("path");
-				t0 = space();
-				span = element("span");
-				span.textContent = "Repository";
-				attr(path, "d", "M723.9985,560 C710.746,560 700,570.787092\n                                700,584.096644 C700,594.740671 706.876,603.77183\n                                716.4145,606.958412 C717.6145,607.179786\n                                718.0525,606.435849 718.0525,605.797328\n                                C718.0525,605.225068 718.0315,603.710086\n                                718.0195,601.699648 C711.343,603.155898\n                                709.9345,598.469394 709.9345,598.469394\n                                C708.844,595.686405 707.2705,594.94548\n                                707.2705,594.94548 C705.091,593.450075\n                                707.4355,593.480194 707.4355,593.480194\n                                C709.843,593.650366 711.1105,595.963499\n                                711.1105,595.963499 C713.2525,599.645538\n                                716.728,598.58234 718.096,597.964902\n                                C718.3135,596.407754 718.9345,595.346062\n                                719.62,594.743683 C714.2905,594.135281\n                                708.688,592.069123 708.688,582.836167\n                                C708.688,580.205279 709.6225,578.054788\n                                711.1585,576.369634 C710.911,575.759726\n                                710.0875,573.311058 711.3925,569.993458\n                                C711.3925,569.993458 713.4085,569.345902\n                                717.9925,572.46321 C719.908,571.928599\n                                721.96,571.662047 724.0015,571.651505\n                                C726.04,571.662047 728.0935,571.928599\n                                730.0105,572.46321 C734.5915,569.345902\n                                736.603,569.993458 736.603,569.993458\n                                C737.9125,573.311058 737.089,575.759726\n                                736.8415,576.369634 C738.3805,578.054788\n                                739.309,580.205279 739.309,582.836167\n                                C739.309,592.091712 733.6975,594.129257\n                                728.3515,594.725612 C729.2125,595.469549\n                                729.9805,596.939353 729.9805,599.18773\n                                C729.9805,602.408949 729.9505,605.006706\n                                729.9505,605.797328 C729.9505,606.441873\n                                730.3825,607.191834 731.6005,606.9554\n                                C741.13,603.762794 748,594.737659 748,584.096644\n                                C748,570.787092 737.254,560 723.9985,560");
-				attr(g0, "fill", "#000");
-				attr(g0, "transform", "translate(-700.000000, -560.000000)");
-				attr(g1, "fill", "none");
-				attr(g1, "fillrule", "evenodd");
-				attr(g1, "stroke", "none");
-				attr(g1, "strokewidth", "1");
-				attr(svg, "viewBox", "0 0 48 47");
-				attr(svg, "xmlns", "http://www.w3.org/2000/svg");
-				attr(span, "class", "tooltipText svelte-inm9vu");
-				attr(a, "class", "projectAction svelte-inm9vu");
-				attr(a, "href", a_href_value = /*repository*/ ctx[15].url);
-				attr(a, "title", "Repository");
-			},
-			m(target, anchor) {
-				insert(target, a, anchor);
-				append(a, svg);
-				append(svg, g1);
-				append(g1, g0);
-				append(g0, path);
-				append(a, t0);
-				append(a, span);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*packages*/ 4 && a_href_value !== (a_href_value = /*repository*/ ctx[15].url)) {
-					attr(a, "href", a_href_value);
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(a);
-				}
-			}
-		};
-	}
-
-	// (116:8) {#each packages as { id, name, current, dev, version, bugs, homepage, repository }}
-	function create_each_block(ctx) {
-		let tr;
-		let td0;
-		let t0_value = /*name*/ ctx[9] + "";
-		let t0;
-		let t1;
-		let td1;
-		let t2_value = /*current*/ ctx[10] + "";
-		let t2;
-		let t3;
-		let show_if;
-		let t4;
-		let td2;
-		let t5;
-		let td3;
-		let t6;
-		let tr_id_value;
-
-		function select_block_type_1(ctx, dirty) {
-			if (dirty & /*packages*/ 4) show_if = null;
-			if (!/*version*/ ctx[12]) return create_if_block_7;
-			if (show_if == null) show_if = !!(/*current*/ ctx[10].replace("^", "") === /*version*/ ctx[12]);
-			if (show_if) return create_if_block_8;
-			return create_else_block_2;
-		}
-
-		let current_block_type = select_block_type_1(ctx, -1);
-		let if_block0 = current_block_type(ctx);
-		let if_block1 = /*dev*/ ctx[11] && create_if_block_6();
-
-		function select_block_type_2(ctx, dirty) {
-			if (!/*bugs*/ ctx[13] && !/*homepage*/ ctx[14] && !/*repository*/ ctx[15]) return create_if_block_2;
-			return create_else_block_1;
-		}
-
-		let current_block_type_1 = select_block_type_2(ctx);
-		let if_block2 = current_block_type_1(ctx);
-
-		return {
-			c() {
-				tr = element("tr");
-				td0 = element("td");
-				t0 = text(t0_value);
-				t1 = space();
-				td1 = element("td");
-				t2 = text(t2_value);
-				t3 = space();
-				if_block0.c();
-				t4 = space();
-				td2 = element("td");
-				if (if_block1) if_block1.c();
-				t5 = space();
-				td3 = element("td");
-				if_block2.c();
-				t6 = space();
-				attr(td0, "class", "svelte-inm9vu");
-				attr(td1, "class", "svelte-inm9vu");
-				attr(td2, "class", "svelte-inm9vu");
-				attr(td3, "class", "svelte-inm9vu");
-				attr(tr, "id", tr_id_value = `package_${/*id*/ ctx[8]}`);
-				attr(tr, "class", "svelte-inm9vu");
-			},
-			m(target, anchor) {
-				insert(target, tr, anchor);
-				append(tr, td0);
-				append(td0, t0);
-				append(tr, t1);
-				append(tr, td1);
-				append(td1, t2);
-				append(td1, t3);
-				if_block0.m(td1, null);
-				append(tr, t4);
-				append(tr, td2);
-				if (if_block1) if_block1.m(td2, null);
-				append(tr, t5);
-				append(tr, td3);
-				if_block2.m(td3, null);
-				append(tr, t6);
-			},
-			p(ctx, dirty) {
-				if (dirty & /*packages*/ 4 && t0_value !== (t0_value = /*name*/ ctx[9] + "")) set_data(t0, t0_value);
-				if (dirty & /*packages*/ 4 && t2_value !== (t2_value = /*current*/ ctx[10] + "")) set_data(t2, t2_value);
-
-				if (current_block_type === (current_block_type = select_block_type_1(ctx, dirty)) && if_block0) {
-					if_block0.p(ctx, dirty);
-				} else {
-					if_block0.d(1);
-					if_block0 = current_block_type(ctx);
-
-					if (if_block0) {
-						if_block0.c();
-						if_block0.m(td1, null);
-					}
-				}
-
-				if (/*dev*/ ctx[11]) {
-					if (if_block1) ; else {
-						if_block1 = create_if_block_6();
-						if_block1.c();
-						if_block1.m(td2, null);
-					}
-				} else if (if_block1) {
-					if_block1.d(1);
-					if_block1 = null;
-				}
-
-				if (current_block_type_1 === (current_block_type_1 = select_block_type_2(ctx)) && if_block2) {
-					if_block2.p(ctx, dirty);
-				} else {
-					if_block2.d(1);
-					if_block2 = current_block_type_1(ctx);
-
-					if (if_block2) {
-						if_block2.c();
-						if_block2.m(td3, null);
-					}
-				}
-
-				if (dirty & /*packages*/ 4 && tr_id_value !== (tr_id_value = `package_${/*id*/ ctx[8]}`)) {
-					attr(tr, "id", tr_id_value);
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(tr);
-				}
-
-				if_block0.d();
-				if (if_block1) if_block1.d();
-				if_block2.d();
-			}
-		};
-	}
-
-	// (102:3) {#key currentProjectID}
-	function create_key_block(ctx) {
-		let section;
-		let h1;
-		let t0_value = /*currentProject*/ ctx[1].name + "";
-		let t0;
-		let t1;
-		let table;
-		let thead;
-		let t9;
-		let tbody;
-		let section_transition;
-		let current;
-		let if_block = /*packages*/ ctx[2] && create_if_block_1(ctx);
-
-		return {
-			c() {
-				section = element("section");
-				h1 = element("h1");
-				t0 = text(t0_value);
-				t1 = space();
-				table = element("table");
-				thead = element("thead");
-				thead.innerHTML = `<tr class="svelte-inm9vu"><td class="svelte-inm9vu">Package</td> <td class="svelte-inm9vu">Version</td> <td class="svelte-inm9vu">env</td> <td class="svelte-inm9vu">Info</td></tr>`;
-				t9 = space();
-				tbody = element("tbody");
-				if (if_block) if_block.c();
-				attr(h1, "class", "projectTable__title svelte-inm9vu");
-				attr(table, "class", "svelte-inm9vu");
-				attr(section, "class", "projectTable svelte-inm9vu");
-			},
-			m(target, anchor) {
-				insert(target, section, anchor);
-				append(section, h1);
-				append(h1, t0);
-				append(section, t1);
-				append(section, table);
-				append(table, thead);
-				append(table, t9);
-				append(table, tbody);
-				if (if_block) if_block.m(tbody, null);
-				current = true;
-			},
-			p(ctx, dirty) {
-				if ((!current || dirty & /*currentProject*/ 2) && t0_value !== (t0_value = /*currentProject*/ ctx[1].name + "")) set_data(t0, t0_value);
-
-				if (/*packages*/ ctx[2]) {
-					if (if_block) {
-						if_block.p(ctx, dirty);
-					} else {
-						if_block = create_if_block_1(ctx);
-						if_block.c();
-						if_block.m(tbody, null);
-					}
-				} else if (if_block) {
-					if_block.d(1);
-					if_block = null;
-				}
-			},
-			i(local) {
-				if (current) return;
-
-				if (local) {
-					add_render_callback(() => {
-						if (!current) return;
-						if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, true);
-						section_transition.run(1);
-					});
-				}
-
-				current = true;
-			},
-			o(local) {
-				if (local) {
-					if (!section_transition) section_transition = create_bidirectional_transition(section, blur, {}, false);
-					section_transition.run(0);
-				}
-
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(section);
-				}
-
-				if (if_block) if_block.d();
-				if (detaching && section_transition) section_transition.end();
-			}
-		};
-	}
-
-	// (66:1) <SimpleBar maxHeight={"calc(100vh - 20px)"}>
-	function create_default_slot(ctx) {
-		let current_block_type_index;
-		let if_block;
-		let if_block_anchor;
-		const if_block_creators = [create_if_block, create_else_block];
-		const if_blocks = [];
-
-		function select_block_type(ctx, dirty) {
-			if (!/*currentProject*/ ctx[1]) return 0;
-			return 1;
-		}
-
-		current_block_type_index = select_block_type(ctx);
-		if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-
-		return {
-			c() {
-				if_block.c();
-				if_block_anchor = empty();
-			},
-			m(target, anchor) {
-				if_blocks[current_block_type_index].m(target, anchor);
-				insert(target, if_block_anchor, anchor);
-			},
-			p(ctx, dirty) {
-				let previous_block_index = current_block_type_index;
-				current_block_type_index = select_block_type(ctx);
-
-				if (current_block_type_index === previous_block_index) {
-					if_blocks[current_block_type_index].p(ctx, dirty);
-				} else {
-					group_outros();
-
-					transition_out(if_blocks[previous_block_index], 1, 1, () => {
-						if_blocks[previous_block_index] = null;
-					});
-
-					check_outros();
-					if_block = if_blocks[current_block_type_index];
-
-					if (!if_block) {
-						if_block = if_blocks[current_block_type_index] = if_block_creators[current_block_type_index](ctx);
-						if_block.c();
-					} else {
-						if_block.p(ctx, dirty);
-					}
-
-					transition_in(if_block, 1);
-					if_block.m(if_block_anchor.parentNode, if_block_anchor);
-				}
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(if_block_anchor);
-				}
-
-				if_blocks[current_block_type_index].d(detaching);
-			}
-		};
-	}
-
-	function create_fragment$1(ctx) {
-		let div;
-		let simplebar;
-		let t;
-		let toaster;
-		let current;
-
-		simplebar = new SimpleBar_1({
-				props: {
-					maxHeight: "calc(100vh - 20px)",
-					$$slots: { default: [create_default_slot] },
-					$$scope: { ctx }
-				}
-			});
-
-		toaster = new Toaster({});
-
-		return {
-			c() {
-				div = element("div");
-				create_component(simplebar.$$.fragment);
-				t = space();
-				create_component(toaster.$$.fragment);
-				attr(div, "class", "content svelte-inm9vu");
-			},
-			m(target, anchor) {
-				insert(target, div, anchor);
-				mount_component(simplebar, div, null);
-				insert(target, t, anchor);
-				mount_component(toaster, target, anchor);
-				current = true;
-			},
-			p(ctx, [dirty]) {
-				const simplebar_changes = {};
-
-				if (dirty & /*$$scope, $projects, currentProject, currentProjectID, packages*/ 262159) {
-					simplebar_changes.$$scope = { dirty, ctx };
-				}
-
-				simplebar.$set(simplebar_changes);
-			},
-			i(local) {
-				if (current) return;
-				transition_in(simplebar.$$.fragment, local);
-				transition_in(toaster.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(simplebar.$$.fragment, local);
-				transition_out(toaster.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(div);
-					detach(t);
-				}
-
-				destroy_component(simplebar);
-				destroy_component(toaster, detaching);
-			}
-		};
-	}
-
-	function instance($$self, $$props, $$invalidate) {
-		let $projects;
-		component_subscribe($$self, projects, $$value => $$invalidate(3, $projects = $$value));
-		let currentProjectID = false;
-		let currentProject = {};
-		let project = {};
-		let packages = [];
-		let dependencies = [];
-		let devDependencies = [];
-
-		menuActive.subscribe(async value => {
-			$$invalidate(0, currentProjectID = value ? value.split("_")[1] : false);
-
-			$$invalidate(1, currentProject = $projects.filter(item => {
-				return item.id === parseInt(currentProjectID);
-			})[0]);
-
-			if (currentProject) {
-				const data = await getProjectPackages(currentProject.path).then(res => res);
-				project = JSON.parse(data);
-				$$invalidate(2, packages = []);
-
-				dependencies = project.dependencies
-				? Object.entries(project.dependencies)
-				: [];
-
-				devDependencies = project.devDependencies
-				? Object.entries(project.devDependencies)
-				: [];
-
-				let i = 1;
-
-				for await (let item of dependencies) {
-					$$invalidate(2, packages = [
-						...packages,
-						{
-							id: i,
-							name: item[0],
-							current: item[1],
-							dev: false
-						}
-					]);
-
-					i++;
-				}
-
-				for await (let item of devDependencies) {
-					$$invalidate(2, packages = [
-						...packages,
-						{
-							id: i,
-							name: item[0],
-							current: item[1],
-							dev: true
-						}
-					]);
-
-					i++;
-				}
-
+	/**
+	 * Fetch info for many packages concurrently (default 8 at a time).
+	 * Calls onResult(name, data | null) as each response arrives so the UI
+	 * can update incrementally rather than waiting for all requests to finish.
+	 */
+	const fetchPackagesInfo = async (names, onResult, concurrency = 8) => {
+		const queue = [...names];
+
+		const worker = async () => {
+			while (queue.length > 0) {
+				const name = queue.shift();
+				if (!name) break;
 				try {
-					for await (let pack of packages) {
-						const res = await getPackageInfo(pack.name);
-						const objIndex = packages.findIndex(obj => obj.name === pack.name);
-						$$invalidate(2, packages[objIndex] = { ...packages[objIndex], ...res }, packages);
-					}
-				} catch(error) {
-					toast("No Internet!", {
-						icon: "🌐",
-						style: "border-radius: 200px; background: #333; color: #fff;",
-						position: "bottom-center"
-					});
+					const data = await getPackageInfo(name);
+					onResult(name, data);
+				} catch {
+					onResult(name, null);
 				}
+			}
+		};
+
+		await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, worker));
+	};
+
+	PackageEditor[FILENAME] = 'src/components/PackageEditor.svelte';
+
+	var root_1 = add_locations(from_html(`<span class="meta__dot svelte-1awhm8x">·</span> <span class="meta__name svelte-1awhm8x"> </span>`, 1), PackageEditor[FILENAME], [[152, 4], [153, 4]]);
+	var root_2$1 = add_locations(from_html(`<span class="meta__version svelte-1awhm8x"> </span>`), PackageEditor[FILENAME], [[156, 4]]);
+	var root_4$1 = add_locations(from_html(`<span class="spin svelte-1awhm8x"></span> Installing…`, 1), PackageEditor[FILENAME], [[167, 6]]);
+	var root_5$1 = add_locations(from_svg(`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="12" height="12"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"></path></svg> `, 1), PackageEditor[FILENAME], [[169, 6, [[175, 19]]]]);
+	var root_3 = add_locations(from_html(`<button class="install-btn svelte-1awhm8x"><!></button>`), PackageEditor[FILENAME], [[161, 4]]);
+	var root_6 = add_locations(from_html(`<span class="stat stat--loading svelte-1awhm8x"><span class="spin svelte-1awhm8x"></span> </span>`), PackageEditor[FILENAME], [[182, 4, [[183, 5]]]]);
+	var root_7 = add_locations(from_html(`<span class="stat stat--warn svelte-1awhm8x"> </span>`), PackageEditor[FILENAME], [[187, 4]]);
+	var root_8 = add_locations(from_html(`<span class="stat stat--ok svelte-1awhm8x">All up to date</span>`), PackageEditor[FILENAME], [[189, 4]]);
+	var root_9 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"name"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[198, 17, [[199, 5], [199, 52], [201, 12], [201, 53]]]]);
+	var root_10 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"version"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[205, 20, [[206, 5], [206, 55], [209, 12], [209, 56]]]]);
+	var root_11 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"description"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[213, 24, [[214, 5], [214, 59], [217, 12], [217, 60]]]]);
+	var root_14 = add_locations(from_html(`<span class="tok-comma svelte-1awhm8x">,</span>`), PackageEditor[FILENAME], [[234, 57]]);
+	var root_15 = add_locations(from_html(`<span class="badge badge--loading svelte-1awhm8x"><span class="spin-sm svelte-1awhm8x"></span></span>`), PackageEditor[FILENAME], [[237, 48, [[239, 10]]]]);
+	var root_16 = add_locations(from_html(`<span class="badge badge--ok svelte-1awhm8x"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1awhm8x"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), PackageEditor[FILENAME], [[240, 49, [[242, 10, [[247, 11]]]]]]);
+	var root_17 = add_locations(from_html(`<button class="badge badge--update svelte-1awhm8x"> </button>`), PackageEditor[FILENAME], [[249, 53]]);
+	var root_18 = add_locations(from_html(`<span class="badge badge--error svelte-1awhm8x">✕</span>`), PackageEditor[FILENAME], [[253, 16]]);
+	var root_19 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), PackageEditor[FILENAME], [[254, 43, [[258, 10, [[263, 11], [263, 43]]]]]]);
+	var root_20 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Issues"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="5.5" x2="8" y2="8.5"></line><line x1="8" y1="10.5" x2="8.01" y2="10.5"></line></svg></a>`), PackageEditor[FILENAME], [[276, 38, [[280, 10, [[285, 11], [285, 43], [290, 12]]]]]]);
+
+	var root_13 = add_locations(from_html(`<div class="line pkg-line svelte-1awhm8x"><span class="tok-pkg svelte-1awhm8x"> </span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-ver svelte-1awhm8x"> </span><!><span class="pkg-status svelte-1awhm8x"><!><!><a class="link-icon svelte-1awhm8x" title="npm"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1awhm8x"><path d="M0 5h16v6H8v1H5v-1H0zm1 1v4h3V7h1v3h1V6zm5 0v5h2V7h2v4h1V6zm5 0v4h1V7h1v3h1V6z"></path></svg></a><!></span></div>`), PackageEditor[FILENAME], [
+		[
+			229,
+			5,
+			[
+				[230, 6],
+				[230, 67],
+				[233, 13],
+				[236, 13, [[267, 14, [[271, 9, [[272, 10]]]]]]]
+			]
+		]
+	]);
+
+	var root_12 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-section svelte-1awhm8x">&nbsp;&nbsp;"dependencies"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-brace svelte-1awhm8x"></span></div> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span><span class="tok-comma svelte-1awhm8x">,</span></div>`, 1), PackageEditor[FILENAME], [
+		[222, 4, [[223, 5], [223, 64], [226, 12]]],
+		[296, 4, [[297, 5], [297, 53]]]
+	]);
+
+	var root_23 = add_locations(from_html(`<span class="tok-comma svelte-1awhm8x">,</span>`), PackageEditor[FILENAME], [[315, 60]]);
+	var root_24 = add_locations(from_html(`<span class="badge badge--loading svelte-1awhm8x"><span class="spin-sm svelte-1awhm8x"></span></span>`), PackageEditor[FILENAME], [[318, 48, [[320, 10]]]]);
+	var root_25 = add_locations(from_html(`<span class="badge badge--ok svelte-1awhm8x"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1awhm8x"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), PackageEditor[FILENAME], [[321, 49, [[323, 10, [[328, 11]]]]]]);
+	var root_26 = add_locations(from_html(`<button class="badge badge--update svelte-1awhm8x"> </button>`), PackageEditor[FILENAME], [[330, 53]]);
+	var root_27 = add_locations(from_html(`<span class="badge badge--error svelte-1awhm8x">✕</span>`), PackageEditor[FILENAME], [[334, 16]]);
+	var root_28 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), PackageEditor[FILENAME], [[335, 43, [[339, 10, [[344, 11], [344, 43]]]]]]);
+	var root_29 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Issues"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="5.5" x2="8" y2="8.5"></line><line x1="8" y1="10.5" x2="8.01" y2="10.5"></line></svg></a>`), PackageEditor[FILENAME], [[357, 38, [[361, 10, [[366, 11], [366, 43], [371, 12]]]]]]);
+
+	var root_22 = add_locations(from_html(`<div class="line pkg-line svelte-1awhm8x"><span class="tok-pkg svelte-1awhm8x"> </span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-ver tok-ver--dev svelte-1awhm8x"> </span><!><span class="pkg-status svelte-1awhm8x"><!><!><a class="link-icon svelte-1awhm8x" title="npm"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1awhm8x"><path d="M0 5h16v6H8v1H5v-1H0zm1 1v4h3V7h1v3h1V6zm5 0v5h2V7h2v4h1V6zm5 0v4h1V7h1v3h1V6z"></path></svg></a><!></span></div>`), PackageEditor[FILENAME], [
+		[
+			310,
+			5,
+			[
+				[311, 6],
+				[311, 67],
+				[314, 13],
+				[317, 13, [[348, 14, [[352, 9, [[353, 10]]]]]]]
+			]
+		]
+	]);
+
+	var root_21 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-section svelte-1awhm8x">&nbsp;&nbsp;"devDependencies"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-brace svelte-1awhm8x"></span></div> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div>`, 1), PackageEditor[FILENAME], [
+		[303, 4, [[304, 5], [304, 67], [307, 12]]],
+		[377, 4, [[377, 22]]]
+	]);
+
+	var root$2 = add_locations(from_html(`<div class="editor svelte-1awhm8x"><div class="editor__meta svelte-1awhm8x"><div class="editor__metaLeft svelte-1awhm8x"><span class="meta__filename svelte-1awhm8x">package.json</span> <!> <!></div> <div class="editor__metaRight svelte-1awhm8x"><!> <!> <span class="stat stat--total svelte-1awhm8x"> </span></div></div> <div class="editor__body svelte-1awhm8x"><div class="code svelte-1awhm8x"><div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div> <!> <!> <!> <!> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div></div></div></div>`), PackageEditor[FILENAME], [
+		[
+			147,
+			0,
+			[
+				[148, 1, [[149, 2, [[150, 3]]], [159, 2, [[191, 3]]]]],
+				[
+					195,
+					1,
+					[[196, 2, [[197, 3, [[197, 21]]], [379, 3, [[379, 21]]]]]]
+				]
+			]
+		]
+	]);
+
+	function PackageEditor($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true, PackageEditor);
+
+		/**
+		 * Props:
+		 *   project   – { id, name, path }
+		 *   rawJson   – raw string content of package.json
+		 *   onRefresh – callback(newRawJson) called after a version update
+		 */
+		let onRefresh = prop($$props, 'onRefresh', 3, () => {});
+
+		let pkg = tag(
+			user_derived(() => {
+				try {
+					return JSON.parse($$props.rawJson);
+				} catch {
+					return {};
+				}
+			}),
+			'pkg'
+		);
+
+		let infoMap = tag(state(proxy({})), 'infoMap');
+
+		user_effect(() => {
+			// Touch reactive deps
+			$$props.rawJson;
+
+			set(infoMap, {}, true);
+
+			const allNames = [
+				...Object.keys(get$1(pkg).dependencies ?? {}),
+				...Object.keys(get$1(pkg).devDependencies ?? {})
+			];
+
+			if (strict_equals(allNames.length, 0)) return;
+
+			const initial = {};
+
+			for (const n of allNames) initial[n] = { status: "loading" };
+
+			set(infoMap, initial, true);
+
+			fetchPackagesInfo(allNames, (name, data) => {
+				set(
+					infoMap,
+					{
+						...get$1(infoMap),
+						[name]: data
+							? { status: data.version ? "fetched" : "error", ...data }
+							: { status: "error" }
+					},
+					true
+				);
+			});
+		});
+
+		function getStatus(pkgName, currentRaw) {
+			const info = get$1(infoMap)[pkgName];
+
+			if (!info || strict_equals(info.status, "loading")) return "loading";
+			if (strict_equals(info.status, "error")) return "error";
+
+			const latest = info.version;
+
+			if (!latest) return "error";
+
+			const current = currentRaw.replace(/^[^\d]*/, "");
+
+			return strict_equals(current, latest) ? "ok" : "update";
+		}
+
+		function getLatest(pkgName) {
+			return get$1(infoMap)[pkgName]?.version ?? null;
+		}
+
+		async function handleUpdate(pkgName, latestVersion, isDev) {
+			try {
+				const updated = (await track_reactivity_loss(updatePackageVersion($$props.project.path, pkgName, latestVersion, isDev)))();
+
+				toast.success(`Updated ${pkgName}`, { description: `→ ${updated}`, position: "bottom-center" });
+
+				// Re-read file and notify parent so the editor view refreshes
+				try {
+					const newRaw = (await track_reactivity_loss(getProjectPackages($$props.project.path)))();
+
+					onRefresh()(newRaw);
+				} catch {
+					/* ignore read error */
+				}
+
+				set(
+					infoMap,
+					{
+						...get$1(infoMap),
+						[pkgName]: { ...get$1(infoMap)[pkgName], status: "fetched" }
+					},
+					true
+				);
+			} catch(err) {
+				toast.error(`Failed to update ${pkgName}`, { description: err.message, position: "bottom-center" });
+			}
+		}
+
+		let stats = tag(
+			user_derived(() => {
+				let total = 0, outdated = 0, loading = 0;
+
+				for (const [name, raw] of Object.entries(get$1(pkg).dependencies ?? {})) {
+					total++;
+
+					const s = getStatus(name, raw);
+
+					if (strict_equals(s, "loading")) loading++;
+					if (strict_equals(s, "update")) outdated++;
+				}
+
+				for (const [name, raw] of Object.entries(get$1(pkg).devDependencies ?? {})) {
+					total++;
+
+					const s = getStatus(name, raw);
+
+					if (strict_equals(s, "loading")) loading++;
+					if (strict_equals(s, "update")) outdated++;
+				}
+
+				return { total, outdated, loading };
+			}),
+			'stats'
+		);
+
+		let lockStatus = tag(state("ok" // "ok" | "stale" | "missing"
+		), 'lockStatus');
+		let installing = tag(state(false), 'installing');
+
+		user_effect(() => {
+			$$props.rawJson; // re-check when rawJson changes
+
+			if ($$props.project?.path) {
+				set(lockStatus, checkLockFile($$props.project.path), true);
 			}
 		});
 
-		const click_handler = async () => {
-			openDirectory().then(result => {
+		async function handleInstall() {
+			set(installing, true);
+
+			try {
+				(await track_reactivity_loss(runInstall($$props.project.path)))();
+				set(lockStatus, checkLockFile($$props.project.path), true);
+				toast.success("Install complete", { position: "bottom-center" });
+			} catch(err) {
+				toast.error("Install failed", { description: err.message, position: "bottom-center" });
+			} finally {
+				set(installing, false);
+			}
+		}
+
+		var $$exports = { ...legacy_api() };
+		var div = root$2();
+		var div_1 = child(div);
+		var div_2 = child(div_1);
+		var node = sibling(child(div_2), 2);
+
+		{
+			var consequent = ($$anchor) => {
+				var fragment = root_1();
+				var span = sibling(first_child(fragment), 2);
+				var text = child(span);
+				template_effect(() => set_text(text, get$1(pkg).name));
+				append($$anchor, fragment);
+			};
+
+			add_svelte_meta(
+				() => if_block(node, ($$render) => {
+					if (get$1(pkg).name) $$render(consequent);
+				}),
+				'if',
+				PackageEditor,
+				151,
+				3
+			);
+		}
+
+		var node_1 = sibling(node, 2);
+
+		{
+			var consequent_1 = ($$anchor) => {
+				var span_1 = root_2$1();
+				var text_1 = child(span_1);
+				template_effect(() => set_text(text_1, `v${get$1(pkg).version ?? ''}`));
+				append($$anchor, span_1);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_1, ($$render) => {
+					if (get$1(pkg).version) $$render(consequent_1);
+				}),
+				'if',
+				PackageEditor,
+				155,
+				3
+			);
+		}
+
+		var div_3 = sibling(div_2, 2);
+		var node_2 = child(div_3);
+
+		{
+			var consequent_3 = ($$anchor) => {
+				var button = root_3();
+				var node_3 = child(button);
+
+				{
+					var consequent_2 = ($$anchor) => {
+						var fragment_1 = root_4$1();
+						append($$anchor, fragment_1);
+					};
+
+					var alternate = ($$anchor) => {
+						var fragment_2 = root_5$1();
+						var text_2 = sibling(first_child(fragment_2), 1, true);
+
+						template_effect(() => set_text(text_2, strict_equals(get$1(lockStatus), "missing") ? "Install" : "Sync"));
+						append($$anchor, fragment_2);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_3, ($$render) => {
+							if (get$1(installing)) $$render(consequent_2); else $$render(alternate, -1);
+						}),
+						'if',
+						PackageEditor,
+						166,
+						5
+					);
+				}
+				template_effect(() => button.disabled = get$1(installing));
+				delegated('click', button, handleInstall);
+				append($$anchor, button);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_2, ($$render) => {
+					if (strict_equals(get$1(lockStatus), "stale") || strict_equals(get$1(lockStatus), "missing")) $$render(consequent_3);
+				}),
+				'if',
+				PackageEditor,
+				160,
+				3
+			);
+		}
+
+		var node_4 = sibling(node_2, 2);
+
+		{
+			var consequent_4 = ($$anchor) => {
+				var span_2 = root_6();
+				var text_3 = sibling(child(span_2));
+				template_effect(() => set_text(text_3, ` Checking ${get$1(stats).loading ?? ''}…`));
+				append($$anchor, span_2);
+			};
+
+			var consequent_5 = ($$anchor) => {
+				var span_3 = root_7();
+				var text_4 = child(span_3);
+				template_effect(() => set_text(text_4, `${get$1(stats).outdated ?? ''} outdated`));
+				append($$anchor, span_3);
+			};
+
+			var alternate_1 = ($$anchor) => {
+				var span_4 = root_8();
+
+				append($$anchor, span_4);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_4, ($$render) => {
+					if (get$1(stats).loading > 0) $$render(consequent_4); else if (get$1(stats).outdated > 0) $$render(consequent_5, 1); else $$render(alternate_1, -1);
+				}),
+				'if',
+				PackageEditor,
+				181,
+				3
+			);
+		}
+
+		var span_5 = sibling(node_4, 2);
+		var text_5 = child(span_5);
+
+		var div_4 = sibling(div_1, 2);
+		var div_5 = child(div_4);
+		var div_6 = child(div_5);
+		var span_6 = child(div_6);
+
+		span_6.textContent = '{';
+
+		var node_5 = sibling(div_6, 2);
+
+		{
+			var consequent_6 = ($$anchor) => {
+				var div_7 = root_9();
+				var span_7 = sibling(child(div_7), 2);
+				var text_6 = child(span_7);
+				template_effect(() => set_text(text_6, `"${get$1(pkg).name ?? ''}"`));
+				append($$anchor, div_7);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_5, ($$render) => {
+					if (get$1(pkg).name) $$render(consequent_6);
+				}),
+				'if',
+				PackageEditor,
+				198,
+				3
+			);
+		}
+
+		var node_6 = sibling(node_5, 2);
+
+		{
+			var consequent_7 = ($$anchor) => {
+				var div_8 = root_10();
+				var span_8 = sibling(child(div_8), 2);
+				var text_7 = child(span_8);
+				template_effect(() => set_text(text_7, `"${get$1(pkg).version ?? ''}"`));
+				append($$anchor, div_8);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_6, ($$render) => {
+					if (get$1(pkg).version) $$render(consequent_7);
+				}),
+				'if',
+				PackageEditor,
+				205,
+				3
+			);
+		}
+
+		var node_7 = sibling(node_6, 2);
+
+		{
+			var consequent_8 = ($$anchor) => {
+				var div_9 = root_11();
+				var span_9 = sibling(child(div_9), 2);
+				var text_8 = child(span_9);
+				template_effect(() => set_text(text_8, `"${get$1(pkg).description ?? ''}"`));
+				append($$anchor, div_9);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_7, ($$render) => {
+					if (get$1(pkg).description) $$render(consequent_8);
+				}),
+				'if',
+				PackageEditor,
+				213,
+				3
+			);
+		}
+
+		var node_8 = sibling(node_7, 2);
+
+		{
+			var consequent_15 = ($$anchor) => {
+				var fragment_3 = root_12();
+				var div_10 = first_child(fragment_3);
+				var span_10 = sibling(child(div_10), 2);
+
+				span_10.textContent = '{';
+
+				var node_9 = sibling(div_10, 2);
+
+				add_svelte_meta(
+					() => each(node_9, 17, () => Object.entries(get$1(pkg).dependencies), index, ($$anchor, $$item, i) => {
+						var $$array = user_derived(() => to_array(get$1($$item), 2));
+						let name = () => get$1($$array)[0];
+
+						name();
+
+						let ver = () => get$1($$array)[1];
+
+						ver();
+
+						var div_11 = root_13();
+						var span_11 = child(div_11);
+						var text_9 = child(span_11);
+
+						reset(span_11);
+
+						var span_12 = sibling(span_11, 2);
+						var text_10 = child(span_12);
+
+						reset(span_12);
+
+						var node_10 = sibling(span_12);
+
+						{
+							var consequent_9 = ($$anchor) => {
+								var span_13 = root_14();
+
+								append($$anchor, span_13);
+							};
+
+							var d = user_derived(() => i < Object.keys(get$1(pkg).dependencies).length - 1);
+
+							add_svelte_meta(
+								() => if_block(node_10, ($$render) => {
+									if (get$1(d)) $$render(consequent_9);
+								}),
+								'if',
+								PackageEditor,
+								234,
+								7
+							);
+						}
+
+						var span_14 = sibling(node_10);
+						var node_11 = child(span_14);
+
+						{
+							var consequent_10 = ($$anchor) => {
+								var span_15 = root_15();
+
+								append($$anchor, span_15);
+							};
+
+							var d_1 = user_derived(() => strict_equals(getStatus(name(), ver()), "loading"));
+
+							var consequent_11 = ($$anchor) => {
+								var span_16 = root_16();
+								var text_11 = sibling(child(span_16), 1, true);
+
+								reset(span_16);
+								template_effect(($0) => set_text(text_11, $0), [() => getLatest(name())]);
+								append($$anchor, span_16);
+							};
+
+							var d_2 = user_derived(() => strict_equals(getStatus(name(), ver()), "ok"));
+
+							var consequent_12 = ($$anchor) => {
+								var button_1 = root_17();
+								var text_12 = child(button_1);
+
+								reset(button_1);
+								template_effect(($0) => set_text(text_12, `↑ ${$0 ?? ''}`), [() => getLatest(name())]);
+
+								delegated('click', button_1, function click() {
+									return handleUpdate(name(), getLatest(name()), false);
+								});
+
+								append($$anchor, button_1);
+							};
+
+							var d_3 = user_derived(() => strict_equals(getStatus(name(), ver()), "update"));
+
+							var alternate_2 = ($$anchor) => {
+								var span_17 = root_18();
+
+								append($$anchor, span_17);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_11, ($$render) => {
+									if (get$1(d_1)) $$render(consequent_10); else if (get$1(d_2)) $$render(consequent_11, 1); else if (get$1(d_3)) $$render(consequent_12, 2); else $$render(alternate_2, -1);
+								}),
+								'if',
+								PackageEditor,
+								237,
+								8
+							);
+						}
+
+						var node_12 = sibling(node_11);
+
+						{
+							var consequent_13 = ($$anchor) => {
+								var a = root_19();
+
+								template_effect(() => set_attribute(a, 'href', get$1(infoMap)[name()].homepage));
+								append($$anchor, a);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_12, ($$render) => {
+									if (get$1(infoMap)[name()]?.homepage) $$render(consequent_13);
+								}),
+								'if',
+								PackageEditor,
+								254,
+								14
+							);
+						}
+
+						var a_1 = sibling(node_12);
+						var node_13 = sibling(a_1);
+
+						{
+							var consequent_14 = ($$anchor) => {
+								var a_2 = root_20();
+
+								template_effect(() => set_attribute(a_2, 'href', get$1(infoMap)[name()].bugs.url));
+								append($$anchor, a_2);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_13, ($$render) => {
+									if (get$1(infoMap)[name()]?.bugs?.url) $$render(consequent_14);
+								}),
+								'if',
+								PackageEditor,
+								276,
+								8
+							);
+						}
+
+						reset(span_14);
+						reset(div_11);
+
+						template_effect(() => {
+							set_text(text_9, `    "${name() ?? ''}"`);
+							set_text(text_10, `"${ver() ?? ''}"`);
+							set_attribute(a_1, 'href', `https://www.npmjs.com/package/${name()}`);
+						});
+
+						append($$anchor, div_11);
+					}),
+					'each',
+					PackageEditor,
+					228,
+					4
+				);
+
+				var div_12 = sibling(node_9, 2);
+				var span_18 = child(div_12);
+
+				span_18.textContent = '  }';
+				append($$anchor, fragment_3);
+			};
+
+			var d_4 = user_derived(() => get$1(pkg).dependencies && Object.keys(get$1(pkg).dependencies).length > 0);
+
+			add_svelte_meta(
+				() => if_block(node_8, ($$render) => {
+					if (get$1(d_4)) $$render(consequent_15);
+				}),
+				'if',
+				PackageEditor,
+				221,
+				3
+			);
+		}
+
+		var node_14 = sibling(node_8, 2);
+
+		{
+			var consequent_22 = ($$anchor) => {
+				var fragment_4 = root_21();
+				var div_13 = first_child(fragment_4);
+				var span_19 = sibling(child(div_13), 2);
+
+				span_19.textContent = '{';
+
+				var node_15 = sibling(div_13, 2);
+
+				add_svelte_meta(
+					() => each(node_15, 17, () => Object.entries(get$1(pkg).devDependencies), index, ($$anchor, $$item, i) => {
+						var $$array_1 = user_derived(() => to_array(get$1($$item), 2));
+						let name = () => get$1($$array_1)[0];
+
+						name();
+
+						let ver = () => get$1($$array_1)[1];
+
+						ver();
+
+						var div_14 = root_22();
+						var span_20 = child(div_14);
+						var text_13 = child(span_20);
+
+						reset(span_20);
+
+						var span_21 = sibling(span_20, 2);
+						var text_14 = child(span_21);
+
+						reset(span_21);
+
+						var node_16 = sibling(span_21);
+
+						{
+							var consequent_16 = ($$anchor) => {
+								var span_22 = root_23();
+
+								append($$anchor, span_22);
+							};
+
+							var d_5 = user_derived(() => i < Object.keys(get$1(pkg).devDependencies).length - 1);
+
+							add_svelte_meta(
+								() => if_block(node_16, ($$render) => {
+									if (get$1(d_5)) $$render(consequent_16);
+								}),
+								'if',
+								PackageEditor,
+								315,
+								7
+							);
+						}
+
+						var span_23 = sibling(node_16);
+						var node_17 = child(span_23);
+
+						{
+							var consequent_17 = ($$anchor) => {
+								var span_24 = root_24();
+
+								append($$anchor, span_24);
+							};
+
+							var d_6 = user_derived(() => strict_equals(getStatus(name(), ver()), "loading"));
+
+							var consequent_18 = ($$anchor) => {
+								var span_25 = root_25();
+								var text_15 = sibling(child(span_25), 1, true);
+
+								reset(span_25);
+								template_effect(($0) => set_text(text_15, $0), [() => getLatest(name())]);
+								append($$anchor, span_25);
+							};
+
+							var d_7 = user_derived(() => strict_equals(getStatus(name(), ver()), "ok"));
+
+							var consequent_19 = ($$anchor) => {
+								var button_2 = root_26();
+								var text_16 = child(button_2);
+
+								reset(button_2);
+								template_effect(($0) => set_text(text_16, `↑ ${$0 ?? ''}`), [() => getLatest(name())]);
+
+								delegated('click', button_2, function click_1() {
+									return handleUpdate(name(), getLatest(name()), true);
+								});
+
+								append($$anchor, button_2);
+							};
+
+							var d_8 = user_derived(() => strict_equals(getStatus(name(), ver()), "update"));
+
+							var alternate_3 = ($$anchor) => {
+								var span_26 = root_27();
+
+								append($$anchor, span_26);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_17, ($$render) => {
+									if (get$1(d_6)) $$render(consequent_17); else if (get$1(d_7)) $$render(consequent_18, 1); else if (get$1(d_8)) $$render(consequent_19, 2); else $$render(alternate_3, -1);
+								}),
+								'if',
+								PackageEditor,
+								318,
+								8
+							);
+						}
+
+						var node_18 = sibling(node_17);
+
+						{
+							var consequent_20 = ($$anchor) => {
+								var a_3 = root_28();
+
+								template_effect(() => set_attribute(a_3, 'href', get$1(infoMap)[name()].homepage));
+								append($$anchor, a_3);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_18, ($$render) => {
+									if (get$1(infoMap)[name()]?.homepage) $$render(consequent_20);
+								}),
+								'if',
+								PackageEditor,
+								335,
+								14
+							);
+						}
+
+						var a_4 = sibling(node_18);
+						var node_19 = sibling(a_4);
+
+						{
+							var consequent_21 = ($$anchor) => {
+								var a_5 = root_29();
+
+								template_effect(() => set_attribute(a_5, 'href', get$1(infoMap)[name()].bugs.url));
+								append($$anchor, a_5);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_19, ($$render) => {
+									if (get$1(infoMap)[name()]?.bugs?.url) $$render(consequent_21);
+								}),
+								'if',
+								PackageEditor,
+								357,
+								8
+							);
+						}
+
+						reset(span_23);
+						reset(div_14);
+
+						template_effect(() => {
+							set_text(text_13, `    "${name() ?? ''}"`);
+							set_text(text_14, `"${ver() ?? ''}"`);
+							set_attribute(a_4, 'href', `https://www.npmjs.com/package/${name()}`);
+						});
+
+						append($$anchor, div_14);
+					}),
+					'each',
+					PackageEditor,
+					309,
+					4
+				);
+
+				var div_15 = sibling(node_15, 2);
+				var span_27 = child(div_15);
+
+				span_27.textContent = '  }';
+				append($$anchor, fragment_4);
+			};
+
+			var d_9 = user_derived(() => get$1(pkg).devDependencies && Object.keys(get$1(pkg).devDependencies).length > 0);
+
+			add_svelte_meta(
+				() => if_block(node_14, ($$render) => {
+					if (get$1(d_9)) $$render(consequent_22);
+				}),
+				'if',
+				PackageEditor,
+				302,
+				3
+			);
+		}
+
+		var div_16 = sibling(node_14, 2);
+		var span_28 = child(div_16);
+
+		span_28.textContent = '}';
+		template_effect(() => set_text(text_5, `${get$1(stats).total ?? ''} packages`));
+		append($$anchor, div);
+
+		return pop($$exports);
+	}
+
+	delegate(['click']);
+
+	Main[FILENAME] = 'src/components/main.svelte';
+
+	var root_2 = add_locations(from_html(`<section class="empty svelte-ifpaur"><div class="empty__card svelte-ifpaur"><img src="./images/add.png" alt="Add project" class="empty__img svelte-ifpaur"/> <h1 class="empty__title svelte-ifpaur">No Project Selected</h1> <p class="empty__sub svelte-ifpaur">Add a project to view and manage its packages.</p> <button class="empty__btn svelte-ifpaur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-ifpaur"><line x1="12" y1="5" x2="12" y2="19" class="svelte-ifpaur"></line><line x1="5" y1="12" x2="19" y2="12" class="svelte-ifpaur"></line></svg> Add Project</button></div></section>`), Main[FILENAME], [
+		[
+			67,
+			3,
+			[
+				[
+					68,
+					4,
+					[
+						[69, 5],
+						[70, 5],
+						[71, 5],
+						[74, 5, [[75, 6, [[82, 7], [83, 7]]]]]
+					]
+				]
+			]
+		]
+	]);
+
+	var root_5 = add_locations(from_html(`<span class="pkgView__loadingDot svelte-ifpaur"></span>`), Main[FILENAME], [[108, 8]]);
+
+	var root_4 = add_locations(from_html(`<section class="pkgView svelte-ifpaur"><header class="pkgView__header svelte-ifpaur"><div class="pkgView__headerInner svelte-ifpaur"><svg class="pkgView__headerIcon svelte-ifpaur" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" class="svelte-ifpaur"></path></svg> <h1 class="pkgView__title svelte-ifpaur"> </h1> <!></div></header> <!></section>`), Main[FILENAME], [
+		[91, 4, [[92, 5, [[93, 6, [[94, 7, [[102, 8]]], [106, 7]]]]]]]
+	]);
+
+	var root$1 = add_locations(from_html(`<div class="content svelte-ifpaur"><!></div> <!>`, 1), Main[FILENAME], [[64, 0]]);
+
+	function Main($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true, Main);
+
+		const $menuActive = () => (
+			validate_store(menuActive, 'menuActive'),
+			store_get(menuActive, '$menuActive', $$stores)
+		);
+
+		const $projects = () => (
+			validate_store(projects, 'projects'),
+			store_get(projects, '$projects', $$stores)
+		);
+
+		const [$$stores, $$cleanup] = setup_stores();
+		let currentProjectID = tag(state(false), 'currentProjectID');
+		let currentProject = tag(state(undefined), 'currentProject');
+		let rawJson = tag(state(""), 'rawJson');
+		let loading = tag(state(false), 'loading');
+
+		// Track menuActive and projects reactively (Svelte 5 pattern)
+		user_effect(() => {
+			const value = $menuActive();
+
+			set(currentProjectID, value ? value.split("_")[1] : false, true);
+
+			const found = $projects().find((item) => strict_equals(item.id, parseInt(get$1(currentProjectID))));
+
+			set(currentProject, found, true);
+
+			if (found) {
+				loadProject(found.path);
+			} else {
+				set(rawJson, "");
+				set(loading, false);
+			}
+		});
+
+		async function loadProject(projectPath) {
+			set(loading, true);
+
+			try {
+				set(rawJson, (await track_reactivity_loss(getProjectPackages(projectPath)))(), true);
+			} catch {
+				set(rawJson, "");
+			}
+
+			set(loading, false);
+		}
+
+		async function addProject() {
+			try {
+				const result = (await track_reactivity_loss(openDirectory()))();
+
 				if (result.length > 0) {
 					const projectPath = result[0];
-					const projectPathArray = result[0].split("/");
-					const projectName = projectPathArray[projectPathArray.length - 1];
+					const parts = result[0].split("/");
+					const projectName = parts[parts.length - 1];
 
-					projects.set([
-						...$projects,
-						{
-							id: $projects[$projects.length - 1]
-							? $projects[$projects.length - 1].id + 1
-							: 0,
-							name: projectName,
-							path: projectPath
-						}
-					]);
+					projects.update((list) => {
+						const newId = list.length > 0 ? list[list.length - 1].id + 1 : 0;
 
-					localStorage.setItem("projects", JSON.stringify($projects));
+						return [...list, { id: newId, name: projectName, path: projectPath }];
+					});
+
+					localStorage.setItem("projects", JSON.stringify($projects()));
 				}
-			}).catch(err => {
-				console.error(err);
-			});
-		};
-
-		return [currentProjectID, currentProject, packages, $projects, click_handler];
-	}
-
-	class Main extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, instance, create_fragment$1, safe_not_equal, {});
-		}
-	}
-
-	/* src/App.svelte generated by Svelte v4.1.2 */
-
-	function create_fragment(ctx) {
-		let main1;
-		let sidebar;
-		let t;
-		let main0;
-		let current;
-		sidebar = new Sidebar({});
-		main0 = new Main({});
-
-		return {
-			c() {
-				main1 = element("main");
-				create_component(sidebar.$$.fragment);
-				t = space();
-				create_component(main0.$$.fragment);
-				attr(main1, "class", "main svelte-l6fn57");
-			},
-			m(target, anchor) {
-				insert(target, main1, anchor);
-				mount_component(sidebar, main1, null);
-				append(main1, t);
-				mount_component(main0, main1, null);
-				current = true;
-			},
-			p: noop$1,
-			i(local) {
-				if (current) return;
-				transition_in(sidebar.$$.fragment, local);
-				transition_in(main0.$$.fragment, local);
-				current = true;
-			},
-			o(local) {
-				transition_out(sidebar.$$.fragment, local);
-				transition_out(main0.$$.fragment, local);
-				current = false;
-			},
-			d(detaching) {
-				if (detaching) {
-					detach(main1);
-				}
-
-				destroy_component(sidebar);
-				destroy_component(main0);
+			} catch(err) {
+				console.error(...log_if_contains_state('error', err));
 			}
-		};
-	}
-
-	class App extends SvelteComponent {
-		constructor(options) {
-			super();
-			init(this, options, null, create_fragment, safe_not_equal, {});
 		}
+
+		function handleRefresh(newRaw) {
+			set(rawJson, newRaw, true);
+		}
+
+		var $$exports = { ...legacy_api() };
+		var fragment = root$1();
+		var div = first_child(fragment);
+		var node = child(div);
+
+		add_svelte_meta(
+			() => SimpleBar_1(node, {
+				maxHeight: "calc(100vh)",
+				children: wrap_snippet(Main, ($$anchor, $$slotProps) => {
+					var fragment_1 = comment();
+					var node_1 = first_child(fragment_1);
+
+					{
+						var consequent = ($$anchor) => {
+							var section = root_2();
+							var div_1 = child(section);
+							var button = sibling(child(div_1), 6);
+
+							reset(div_1);
+							reset(section);
+							delegated('click', button, addProject);
+							transition(3, section, () => blur, () => ({ duration: 200 }));
+							append($$anchor, section);
+						};
+
+						var alternate = ($$anchor) => {
+							var fragment_2 = comment();
+							var node_2 = first_child(fragment_2);
+
+							add_svelte_meta(
+								() => key(node_2, () => get$1(currentProjectID), ($$anchor) => {
+									var section_1 = root_4();
+									var header = child(section_1);
+									var div_2 = child(header);
+									var h1 = sibling(child(div_2), 2);
+									var text = child(h1, true);
+
+									reset(h1);
+
+									var node_3 = sibling(h1, 2);
+
+									{
+										var consequent_1 = ($$anchor) => {
+											var span = root_5();
+
+											append($$anchor, span);
+										};
+
+										add_svelte_meta(
+											() => if_block(node_3, ($$render) => {
+												if (get$1(loading)) $$render(consequent_1);
+											}),
+											'if',
+											Main,
+											107,
+											7
+										);
+									}
+
+									reset(div_2);
+									reset(header);
+
+									var node_4 = sibling(header, 2);
+
+									add_svelte_meta(
+										() => PackageEditor(node_4, {
+											get project() {
+												return get$1(currentProject);
+											},
+
+											get rawJson() {
+												return get$1(rawJson);
+											},
+											onRefresh: handleRefresh
+										}),
+										'component',
+										Main,
+										113,
+										5,
+										{ componentTag: 'PackageEditor' }
+									);
+
+									reset(section_1);
+									template_effect(() => set_text(text, get$1(currentProject).name));
+									transition(3, section_1, () => blur, () => ({ duration: 200 }));
+									append($$anchor, section_1);
+								}),
+								'key',
+								Main,
+								90,
+								3
+							);
+
+							append($$anchor, fragment_2);
+						};
+
+						add_svelte_meta(
+							() => if_block(node_1, ($$render) => {
+								if (!get$1(currentProject)) $$render(consequent); else $$render(alternate, -1);
+							}),
+							'if',
+							Main,
+							66,
+							2
+						);
+					}
+
+					append($$anchor, fragment_1);
+				}),
+				$$slots: { default: true }
+			}),
+			'component',
+			Main,
+			65,
+			1,
+			{ componentTag: 'SimpleBar' }
+		);
+
+		var node_5 = sibling(div, 2);
+
+		add_svelte_meta(() => Toaster(node_5, { position: 'bottom-center', theme: 'dark', richColors: true }), 'component', Main, 123, 0, { componentTag: 'Toaster' });
+		append($$anchor, fragment);
+
+		var $$pop = pop($$exports);
+
+		$$cleanup();
+
+		return $$pop;
 	}
 
-	const app = new App({
+	delegate(['click']);
+
+	App[FILENAME] = 'src/App.svelte';
+
+	var root = add_locations(from_html(`<div class="app svelte-1n46o8q"><!> <!></div>`), App[FILENAME], [[6, 0]]);
+
+	function App($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false, App);
+
+		var $$exports = { ...legacy_api() };
+		var div = root();
+		var node = child(div);
+
+		add_svelte_meta(() => Sidebar(node, {}), 'component', App, 7, 1, { componentTag: 'Sidebar' });
+
+		var node_1 = sibling(node, 2);
+
+		add_svelte_meta(() => Main(node_1, {}), 'component', App, 8, 1, { componentTag: 'Main' });
+		append($$anchor, div);
+
+		return pop($$exports);
+	}
+
+	// Set platform class for CSS-based platform-specific styling
+	document.body.setAttribute("data-platform", process.platform);
+
+	const app = mount(App, {
 		target: document.body,
 	});
 
 	return app;
 
-})();
+})(require("util"), require("fs"), require("path"), require("child_process"), require("electron"));
 //# sourceMappingURL=bundle.js.map

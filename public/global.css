@@ -1,378 +1,170 @@
+/* =============================================
+   npMax – Liquid Glass Design System
+   ============================================= */
+
+/* ---------- Design Tokens ------------------- */
+:root {
+  /* Glass layers */
+  --glass-ultra:    rgba(255, 255, 255, 0.04);
+  --glass-light:    rgba(255, 255, 255, 0.07);
+  --glass-medium:   rgba(255, 255, 255, 0.11);
+  --glass-strong:   rgba(255, 255, 255, 0.16);
+
+  /* Borders */
+  --border-subtle:  rgba(255, 255, 255, 0.10);
+  --border-light:   rgba(255, 255, 255, 0.16);
+  --border-strong:  rgba(255, 255, 255, 0.28);
+
+  /* Shadows */
+  --shadow-sm:  0 2px 8px rgba(0,0,0,.25);
+  --shadow-md:  0 4px 20px rgba(0,0,0,.35);
+  --shadow-lg:  0 8px 40px rgba(0,0,0,.45);
+  --shadow-inner: inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(0,0,0,.12);
+
+  /* Blur */
+  --blur-xs:  blur(6px);
+  --blur-sm:  blur(12px);
+  --blur-md:  blur(20px);
+  --blur-lg:  blur(32px);
+  --blur-xl:  blur(48px);
+
+  /* Text */
+  --text-primary:   rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-muted:     rgba(255, 255, 255, 0.28);
+
+  /* Accent */
+  --accent:         #5B9CF6;
+  --accent-hover:   #7AB3FF;
+  --accent-glow:    rgba(91, 156, 246, 0.35);
+  --accent-subtle:  rgba(91, 156, 246, 0.12);
+
+  /* Destructive */
+  --danger:         rgba(255, 80, 80, 0.85);
+  --danger-glow:    rgba(255, 80, 80, 0.25);
+
+  /* Radius */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  /* Transition */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 0.15s var(--ease);
+  --transition-base: 0.25s var(--ease);
+  --transition-slow: 0.4s  var(--ease);
+
+  /* App structure */
+  --sidebar-width: 240px;
+  --titlebar-height: 44px;
+}
+
+/* ---------- Platform overrides -------------- */
+
+/* macOS – native vibrancy handles the blur; keep CSS layers minimal */
+body[data-platform="darwin"] {
+  --app-bg:         transparent;
+  --sidebar-bg:     rgba(255, 255, 255, 0.04);
+  --content-bg:     rgba(0, 0, 0, 0.38);
+  --blur-amount:    saturate(180%); /* no extra blur – OS provides it */
+}
+
+/* Windows 11 – Acrylic behind the window, CSS glass on top */
+body[data-platform="win32"] {
+  --app-bg:         rgba(18, 18, 30, 0.72);
+  --sidebar-bg:     rgba(255, 255, 255, 0.06);
+  --content-bg:     rgba(12, 12, 22, 0.68);
+  --blur-amount:    blur(28px) saturate(200%);
+}
+
+/* Linux – pure CSS glass morphism */
+body[data-platform="linux"] {
+  --app-bg:         rgba(14, 14, 24, 0.78);
+  --sidebar-bg:     rgba(255, 255, 255, 0.07);
+  --content-bg:     rgba(10, 10, 20, 0.72);
+  --blur-amount:    blur(24px) saturate(190%);
+}
+
+/* Fallback for unknown platforms */
+body:not([data-platform="darwin"]):not([data-platform="win32"]):not([data-platform="linux"]) {
+  --app-bg:         rgba(14, 14, 24, 0.82);
+  --sidebar-bg:     rgba(255, 255, 255, 0.07);
+  --content-bg:     rgba(10, 10, 20, 0.72);
+  --blur-amount:    blur(24px) saturate(180%);
+}
+
+/* ---------- Reset & Base -------------------- */
 @font-face {
   font-family: Lato;
   font-style: normal;
-  font-weight: 900;
-  src: url("./fonts/Lato-Regular.eot");
-  src: url("./fonts/Lato-Regular.eot?#iefix") format("embedded-opentype"),
-    url("./fonts/Lato-Regular.woff2") format("woff2"),
-    url("./fonts/Lato-Regular.woff") format("woff"),
-    url("./fonts/Lato-Regular.ttf") format("truetype");
+  font-weight: 400;
+  src: url("./fonts/Lato-Regular.woff2") format("woff2"),
+       url("./fonts/Lato-Regular.woff") format("woff"),
+       url("./fonts/Lato-Regular.ttf") format("truetype");
 }
 
-/*! normalize.css v8.0.1 | MIT License | github.com/necolas/normalize.css */
-
-/* Document
-   ========================================================================== */
-
-/**
- * 1. Correct the line height in all browsers.
- * 2. Prevent adjustments of font size after orientation changes in iOS.
- */
-
 html {
-  line-height: 1.15; /* 1 */
-  -webkit-text-size-adjust: 100%; /* 2 */
+  line-height: 1.15;
+  -webkit-text-size-adjust: 100%;
   box-sizing: border-box;
 }
 
-*,
-*:before,
-*:after {
+*, *::before, *::after {
   box-sizing: inherit;
+  margin: 0;
+  padding: 0;
 }
 
-*:focus {
-  outline: none !important;
-}
-
-/* Sections
-   ========================================================================== */
-
-/**
- * Remove the margin in all browsers.
- */
+*:focus { outline: none; }
 
 body {
   margin: 0;
-  font-family: Helvetica;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable",
+               "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  background: var(--app-bg, transparent);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  user-select: none;
 }
 
-/**
- * Render the `main` element consistently in IE.
- */
+/* ---------- Scrollbar ----------------------- */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.18);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.30); }
 
-main {
-  display: block;
+/* ---------- Typography ---------------------- */
+h1, h2, h3 { font-weight: 600; color: var(--text-primary); }
+a { color: inherit; text-decoration: none; background-color: transparent; }
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: 100%;
+  line-height: 1.15;
+}
+button { cursor: pointer; }
+img { border-style: none; display: block; }
+
+/* ---------- Shared glass utilities ---------- */
+.glass {
+  background: var(--glass-light);
+  backdrop-filter: var(--blur-amount, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--blur-amount, blur(20px) saturate(180%));
+  border: 1px solid var(--border-subtle);
 }
 
-ul {
-  padding: 0;
-}
-
-/**
- * Correct the font size and margin on `h1` elements within `section` and
- * `article` contexts in Chrome, Firefox, and Safari.
- */
-
-h1 {
-  font-size: 2em;
-  margin: 0.67em 0;
-}
-
-/* Grouping content
-   ========================================================================== */
-
-/**
- * 1. Add the correct box sizing in Firefox.
- * 2. Show the overflow in Edge and IE.
- */
-
-hr {
-  box-sizing: content-box; /* 1 */
-  height: 0; /* 1 */
-  overflow: visible; /* 2 */
-}
-
-/**
- * 1. Correct the inheritance and scaling of font size in all browsers.
- * 2. Correct the odd `em` font sizing in all browsers.
- */
-
-pre {
-  font-family: monospace, monospace; /* 1 */
-  font-size: 1em; /* 2 */
-}
-
-/* Text-level semantics
-   ========================================================================== */
-
-/**
- * Remove the gray background on active links in IE 10.
- */
-
-a {
-  background-color: transparent;
-}
-
-/**
- * 1. Remove the bottom border in Chrome 57-
- * 2. Add the correct text decoration in Chrome, Edge, IE, Opera, and Safari.
- */
-
-abbr[title] {
-  border-bottom: none; /* 1 */
-  text-decoration: underline; /* 2 */
-  text-decoration: underline dotted; /* 2 */
-}
-
-/**
- * Add the correct font weight in Chrome, Edge, and Safari.
- */
-
-b,
-strong {
-  font-weight: bolder;
-}
-
-/**
- * 1. Correct the inheritance and scaling of font size in all browsers.
- * 2. Correct the odd `em` font sizing in all browsers.
- */
-
-code,
-kbd,
-samp {
-  font-family: monospace, monospace; /* 1 */
-  font-size: 1em; /* 2 */
-}
-
-/**
- * Add the correct font size in all browsers.
- */
-
-small {
-  font-size: 80%;
-}
-
-/**
- * Prevent `sub` and `sup` elements from affecting the line height in
- * all browsers.
- */
-
-sub,
-sup {
-  font-size: 75%;
-  line-height: 0;
-  position: relative;
-  vertical-align: baseline;
-}
-
-sub {
-  bottom: -0.25em;
-}
-
-sup {
-  top: -0.5em;
-}
-
-/* Embedded content
-   ========================================================================== */
-
-/**
- * Remove the border on images inside links in IE 10.
- */
-
-img {
-  border-style: none;
-}
-
-/* Forms
-   ========================================================================== */
-
-/**
- * 1. Change the font styles in all browsers.
- * 2. Remove the margin in Firefox and Safari.
- */
-
-button,
-input,
-optgroup,
-select,
-textarea {
-  font-family: inherit; /* 1 */
-  font-size: 100%; /* 1 */
-  line-height: 1.15; /* 1 */
-  margin: 0; /* 2 */
-}
-
-/**
- * Show the overflow in IE.
- * 1. Show the overflow in Edge.
- */
-
-button,
-input {
-  /* 1 */
-  overflow: visible;
-}
-
-/**
- * Remove the inheritance of text transform in Edge, Firefox, and IE.
- * 1. Remove the inheritance of text transform in Firefox.
- */
-
-button,
-select {
-  /* 1 */
-  text-transform: none;
-}
-
-/**
- * Correct the inability to style clickable types in iOS and Safari.
- */
-
-button,
-[type="button"],
-[type="reset"],
-[type="submit"] {
-  -webkit-appearance: button;
-}
-
-/**
- * Remove the inner border and padding in Firefox.
- */
-
-button::-moz-focus-inner,
-[type="button"]::-moz-focus-inner,
-[type="reset"]::-moz-focus-inner,
-[type="submit"]::-moz-focus-inner {
-  border-style: none;
-  padding: 0;
-}
-
-/**
- * Restore the focus styles unset by the previous rule.
- */
-
-button:-moz-focusring,
-[type="button"]:-moz-focusring,
-[type="reset"]:-moz-focusring,
-[type="submit"]:-moz-focusring {
-  outline: 1px dotted ButtonText;
-}
-
-/**
- * Correct the padding in Firefox.
- */
-
-fieldset {
-  padding: 0.35em 0.75em 0.625em;
-}
-
-/**
- * 1. Correct the text wrapping in Edge and IE.
- * 2. Correct the color inheritance from `fieldset` elements in IE.
- * 3. Remove the padding so developers are not caught out when they zero out
- *    `fieldset` elements in all browsers.
- */
-
-legend {
-  box-sizing: border-box; /* 1 */
-  color: inherit; /* 2 */
-  display: table; /* 1 */
-  max-width: 100%; /* 1 */
-  padding: 0; /* 3 */
-  white-space: normal; /* 1 */
-}
-
-/**
- * Add the correct vertical alignment in Chrome, Firefox, and Opera.
- */
-
-progress {
-  vertical-align: baseline;
-}
-
-/**
- * Remove the default vertical scrollbar in IE 10+.
- */
-
-textarea {
-  overflow: auto;
-}
-
-/**
- * 1. Add the correct box sizing in IE 10.
- * 2. Remove the padding in IE 10.
- */
-
-[type="checkbox"],
-[type="radio"] {
-  box-sizing: border-box; /* 1 */
-  padding: 0; /* 2 */
-}
-
-/**
- * Correct the cursor style of increment and decrement buttons in Chrome.
- */
-
-[type="number"]::-webkit-inner-spin-button,
-[type="number"]::-webkit-outer-spin-button {
-  height: auto;
-}
-
-/**
- * 1. Correct the odd appearance in Chrome and Safari.
- * 2. Correct the outline style in Safari.
- */
-
-[type="search"] {
-  -webkit-appearance: textfield; /* 1 */
-  outline-offset: -2px; /* 2 */
-}
-
-/**
- * Remove the inner padding in Chrome and Safari on macOS.
- */
-
-[type="search"]::-webkit-search-decoration {
-  -webkit-appearance: none;
-}
-
-/**
- * 1. Correct the inability to style clickable types in iOS and Safari.
- * 2. Change font properties to `inherit` in Safari.
- */
-
-::-webkit-file-upload-button {
-  -webkit-appearance: button; /* 1 */
-  font: inherit; /* 2 */
-}
-
-/* Interactive
-   ========================================================================== */
-
-/*
- * Add the correct display in Edge, IE 10+, and Firefox.
- */
-
-details {
-  display: block;
-}
-
-/*
- * Add the correct display in all browsers.
- */
-
-summary {
-  display: list-item;
-}
-
-/* Misc
-   ========================================================================== */
-
-/**
- * Add the correct display in IE 10+.
- */
-
-template {
-  display: none;
-}
-
-/**
- * Add the correct display in IE 10.
- */
-
-[hidden] {
-  display: none;
+.glass-card {
+  background: var(--glass-medium);
+  backdrop-filter: var(--blur-amount, blur(20px) saturate(180%));
+  -webkit-backdrop-filter: var(--blur-amount, blur(20px) saturate(180%));
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md), var(--shadow-inner);
 }

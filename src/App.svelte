@@ -3,18 +3,19 @@
 	import Main from "./components/main.svelte";
 </script>
 
-<main class="main">
+<div class="app">
 	<Sidebar />
 	<Main />
-</main>
+</div>
 
-<style type="text/scss">
-	.main {
-		min-height: 100vh;
-		height: 100%;
+<style lang="scss">
+	.app {
+		width: 100vw;
+		height: 100vh;
 		display: flex;
-		overflow: hidden;
 		flex-direction: row;
 		align-items: stretch;
+		overflow: hidden;
+		position: relative;
 	}
 </style>

@@ -11,54 +11,68 @@ import childProcess from "child_process";
 
 const production = !process.env.ROLLUP_WATCH;
 
+// Node built-ins and Electron must remain as require() calls at runtime
+const builtins = [
+	"electron",
+	"child_process",
+	"fs",
+	"path",
+	"util",
+	"os",
+	"events",
+	"stream",
+	"buffer",
+	"crypto",
+];
+
 export default {
+	external: builtins,
 	input: "src/main.js",
 	output: {
 		sourcemap: true,
 		format: "iife",
 		name: "app",
 		file: "public/build/bundle.js",
+		globals: Object.fromEntries(builtins.map((m) => [m, `require("${m}")`])),
 	},
 	plugins: [
 		postcss({
-			extract: true,
-			// Or with custom file name
 			extract: path.resolve("public/build/bundle.css"),
 		}),
 		svelte({
 			preprocess: autoPreprocess(),
-			// enable run-time checks when not in production
-			dev: !production,
-			// we'll extract any component CSS out into
-			// a separate file - better for performance
-			// css: (css) => {
-			//   css.write("public/build/bundle.css");
-			// },
+			compilerOptions: {
+				dev: !production,
+			},
 		}),
 
-		// If you have external dependencies installed from
-		// npm, you'll most likely need these plugins. In
-		// some cases you'll need additional configuration -
-		// consult the documentation for details:
-		// https://github.com/rollup/plugins/tree/master/packages/commonjs
 		resolve({
 			browser: true,
 			dedupe: ["svelte"],
+			exportConditions: ["svelte"],
 		}),
 		commonjs(),
 
-		// In dev mode, call `npm run start` once
-		// the bundle has been generated
 		!production && serve(),
-
-		// Watch the `public` directory and refresh the
-		// browser on changes when not in production
 		!production && livereload("public"),
-		// If we're building for production (npm run build
-		// instead of npm run dev), minify
 		production && terser(),
 		filesize(),
 	],
+	onwarn: (warning, warn) => {
+		// Suppress circular dependency warnings from Svelte internals and node_modules
+		if (
+			warning.code === "CIRCULAR_DEPENDENCY" &&
+			warning.ids?.some((id) => id.includes("node_modules"))
+		)
+			return;
+		// Suppress Svelte plugin warnings originating from node_modules packages
+		if (
+			warning.plugin === "svelte" &&
+			warning.filename?.includes("node_modules")
+		)
+			return;
+		warn(warning);
+	},
 	watch: {
 		clearScreen: false,
 	},

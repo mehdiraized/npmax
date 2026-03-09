@@ -3,12 +3,10 @@
 	import SimpleBar from "simplebar";
 	import "simplebar/dist/simplebar.css";
 
-	export let maxHeight = "300px";
-	let container;
-	let scrollElement;
-	let contentElement;
+	let { maxHeight = "300px", children } = $props();
+	let container = $state();
 
-	onMount(async () => {
+	onMount(() => {
 		new SimpleBar(container);
 	});
 </script>
@@ -16,24 +14,24 @@
 <div style="max-height: {maxHeight}" bind:this={container}>
 	<div class="simplebar-wrapper">
 		<div class="simplebar-height-auto-observer-wrapper">
-			<div class="simplebar-height-auto-observer" />
+			<div class="simplebar-height-auto-observer"></div>
 		</div>
 		<div class="simplebar-mask">
 			<div class="simplebar-offset">
-				<div class="simplebar-content-wrapper" bind:this={scrollElement}>
-					<div class="simplebar-content" bind:this={contentElement}>
-						<slot />
+				<div class="simplebar-content-wrapper">
+					<div class="simplebar-content">
+						{@render children?.()}
 					</div>
 				</div>
 			</div>
 		</div>
-		<div class="simplebar-placeholder" />
+		<div class="simplebar-placeholder"></div>
 	</div>
 	<div class="simplebar-track simplebar-horizontal">
-		<div class="simplebar-scrollbar" />
+		<div class="simplebar-scrollbar"></div>
 	</div>
 	<div class="simplebar-track simplebar-vertical">
-		<div class="simplebar-scrollbar" />
+		<div class="simplebar-scrollbar"></div>
 	</div>
 </div>
 

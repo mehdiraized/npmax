@@ -1,6 +1,10 @@
+import { mount } from "svelte";
 import App from "./App.svelte";
 
-const app = new App({
+// Set platform class for CSS-based platform-specific styling
+document.body.setAttribute("data-platform", process.platform);
+
+const app = mount(App, {
 	target: document.body,
 });
 
