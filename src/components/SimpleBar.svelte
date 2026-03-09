@@ -3,8 +3,8 @@
 	import SimpleBar from "simplebar";
 	import "simplebar/dist/simplebar.css";
 
-	let { maxHeight = "300px", children } = $props();
-	let container = $state();
+	export let maxHeight = "300px";
+	let container;
 
 	onMount(() => {
 		new SimpleBar(container);
@@ -20,7 +20,7 @@
 			<div class="simplebar-offset">
 				<div class="simplebar-content-wrapper">
 					<div class="simplebar-content">
-						{@render children?.()}
+						<slot />
 					</div>
 				</div>
 			</div>
