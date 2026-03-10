@@ -34,7 +34,13 @@
 		"build": "rollup -c --bundleConfigAsCjs",
 		"pack": "electron-builder --dir",
 		"dist": "electron-builder",
-		"dist-all": "electron-builder -mwl"
+		"dist-all": "electron-builder -mwl",
+		"prepare": "husky"
+	},
+	"lint-staged": {
+		"*.js": [
+			"node --check"
+		]
 	},
 	"build": {
 		"productName": "npMax",
@@ -92,6 +98,12 @@
 				}
 			]
 		},
+		"nsis": {
+			"artifactName": "${productName}.Setup.${version}.${ext}"
+		},
+		"portable": {
+			"artifactName": "${productName}.${version}.${ext}"
+		},
 		"win": {
 			"target": [
 				{
@@ -124,12 +136,16 @@
 		}
 	},
 	"devDependencies": {
+		"@commitlint/cli": "^19.8.1",
+		"@commitlint/config-conventional": "^19.8.1",
 		"@rollup/plugin-commonjs": "^29.0.2",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@rollup/plugin-terser": "^0.4.4",
 		"concurrently": "^9.2.1",
 		"electron": "^35.7.5",
 		"electron-builder": "^26.8.1",
+		"husky": "^9.1.7",
+		"lint-staged": "^15.5.2",
 		"postcss": "^8.5.3",
 		"rollup": "^4.30.1",
 		"rollup-plugin-filesize": "^10.0.0",
