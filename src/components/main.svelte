@@ -3,12 +3,18 @@
 	import { Toaster } from "svelte-sonner";
 	import SimpleBar from "../components/SimpleBar.svelte";
 	import PackageEditor from "../components/PackageEditor.svelte";
+	import ComposerEditor from "../components/ComposerEditor.svelte";
 	import { projects, menuActive } from "../store";
-	import { openDirectory, getProjectPackages } from "../utils/shell.js";
+	import {
+		openDirectory,
+		getProjectPackages,
+		getProjectComposerPackages,
+	} from "../utils/shell.js";
 
 	let currentProjectID = $state(false);
 	let currentProject = $state(undefined);
 	let rawJson = $state("");
+	let projectType = $state("npm"); // "npm" | "composer"
 	let loading = $state(false);
 
 	// Track menuActive and projects reactively (Svelte 5 pattern)
@@ -31,7 +37,14 @@
 	async function loadProject(projectPath) {
 		loading = true;
 		try {
-			rawJson = await getProjectPackages(projectPath);
+			// Try composer.json first; fall back to package.json
+			try {
+				rawJson = await getProjectComposerPackages(projectPath);
+				projectType = "composer";
+			} catch {
+				rawJson = await getProjectPackages(projectPath);
+				projectType = "npm";
+			}
 		} catch {
 			rawJson = "";
 		}
@@ -110,11 +123,19 @@
 						</div>
 					</header>
 
-					<PackageEditor
-						project={currentProject}
-						{rawJson}
-						onRefresh={handleRefresh}
-					/>
+					{#if projectType === "composer"}
+						<ComposerEditor
+							project={currentProject}
+							{rawJson}
+							onRefresh={handleRefresh}
+						/>
+					{:else}
+						<PackageEditor
+							project={currentProject}
+							{rawJson}
+							onRefresh={handleRefresh}
+						/>
+					{/if}
 				</section>
 			{/key}
 		{/if}

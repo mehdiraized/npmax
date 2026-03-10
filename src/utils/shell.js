@@ -81,21 +81,93 @@ const SHELL =
 
 const EXEC_OPTS = { timeout: 15000, shell: SHELL };
 
-/** Returns installed versions of npm, yarn, pnpm (false if not found). */
+/** Returns installed versions of npm, yarn, pnpm, composer (false if not found). */
 export const globalPackages = async () => {
-	const [npm, yarn, pnpm] = await Promise.allSettled([
+	const [npm, yarn, pnpm, composer] = await Promise.allSettled([
 		npmVersion(),
 		yarnVersion(),
 		pnpmVersion(),
+		composerVersion(),
 	]);
 	return {
 		npm: npm.status === "fulfilled" ? npm.value : false,
 		yarn: yarn.status === "fulfilled" ? yarn.value : false,
 		pnpm: pnpm.status === "fulfilled" ? pnpm.value : false,
+		composer: composer.status === "fulfilled" ? composer.value : false,
 	};
 };
 
 export const openDirectory = async () => ipcRenderer.invoke("show-open-dialog");
+
+/** Read a project's composer.json and return the raw JSON string. */
+export const getProjectComposerPackages = (projectPath) =>
+	readFile(join(projectPath, "composer.json"), "utf-8");
+
+/**
+ * Write an updated version back into the project's composer.json.
+ * Preserves the original version constraint prefix (^, ~, >=, etc.).
+ * Returns the new version string, or null on failure.
+ */
+export const updateComposerPackageVersion = async (
+	projectPath,
+	packageName,
+	latestVersion,
+	isDev,
+) => {
+	const composerPath = join(projectPath, "composer.json");
+	const raw = await readFile(composerPath, "utf-8");
+	const composer = JSON.parse(raw);
+
+	const section = isDev ? "require-dev" : "require";
+	if (!composer[section]?.[packageName]) return null;
+
+	const prefix = (composer[section][packageName].match(/^[^\d]*/) ?? ["^"])[0];
+	const updated = prefix + latestVersion;
+	composer[section][packageName] = updated;
+
+	await writeFile(
+		composerPath,
+		JSON.stringify(composer, null, 4) + "\n",
+		"utf-8",
+	);
+	return updated;
+};
+
+/**
+ * Check composer.lock status for a project.
+ * Returns: "ok" | "stale" | "missing"
+ */
+export const checkComposerLockFile = (projectPath) => {
+	const composerPath = join(projectPath, "composer.json");
+	const lockPath = join(projectPath, "composer.lock");
+
+	try {
+		fs.accessSync(lockPath);
+	} catch {
+		return "missing";
+	}
+
+	try {
+		const composerMtime = fs.statSync(composerPath).mtimeMs;
+		const lockMtime = fs.statSync(lockPath).mtimeMs;
+		return composerMtime > lockMtime ? "stale" : "ok";
+	} catch {
+		return "missing";
+	}
+};
+
+/**
+ * Run `composer install` in the project directory.
+ * Returns the stdout on success.
+ */
+export const runComposerInstall = async (projectPath) => {
+	const { stdout } = await exec("composer install", {
+		...EXEC_OPTS,
+		cwd: projectPath,
+		timeout: 120000,
+	});
+	return stdout;
+};
 
 /** Read a project's package.json and return the raw JSON string. */
 export const getProjectPackages = (projectPath) =>
@@ -213,6 +285,16 @@ const pnpmVersion = async () => {
 	try {
 		const { stdout } = await exec("pnpm --version", EXEC_OPTS);
 		return stdout.trim();
+	} catch {
+		return false;
+	}
+};
+
+const composerVersion = async () => {
+	try {
+		const { stdout } = await exec("composer --version --no-ansi", EXEC_OPTS);
+		const match = stdout.match(/(\d+\.\d+\.\d+)/);
+		return match ? match[1] : stdout.trim();
 	} catch {
 		return false;
 	}

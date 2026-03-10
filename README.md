@@ -2,21 +2,51 @@
 
 ![screenshot-npMax-package-manager](https://mehdiraized.github.io/npmax/dist/images/coverApp.png)
 
-The Open Source npm desktop GUI.
+The Open Source desktop GUI for npm, yarn, pnpm, and **Composer** packages.
 
-Runs on Linux, MacOS and Windows..
+Runs on Linux, macOS and Windows.
 
-## Download Npmax
+## Download npMax v2.0.0
 
-**[Download for MacOS Arm](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-arm64.dmg)**
+### macOS
+**[Download for macOS Apple Silicon (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npMax-2.0.0-arm64.dmg)**
 
-**[Download for MacOS x64](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2.dmg)**
+**[Download for macOS Intel (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npMax-2.0.0.dmg)**
 
-**[Download for Linux](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-arm64.AppImage)**
+### Windows
+**[Download Installer for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npMax.Setup.2.0.0.exe)**
 
-**[Download for Windows](https://github.com/mehdiraized/npmax/releases/download/v1.0.2/npMax-1.0.2-win.zip)** &nbsp;
+**[Download Portable for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npMax.2.0.0.exe)**
+
+### Linux
+**[Download AppImage (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npMax-2.0.0.AppImage)**
+
+**[Download AppImage (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npMax-2.0.0-arm64.AppImage)**
+
+**[Download .deb (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npmax_2.0.0_amd64.deb)**
+
+**[Download .deb (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.0.0/npmax_2.0.0_arm64.deb)**
 
 [All Releases](https://github.com/mehdiraized/npmax/releases/)
+
+## Features
+
+- View and manage **npm**, **yarn**, and **pnpm** packages from a `package.json`
+- View and manage **Composer** (PHP) packages from a `composer.json`
+- Detect outdated packages with live version checks against the npm registry and Packagist
+- One-click version updates with semver prefix preservation (`^`, `~`, etc.)
+- Lock file status indicator with Install / Sync button
+- Supports multiple projects in a sidebar
+- Cross-platform: macOS, Linux, Windows
+
+### Composer support
+
+npMax automatically detects whether your project uses `composer.json` (PHP/Composer) or `package.json` (Node.js) and displays the appropriate editor. For Composer projects:
+
+- Fetches the latest stable version of each package from [Packagist](https://packagist.org)
+- Skips platform requirements (`php`, `ext-*`, `lib-*`) — only real packages are checked
+- Preserves your version constraint prefix on update (`^`, `~`, `>=`, etc.)
+- Detects `composer.lock` status and offers a one-click `composer install`
 
 ## Contributing
 
@@ -24,16 +54,12 @@ Install the dependencies...
 
 ```bash
 npm install
-or
-yarn install
 ```
 
 ...then start
 
 ```bash
 npm run dev
-or
-yarn dev
 ```
 
 Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting a Pull Request to the project.
@@ -52,6 +78,4 @@ To create an optimized version of the app:
 
 ```bash
 npm run dist
-or
-yarn dist
 ```

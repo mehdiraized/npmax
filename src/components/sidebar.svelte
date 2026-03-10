@@ -7,6 +7,7 @@
 	import NpmIcon from "../icons/npm.svelte";
 	import PnpmIcon from "../icons/pnpm.svelte";
 	import YarnIcon from "../icons/yarn.svelte";
+	import ComposerIcon from "../icons/composer.svelte";
 
 	let packages = $state({});
 
@@ -149,7 +150,7 @@
 		</button>
 	</div>
 	<!-- Global package managers -->
-	{#if packages.npm || packages.yarn || packages.pnpm}
+	{#if packages.npm || packages.yarn || packages.pnpm || packages.composer}
 		<section
 			class="sidebarSection"
 			style="padding-left: 8px;padding-right: 8px; padding-bottom: 8px;"
@@ -176,6 +177,13 @@
 					<figure class="pkgItem__icon"><PnpmIcon /></figure>
 					<span class="pkgItem__name">pnpm</span>
 					<span class="pkgItem__badge">{packages.pnpm.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.composer}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><ComposerIcon /></figure>
+					<span class="pkgItem__name">composer</span>
+					<span class="pkgItem__badge">{packages.composer.trim()}</span>
 				</div>
 			{/if}
 		</section>
