@@ -96,7 +96,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-artifacts
-          path: releases/*.dmg
+          path: |
+            releases/*.dmg
+            releases/latest-mac.yml
           if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -137,7 +139,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
-          path: releases/*.exe
+          path: |
+            releases/*.exe
+            releases/latest.yml
           if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -194,6 +198,7 @@ jobs:
           path: |
             releases/*.AppImage
             releases/*.deb
+            releases/latest-linux.yml
           if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -238,6 +243,10 @@ jobs:
           prerelease: false
           make_latest: true
           files: |
-            artifacts/mac-artifacts/*
-            artifacts/windows-artifacts/*
-            artifacts/linux-artifacts/*
+            artifacts/mac-artifacts/*.dmg
+            artifacts/mac-artifacts/latest-mac.yml
+            artifacts/windows-artifacts/*.exe
+            artifacts/windows-artifacts/latest.yml
+            artifacts/linux-artifacts/*.AppImage
+            artifacts/linux-artifacts/*.deb
+            artifacts/linux-artifacts/latest-linux.yml

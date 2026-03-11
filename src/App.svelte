@@ -1,11 +1,13 @@
 <script>
 	import Sidebar from "./components/sidebar.svelte";
 	import Main from "./components/main.svelte";
+	import UpdateNotification from "./components/UpdateNotification.svelte";
 </script>
 
 <div class="app">
 	<Sidebar />
 	<Main />
+	<UpdateNotification />
 </div>
 
 <style lang="scss">

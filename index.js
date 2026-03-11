@@ -7,6 +7,7 @@ const {
 	dialog,
 	ipcMain,
 } = require("electron");
+const { autoUpdater } = require("electron-updater");
 
 let appIcon = null;
 let window = null;
@@ -78,8 +79,46 @@ ipcMain.handle("show-open-dialog", async () => {
 	return result.filePaths;
 });
 
+ipcMain.on("download-update", () => {
+	autoUpdater.downloadUpdate();
+});
+
+ipcMain.on("install-update", () => {
+	autoUpdater.quitAndInstall();
+});
+
+function setupAutoUpdater() {
+	autoUpdater.autoDownload = false;
+	autoUpdater.autoInstallOnAppQuit = true;
+
+	autoUpdater.on("update-available", (info) => {
+		window.webContents.send("update-available", info);
+	});
+
+	autoUpdater.on("download-progress", (progress) => {
+		window.webContents.send("update-download-progress", progress);
+	});
+
+	autoUpdater.on("update-downloaded", () => {
+		window.webContents.send("update-downloaded");
+	});
+
+	autoUpdater.on("error", (err) => {
+		console.error("Auto-updater error:", err.message);
+	});
+
+	// Check for updates 5 seconds after startup
+	setTimeout(() => {
+		autoUpdater.checkForUpdates().catch((err) => {
+			console.error("Update check failed:", err.message);
+		});
+	}, 5000);
+}
+
 app.whenReady().then(() => {
 	createWindow();
+
+	setupAutoUpdater();
 
 	appIcon = new Tray(`${__dirname}/public/favicon.png`);
 
