@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.0] - 2026-03-11
+
+### ✨ Features
+
+- implement auto-update functionality with notification component ([e6ecb16](https://github.com/mehdiraized/npmax/commit/e6ecb16))
+
+---
+
 ## [2.2.0] - 2026-03-11
 
 ### ✨ Features
