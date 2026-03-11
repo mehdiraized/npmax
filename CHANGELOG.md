@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.1] - 2026-03-11
+
+### 🐛 Bug Fixes
+
+- landing and update version ([1919c43](https://github.com/mehdiraized/npmax/commit/1919c43))
+
+---
+
 ## [2.7.0] - 2026-03-11
 
 ### ✨ Features
