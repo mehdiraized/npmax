@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           # Use a PAT if you need to push to a protected branch.
@@ -35,7 +35,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
 
@@ -71,12 +71,12 @@ jobs:
 
     steps:
       - name: Checkout (updated master)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -88,7 +88,7 @@ jobs:
         run: npm run build
 
       - name: Package for macOS
-        run: npm run dist
+        run: npm run dist -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -114,12 +114,12 @@ jobs:
 
     steps:
       - name: Checkout (updated master)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -131,7 +131,7 @@ jobs:
         run: npm run build
 
       - name: Package for Windows
-        run: npm run dist
+        run: npm run dist -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -157,12 +157,12 @@ jobs:
 
     steps:
       - name: Checkout (updated master)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -189,7 +189,7 @@ jobs:
         run: npm run build
 
       - name: Package for Linux
-        run: npm run dist
+        run: npm run dist -- --publish never
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -214,7 +214,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
 

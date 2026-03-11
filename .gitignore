@@ -1,5 +1,6 @@
 node_modules/
 .tmp/
+.claude/
 etc/
 .DS_Store
 npm-debug.log
