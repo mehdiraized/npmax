@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.9.0] - 2026-03-11
+
+### ✨ Features
+
+- add step to collect release artifacts before creating GitHub release ([f487e0d](https://github.com/mehdiraized/npmax/commit/f487e0d))
+- adjust layout and styling for product cards and media sections ([bc46f54](https://github.com/mehdiraized/npmax/commit/bc46f54))
+
+### 🐛 Bug Fixes
+
+- enhance landing page layout and styling for improved user experience ([f0ef14f](https://github.com/mehdiraized/npmax/commit/f0ef14f))
+
+---
+
 ## [2.8.0] - 2026-03-11
 
 ### ✨ Features
