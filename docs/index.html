@@ -247,7 +247,7 @@
 			.hero-panel {
 				position: relative;
 				overflow: hidden;
-				padding: 26px 26px 0;
+				padding: 26px;
 				border: 1px solid var(--surface-border);
 				border-radius: var(--radius-xxl);
 				background:
@@ -287,10 +287,10 @@
 
 			.hero-media-image {
 				display: block;
-				width: calc(100% + 120px);
+				width: calc(100% + 140px);
 				max-width: none;
 				margin-top: 10px;
-				margin-left: -58px;
+				margin-left: -70px;
 				transform: none;
 				box-shadow: none;
 			}
@@ -299,7 +299,7 @@
 				display: grid;
 				grid-template-columns: repeat(2, minmax(0, 1fr));
 				gap: 16px;
-				margin-top: -30px;
+				margin-top: 18px;
 				position: relative;
 				z-index: 2;
 			}
@@ -426,6 +426,7 @@
 				grid-template-columns: repeat(12, minmax(0, 1fr));
 				gap: 22px;
 				margin-top: 22px;
+				align-items: stretch;
 			}
 
 			.product-card {
@@ -433,7 +434,7 @@
 				overflow: hidden;
 				display: flex;
 				flex-direction: column;
-				min-height: 280px;
+				min-height: 250px;
 				padding: 30px;
 				border-radius: 30px;
 				background:
@@ -465,8 +466,7 @@
 
 			.product-card--hero {
 				grid-column: span 7;
-				min-height: 560px;
-				padding-bottom: 0;
+				min-height: 500px;
 				background:
 					radial-gradient(circle at top left, rgba(22, 119, 230, 0.18), transparent 32%),
 					linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 249, 252, 0.98));
@@ -478,10 +478,6 @@
 
 			.product-card--half {
 				grid-column: span 4;
-			}
-
-			.product-card--tall {
-				min-height: 360px;
 			}
 
 			.product-card--soft {
@@ -521,6 +517,9 @@
 
 			.product-media {
 				margin-top: auto;
+				display: flex;
+				align-items: flex-end;
+				justify-content: flex-end;
 			}
 
 			.product-media img {
@@ -529,22 +528,52 @@
 			}
 
 			.product-screenshot-wrap {
-				margin-top: 34px;
-				padding-top: 10px;
+				margin-top: 28px;
+				padding-top: 4px;
 			}
 
 			.product-screenshot {
-				width: calc(100% + 180px);
+				width: calc(100% + 120px);
 				max-width: none;
-				margin-left: -86px;
+				margin-left: -60px;
 				border-radius: 28px 28px 0 0;
 				filter: drop-shadow(0 20px 42px rgba(15, 23, 40, 0.14));
 			}
 
 			.product-asset {
-				width: min(240px, 72%);
-				margin-top: 30px;
+				width: min(180px, 58%);
+				margin-top: 26px;
 				align-self: flex-end;
+				opacity: 0.95;
+			}
+
+			.product-foot {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				margin-top: 22px;
+			}
+
+			.product-pill {
+				display: inline-flex;
+				align-items: center;
+				padding: 8px 12px;
+				border-radius: 999px;
+				background: var(--surface-muted);
+				border: 1px solid var(--surface-border);
+				font-size: 13px;
+				font-weight: 600;
+				color: var(--text-soft);
+			}
+
+			.product-mini-list {
+				margin: 18px 0 0;
+				padding-left: 18px;
+			}
+
+			.product-mini-list li {
+				margin-bottom: 8px;
+				font-size: 15px;
 			}
 
 			.product-list {
@@ -1042,7 +1071,7 @@
 										/>
 									</div>
 								</article>
-								<article class="product-card product-card--wide product-card--tall product-card--soft is-revealing">
+								<article class="product-card product-card--wide product-card--soft is-revealing">
 									<div class="product-eyebrow">Multi ecosystem support</div>
 									<h3>npm, yarn, pnpm, and Composer in one interface.</h3>
 									<p>
@@ -1050,6 +1079,12 @@
 										<code>package.json</code> or <code>composer.json</code> and shows
 										the correct editor immediately.
 									</p>
+									<div class="product-foot">
+										<span class="product-pill">npm</span>
+										<span class="product-pill">yarn</span>
+										<span class="product-pill">pnpm</span>
+										<span class="product-pill">Composer</span>
+									</div>
 									<div class="product-media">
 										<img
 											class="product-asset asset-light"
@@ -1070,6 +1105,10 @@
 										Review installed versions against the latest stable release data
 										before changing anything in your project.
 									</p>
+									<ul class="product-mini-list">
+										<li>npm registry lookups for Node packages</li>
+										<li>Packagist checks for Composer dependencies</li>
+									</ul>
 									<div class="product-media">
 										<img
 											class="product-asset asset-light"
@@ -1090,6 +1129,11 @@
 										Quick updates remain aligned with the versioning style already used
 										in the repository.
 									</p>
+									<div class="product-foot">
+										<span class="product-pill">Preserves ^</span>
+										<span class="product-pill">Preserves ~</span>
+										<span class="product-pill">Safer quick edits</span>
+									</div>
 								</article>
 								<article class="product-card product-card--half is-revealing">
 									<div class="product-eyebrow">Lock file status</div>
@@ -1098,6 +1142,11 @@
 										npMax indicates whether your lock file is stale and surfaces the
 										right next step for the selected project.
 									</p>
+									<div class="product-foot">
+										<span class="product-pill">package-lock.json</span>
+										<span class="product-pill">yarn.lock</span>
+										<span class="product-pill">pnpm-lock.yaml</span>
+									</div>
 								</article>
 								<article class="product-card product-card--half is-revealing">
 									<div class="product-eyebrow">Project sidebar</div>
@@ -1119,6 +1168,10 @@
 										requirements, and keeps the editing flow consistent with Node
 										projects.
 									</p>
+									<div class="product-foot">
+										<span class="product-pill">Skips php/ext/lib entries</span>
+										<span class="product-pill">Stable release resolution</span>
+									</div>
 								</article>
 								<article class="product-card product-card--half is-revealing">
 									<div class="product-eyebrow">Cross platform</div>
@@ -1127,6 +1180,11 @@
 										One interface and one product story across the desktop platforms
 										most development teams already use.
 									</p>
+									<div class="product-foot">
+										<span class="product-pill">macOS</span>
+										<span class="product-pill">Windows</span>
+										<span class="product-pill">Linux</span>
+									</div>
 									<div class="product-media">
 										<img
 											class="product-asset asset-light"
