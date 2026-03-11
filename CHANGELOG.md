@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.0] - 2026-03-11
+
+### ✨ Features
+
+- refactor simplebar and update sidebar styles ([ab6d657](https://github.com/mehdiraized/npmax/commit/ab6d657))
+
+---
+
 ## [2.6.0] - 2026-03-11
 
 ### ✨ Features
