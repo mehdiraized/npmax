@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.1] - 2026-03-11
+
+### 🐛 Bug Fixes
+
+- code structure for improved readability and maintainability ([69d7e50](https://github.com/mehdiraized/npmax/commit/69d7e50))
+
+---
+
 ## [2.3.0] - 2026-03-11
 
 ### ✨ Features
