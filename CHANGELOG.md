@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.0] - 2026-03-11
+
+### ✨ Features
+
+- enhance release workflow to conditionally create GitHub release and extract changelog ([51bc1cb](https://github.com/mehdiraized/npmax/commit/51bc1cb))
+
+### 📦 Other Changes
+
+- refactor: code structure for improved readability and maintainability ([cff595b](https://github.com/mehdiraized/npmax/commit/cff595b))
+
+---
+
 ## [2.1.0] - 2026-03-10
 
 ### ✨ Features
