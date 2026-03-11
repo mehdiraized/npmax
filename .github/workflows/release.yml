@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - docs/**
+      - .github/workflows/pages.yml
 
 # Prevent concurrent releases
 concurrency:
