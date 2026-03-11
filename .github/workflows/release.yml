@@ -202,6 +202,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     needs: [prepare-release, build-mac, build-windows, build-linux]
+    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -218,15 +219,13 @@ jobs:
           path: artifacts
 
       - name: Extract changelog entry for this release
-        id: changelog
         run: |
           node -e "
             const fs = require('fs');
             const content = fs.readFileSync('CHANGELOG.md', 'utf8');
-            // Extract the first release section (between ## [version] and next --- or ## [)
             const match = content.match(/## \[[^\]]+\][\s\S]+?(?=\n---)/);
             const body = match ? match[0].trim() : 'See CHANGELOG.md for details.';
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'body<<RELEASE_EOF\n' + body + '\nRELEASE_EOF\n');
+            fs.writeFileSync('RELEASE_BODY.md', body);
           "
 
       - name: Create GitHub Release
@@ -234,9 +233,10 @@ jobs:
         with:
           tag_name: v${{ needs.prepare-release.outputs.new_version }}
           name: v${{ needs.prepare-release.outputs.new_version }}
-          body: ${{ steps.changelog.outputs.body }}
+          body_path: RELEASE_BODY.md
           draft: false
           prerelease: false
+          make_latest: true
           files: |
             artifacts/mac-artifacts/*
             artifacts/windows-artifacts/*
