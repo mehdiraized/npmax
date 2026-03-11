@@ -3,7 +3,7 @@
 var app = (function (util, fs, path, child_process, electron) {
 	'use strict';
 
-	var DEV = true;
+	var DEV = false;
 
 	// Store the references to globals in case someone tries to monkey patch these, causing the below
 	// to de-opt (this occurs often when using popular extensions).
@@ -28,6 +28,11 @@ var app = (function (util, fs, path, child_process, electron) {
 	}
 
 	const noop$1 = () => {};
+
+	/** @param {Function} fn */
+	function run(fn) {
+		return fn();
+	}
 
 	/** @param {Array<() => void>} arr */
 	function run_all(arr) {
@@ -177,11 +182,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function invalid_snippet_arguments() {
 		{
-			const error = new Error(`invalid_snippet_arguments\nA snippet function was passed invalid arguments. Snippets should only be instantiated via \`{@render ...}\`\nhttps://svelte.dev/e/invalid_snippet_arguments`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/invalid_snippet_arguments`);
 		}
 	}
 
@@ -192,11 +193,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function lifecycle_outside_component(name) {
 		{
-			const error = new Error(`lifecycle_outside_component\n\`${name}(...)\` can only be used during component initialisation\nhttps://svelte.dev/e/lifecycle_outside_component`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/lifecycle_outside_component`);
 		}
 	}
 
@@ -206,11 +203,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function snippet_without_render_tag() {
 		{
-			const error = new Error(`snippet_without_render_tag\nAttempted to render a snippet without a \`{@render}\` block. This would cause the snippet code to be stringified instead of its content being rendered to the DOM. To fix this, change \`{snippet}\` to \`{@render snippet()}\`.\nhttps://svelte.dev/e/snippet_without_render_tag`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/snippet_without_render_tag`);
 		}
 	}
 
@@ -221,11 +214,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function store_invalid_shape(name) {
 		{
-			const error = new Error(`store_invalid_shape\n\`${name}\` is not a store with a \`subscribe\` method\nhttps://svelte.dev/e/store_invalid_shape`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/store_invalid_shape`);
 		}
 	}
 
@@ -238,11 +227,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function async_derived_orphan() {
 		{
-			const error = new Error(`async_derived_orphan\nCannot create a \`$derived(...)\` with an \`await\` expression outside of an effect tree\nhttps://svelte.dev/e/async_derived_orphan`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/async_derived_orphan`);
 		}
 	}
 
@@ -254,11 +239,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function component_api_changed(method, component) {
 		{
-			const error = new Error(`component_api_changed\nCalling \`${method}\` on a component instance (of ${component}) is no longer valid in Svelte 5\nhttps://svelte.dev/e/component_api_changed`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/component_api_changed`);
 		}
 	}
 
@@ -270,25 +251,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function component_api_invalid_new(component, name) {
 		{
-			const error = new Error(`component_api_invalid_new\nAttempted to instantiate ${component} with \`new ${name}\`, which is no longer valid in Svelte 5. If this component is not under your control, set the \`compatibility.componentApi\` compiler option to \`4\` to keep it working.\nhttps://svelte.dev/e/component_api_invalid_new`);
-
-			error.name = 'Svelte error';
-
-			throw error;
-		}
-	}
-
-	/**
-	 * A derived value cannot reference itself recursively
-	 * @returns {never}
-	 */
-	function derived_references_self() {
-		{
-			const error = new Error(`derived_references_self\nA derived value cannot reference itself recursively\nhttps://svelte.dev/e/derived_references_self`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/component_api_invalid_new`);
 		}
 	}
 
@@ -301,30 +264,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function each_key_duplicate(a, b, value) {
 		{
-			const error = new Error(`each_key_duplicate\n${value
-			? `Keyed each block has duplicate key \`${value}\` at indexes ${a} and ${b}`
-			: `Keyed each block has duplicate key at indexes ${a} and ${b}`}\nhttps://svelte.dev/e/each_key_duplicate`);
-
-			error.name = 'Svelte error';
-
-			throw error;
-		}
-	}
-
-	/**
-	 * Keyed each block has key that is not idempotent — the key for item at index %index% was `%a%` but is now `%b%`. Keys must be the same each time for a given item
-	 * @param {string} index
-	 * @param {string} a
-	 * @param {string} b
-	 * @returns {never}
-	 */
-	function each_key_volatile(index, a, b) {
-		{
-			const error = new Error(`each_key_volatile\nKeyed each block has key that is not idempotent — the key for item at index ${index} was \`${a}\` but is now \`${b}\`. Keys must be the same each time for a given item\nhttps://svelte.dev/e/each_key_volatile`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/each_key_duplicate`);
 		}
 	}
 
@@ -335,11 +275,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function effect_in_teardown(rune) {
 		{
-			const error = new Error(`effect_in_teardown\n\`${rune}\` cannot be used inside an effect cleanup function\nhttps://svelte.dev/e/effect_in_teardown`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/effect_in_teardown`);
 		}
 	}
 
@@ -349,11 +285,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function effect_in_unowned_derived() {
 		{
-			const error = new Error(`effect_in_unowned_derived\nEffect cannot be created inside a \`$derived\` value that was not itself created inside an effect\nhttps://svelte.dev/e/effect_in_unowned_derived`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/effect_in_unowned_derived`);
 		}
 	}
 
@@ -364,11 +296,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function effect_orphan(rune) {
 		{
-			const error = new Error(`effect_orphan\n\`${rune}\` can only be used inside an effect (e.g. during component initialisation)\nhttps://svelte.dev/e/effect_orphan`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/effect_orphan`);
 		}
 	}
 
@@ -378,25 +306,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function effect_update_depth_exceeded() {
 		{
-			const error = new Error(`effect_update_depth_exceeded\nMaximum update depth exceeded. This typically indicates that an effect reads and writes the same piece of state\nhttps://svelte.dev/e/effect_update_depth_exceeded`);
-
-			error.name = 'Svelte error';
-
-			throw error;
-		}
-	}
-
-	/**
-	 * Could not `{@render}` snippet due to the expression being `null` or `undefined`. Consider using optional chaining `{@render snippet?.()}`
-	 * @returns {never}
-	 */
-	function invalid_snippet() {
-		{
-			const error = new Error(`invalid_snippet\nCould not \`{@render}\` snippet due to the expression being \`null\` or \`undefined\`. Consider using optional chaining \`{@render snippet?.()}\`\nhttps://svelte.dev/e/invalid_snippet`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/effect_update_depth_exceeded`);
 		}
 	}
 
@@ -407,41 +317,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function props_invalid_value(key) {
 		{
-			const error = new Error(`props_invalid_value\nCannot do \`bind:${key}={undefined}\` when \`${key}\` has a fallback value\nhttps://svelte.dev/e/props_invalid_value`);
-
-			error.name = 'Svelte error';
-
-			throw error;
-		}
-	}
-
-	/**
-	 * Rest element properties of `$props()` such as `%property%` are readonly
-	 * @param {string} property
-	 * @returns {never}
-	 */
-	function props_rest_readonly(property) {
-		{
-			const error = new Error(`props_rest_readonly\nRest element properties of \`$props()\` such as \`${property}\` are readonly\nhttps://svelte.dev/e/props_rest_readonly`);
-
-			error.name = 'Svelte error';
-
-			throw error;
-		}
-	}
-
-	/**
-	 * The `%rune%` rune is only available inside `.svelte` and `.svelte.js/ts` files
-	 * @param {string} rune
-	 * @returns {never}
-	 */
-	function rune_outside_svelte(rune) {
-		{
-			const error = new Error(`rune_outside_svelte\nThe \`${rune}\` rune is only available inside \`.svelte\` and \`.svelte.js/ts\` files\nhttps://svelte.dev/e/rune_outside_svelte`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/props_invalid_value`);
 		}
 	}
 
@@ -451,11 +327,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function state_descriptors_fixed() {
 		{
-			const error = new Error(`state_descriptors_fixed\nProperty descriptors defined on \`$state\` objects must contain \`value\` and always be \`enumerable\`, \`configurable\` and \`writable\`.\nhttps://svelte.dev/e/state_descriptors_fixed`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/state_descriptors_fixed`);
 		}
 	}
 
@@ -465,11 +337,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function state_prototype_fixed() {
 		{
-			const error = new Error(`state_prototype_fixed\nCannot set prototype of \`$state\` object\nhttps://svelte.dev/e/state_prototype_fixed`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/state_prototype_fixed`);
 		}
 	}
 
@@ -479,11 +347,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function state_unsafe_mutation() {
 		{
-			const error = new Error(`state_unsafe_mutation\nUpdating state inside \`$derived(...)\`, \`$inspect(...)\` or a template expression is forbidden. If the value should not be reactive, declare it without \`$state\`\nhttps://svelte.dev/e/state_unsafe_mutation`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/state_unsafe_mutation`);
 		}
 	}
 
@@ -493,11 +357,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function svelte_boundary_reset_onerror() {
 		{
-			const error = new Error(`svelte_boundary_reset_onerror\nA \`<svelte:boundary>\` \`reset\` function cannot be called while an error is still being handled\nhttps://svelte.dev/e/svelte_boundary_reset_onerror`);
-
-			error.name = 'Svelte error';
-
-			throw error;
+			throw new Error(`https://svelte.dev/e/svelte_boundary_reset_onerror`);
 		}
 	}
 
@@ -530,16 +390,13 @@ var app = (function (util, fs, path, child_process, electron) {
 	/* This file is generated by scripts/process-messages/index.js. Do not edit! */
 
 
-	var bold$1 = 'font-weight: bold';
-	var normal$1 = 'font-weight: normal';
-
 	/**
 	 * Your `console.%method%` contained `$state` proxies. Consider using `$inspect(...)` or `$state.snapshot(...)` instead
 	 * @param {string} method
 	 */
 	function console_log_state(method) {
 		{
-			console.warn(`%c[svelte] console_log_state\n%cYour \`console.${method}\` contained \`$state\` proxies. Consider using \`$inspect(...)\` or \`$state.snapshot(...)\` instead\nhttps://svelte.dev/e/console_log_state`, bold$1, normal$1);
+			console.warn(`https://svelte.dev/e/console_log_state`);
 		}
 	}
 
@@ -548,7 +405,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function select_multiple_invalid_value() {
 		{
-			console.warn(`%c[svelte] select_multiple_invalid_value\n%cThe \`value\` property of a \`<select multiple>\` element should be an array, but it received a non-array value. The selection will be kept as is.\nhttps://svelte.dev/e/select_multiple_invalid_value`, bold$1, normal$1);
+			console.warn(`https://svelte.dev/e/select_multiple_invalid_value`);
 		}
 	}
 
@@ -558,7 +415,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function state_proxy_equality_mismatch(operator) {
 		{
-			console.warn(`%c[svelte] state_proxy_equality_mismatch\n%cReactive \`$state(...)\` proxies and the values they proxy have different identities. Because of this, comparisons with \`${operator}\` will produce unexpected results\nhttps://svelte.dev/e/state_proxy_equality_mismatch`, bold$1, normal$1);
+			console.warn(`https://svelte.dev/e/state_proxy_equality_mismatch`);
 		}
 	}
 
@@ -567,7 +424,7 @@ var app = (function (util, fs, path, child_process, electron) {
 	 */
 	function svelte_boundary_reset_noop() {
 		{
-			console.warn(`%c[svelte] svelte_boundary_reset_noop\n%cA \`<svelte:boundary>\` \`reset\` function only resets the boundary the first time it is called\nhttps://svelte.dev/e/svelte_boundary_reset_noop`, bold$1, normal$1);
+			console.warn(`https://svelte.dev/e/svelte_boundary_reset_noop`);
 		}
 	}
 
@@ -612,32 +469,6 @@ var app = (function (util, fs, path, child_process, electron) {
 		legacy_mode_flag = true;
 	}
 
-	/* This file is generated by scripts/process-messages/index.js. Do not edit! */
-
-
-	var bold = 'font-weight: bold';
-	var normal = 'font-weight: normal';
-
-	/**
-	 * The following properties cannot be cloned with `$state.snapshot` — the return value contains the originals:
-	 * 
-	 * %properties%
-	 * @param {string | undefined | null} [properties]
-	 */
-	function state_snapshot_uncloneable(properties) {
-		{
-			console.warn(
-				`%c[svelte] state_snapshot_uncloneable\n%c${properties
-				? `The following properties cannot be cloned with \`$state.snapshot\` — the return value contains the originals:
-
-${properties}`
-				: 'Value cannot be cloned with `$state.snapshot` — the original value was returned'}\nhttps://svelte.dev/e/state_snapshot_uncloneable`,
-				bold,
-				normal
-			);
-		}
-	}
-
 	/** @import { Snapshot } from './types' */
 
 	/**
@@ -656,27 +487,6 @@ ${properties}`
 	 * @returns {Snapshot<T>}
 	 */
 	function snapshot(value, skip_warning = false, no_tojson = false) {
-		if (!skip_warning) {
-			/** @type {string[]} */
-			const paths = [];
-
-			const copy = clone(value, new Map(), '', paths, null, no_tojson);
-			if (paths.length === 1 && paths[0] === '') {
-				// value could not be cloned
-				state_snapshot_uncloneable();
-			} else if (paths.length > 0) {
-				// some properties could not be cloned
-				const slice = paths.length > 10 ? paths.slice(0, 7) : paths.slice(0, 10);
-				const excess = paths.length - slice.length;
-
-				let uncloned = slice.map((path) => `- <value>${path}`).join('\n');
-				if (excess > 0) uncloned += `\n- ...and ${excess} more`;
-
-				state_snapshot_uncloneable(uncloned);
-			}
-
-			return copy;
-		}
 
 		return clone(value, new Map(), '', empty, null, no_tojson);
 	}
@@ -710,7 +520,7 @@ ${properties}`
 				for (var i = 0; i < value.length; i += 1) {
 					var element = value[i];
 					if (i in value) {
-						copy[i] = clone(element, cloned, `${path}[${i}]` , paths, null, no_tojson);
+						copy[i] = clone(element, cloned, path, paths, null, no_tojson);
 					}
 				}
 
@@ -731,7 +541,7 @@ ${properties}`
 						// @ts-expect-error
 						value[key],
 						cloned,
-						`${path}.${key}` ,
+						path,
 						paths,
 						null,
 						no_tojson
@@ -749,7 +559,7 @@ ${properties}`
 				return clone(
 					/** @type {T & { toJSON(): any } } */ (value).toJSON(),
 					cloned,
-					`${path}.toJSON()` ,
+					path,
 					paths,
 					// Associate the instance with the toJSON clone
 					value
@@ -765,9 +575,6 @@ ${properties}`
 		try {
 			return /** @type {Snapshot<T>} */ (structuredClone(value));
 		} catch (e) {
-			{
-				paths.push(path);
-			}
 
 			return /** @type {Snapshot<T>} */ (value);
 		}
@@ -796,70 +603,6 @@ ${properties}`
 		return value;
 	}
 
-	/**
-	 * @param {string} label
-	 * @returns {Error & { stack: string } | null}
-	 */
-	function get_error(label) {
-		const error = new Error();
-		const stack = get_stack();
-
-		if (stack.length === 0) {
-			return null;
-		}
-
-		stack.unshift('\n');
-
-		define_property(error, 'stack', {
-			value: stack.join('\n')
-		});
-
-		define_property(error, 'name', {
-			value: label
-		});
-
-		return /** @type {Error & { stack: string }} */ (error);
-	}
-
-	/**
-	 * @returns {string[]}
-	 */
-	function get_stack() {
-		// @ts-ignore - doesn't exist everywhere
-		const limit = Error.stackTraceLimit;
-		// @ts-ignore - doesn't exist everywhere
-		Error.stackTraceLimit = Infinity;
-		const stack = new Error().stack;
-		// @ts-ignore - doesn't exist everywhere
-		Error.stackTraceLimit = limit;
-
-		if (!stack) return [];
-
-		const lines = stack.split('\n');
-		const new_lines = [];
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const posixified = line.replaceAll('\\', '/');
-
-			if (line.trim() === 'Error') {
-				continue;
-			}
-
-			if (line.includes('validate_each_keys')) {
-				return [];
-			}
-
-			if (posixified.includes('svelte/src/internal') || posixified.includes('node_modules/.vite')) {
-				continue;
-			}
-
-			new_lines.push(line);
-		}
-
-		return new_lines;
-	}
-
 	/** @import { ComponentContext, DevStackEntry, Effect } from '#client' */
 
 	/** @type {ComponentContext | null} */
@@ -872,11 +615,6 @@ ${properties}`
 
 	/** @type {DevStackEntry | null} */
 	let dev_stack = null;
-
-	/** @param {DevStackEntry | null} stack */
-	function set_dev_stack(stack) {
-		dev_stack = stack;
-	}
 
 	/**
 	 * Execute a callback with a new dev stack entry
@@ -908,23 +646,6 @@ ${properties}`
 	}
 
 	/**
-	 * The current component function. Different from current component context:
-	 * ```html
-	 * <!-- App.svelte -->
-	 * <Foo>
-	 *   <Bar /> <!-- context == Foo.svelte, function == App.svelte -->
-	 * </Foo>
-	 * ```
-	 * @type {ComponentContext['function']}
-	 */
-	let dev_current_component_function = null;
-
-	/** @param {ComponentContext['function']} fn */
-	function set_dev_current_component_function(fn) {
-		dev_current_component_function = fn;
-	}
-
-	/**
 	 * Retrieves the context that belongs to the closest parent component with the specified `key`.
 	 * Must be called during component initialisation.
 	 *
@@ -935,7 +656,7 @@ ${properties}`
 	 * @returns {T}
 	 */
 	function getContext(key) {
-		const context_map = get_or_init_context_map('getContext');
+		const context_map = get_or_init_context_map();
 		const result = /** @type {T} */ (context_map.get(key));
 		return result;
 	}
@@ -955,7 +676,7 @@ ${properties}`
 	 * @returns {T}
 	 */
 	function setContext(key, context) {
-		const context_map = get_or_init_context_map('setContext');
+		const context_map = get_or_init_context_map();
 
 		context_map.set(key, context);
 		return context;
@@ -969,7 +690,7 @@ ${properties}`
 	 * @returns {boolean}
 	 */
 	function hasContext(key) {
-		const context_map = get_or_init_context_map('hasContext');
+		const context_map = get_or_init_context_map();
 		return context_map.has(key);
 	}
 
@@ -989,12 +710,6 @@ ${properties}`
 			x: null,
 			l: legacy_mode_flag && !runes ? { s: null, u: null, $: [] } : null
 		};
-
-		{
-			// component function
-			component_context.function = fn;
-			dev_current_component_function = fn;
-		}
 	}
 
 	/**
@@ -1022,10 +737,6 @@ ${properties}`
 
 		component_context = context.p;
 
-		{
-			dev_current_component_function = component_context?.function ?? null;
-		}
-
 		return component ?? /** @type {T} */ ({});
 	}
 
@@ -1040,7 +751,7 @@ ${properties}`
 	 */
 	function get_or_init_context_map(name) {
 		if (component_context === null) {
-			lifecycle_outside_component(name);
+			lifecycle_outside_component();
 		}
 
 		return (component_context.c ??= new Map(get_parent_context(component_context) || undefined));
@@ -1096,8 +807,6 @@ ${properties}`
 	/** @import { Derived, Effect } from '#client' */
 	/** @import { Boundary } from './dom/blocks/boundary.js' */
 
-	const adjustments = new WeakMap();
-
 	/**
 	 * @param {unknown} error
 	 */
@@ -1110,17 +819,10 @@ ${properties}`
 			return error;
 		}
 
-		if (error instanceof Error && !adjustments.has(error)) {
-			adjustments.set(error, get_adjustments(error, effect));
-		}
-
 		// if the error occurred while creating this subtree, we let it
 		// bubble up until it hits a boundary that can handle it, unless
 		// it's an $effect in which case it doesn't run immediately
 		if ((effect.f & REACTION_RAN) === 0 && (effect.f & EFFECT) === 0) {
-			if (!effect.parent && error instanceof Error) {
-				apply_adjustments(error);
-			}
 
 			throw error;
 		}
@@ -1152,58 +854,7 @@ ${properties}`
 			effect = effect.parent;
 		}
 
-		if (error instanceof Error) {
-			apply_adjustments(error);
-		}
-
 		throw error;
-	}
-
-	/**
-	 * Add useful information to the error message/stack in development
-	 * @param {Error} error
-	 * @param {Effect} effect
-	 */
-	function get_adjustments(error, effect) {
-		const message_descriptor = get_descriptor(error, 'message');
-
-		// if the message was already changed and it's not configurable we can't change it
-		// or it will throw a different error swallowing the original error
-		if (message_descriptor && !message_descriptor.configurable) return;
-
-		var indent = is_firefox ? '  ' : '\t';
-		var component_stack = `\n${indent}in ${effect.fn?.name || '<unknown>'}`;
-		var context = effect.ctx;
-
-		while (context !== null) {
-			component_stack += `\n${indent}in ${context.function?.[FILENAME].split('/').pop()}`;
-			context = context.p;
-		}
-
-		return {
-			message: error.message + `\n${component_stack}\n`,
-			stack: error.stack
-				?.split('\n')
-				.filter((line) => !line.includes('svelte/src/internal'))
-				.join('\n')
-		};
-	}
-
-	/**
-	 * @param {Error} error
-	 */
-	function apply_adjustments(error) {
-		const adjusted = adjustments.get(error);
-
-		if (adjusted) {
-			define_property(error, 'message', {
-				value: adjusted.message
-			});
-
-			define_property(error, 'stack', {
-				value: adjusted.stack
-			});
-		}
 	}
 
 	/** @import { Derived, Signal } from '#client' */
@@ -1762,7 +1413,7 @@ ${properties}`
 	}
 
 	function flush_effects() {
-		var source_stacks = new Set() ;
+		var source_stacks = null;
 
 		try {
 			var flush_count = 0;
@@ -1771,29 +1422,7 @@ ${properties}`
 				var batch = Batch.ensure();
 
 				if (flush_count++ > 1000) {
-					if (DEV) {
-						var updates = new Map();
-
-						for (const source of batch.current.keys()) {
-							for (const [stack, update] of source.updated ?? []) {
-								var entry = updates.get(stack);
-
-								if (!entry) {
-									entry = { error: update.error, count: 0 };
-									updates.set(stack, entry);
-								}
-
-								entry.count += update.count;
-							}
-						}
-
-						for (const update of updates.values()) {
-							if (update.error) {
-								// eslint-disable-next-line no-console
-								console.error(update.error);
-							}
-						}
-					}
+					var updates, entry; if (DEV) ;
 
 					infinite_loop_guard();
 				}
@@ -1801,23 +1430,13 @@ ${properties}`
 				batch.process(queued_root_effects);
 				old_values.clear();
 
-				if (DEV) {
-					for (const source of batch.current.keys()) {
-						/** @type {Set<Source>} */ (source_stacks).add(source);
-					}
-				}
+				if (DEV) ;
 			}
 		} finally {
 			queued_root_effects = [];
 
 			last_scheduled_effect = null;
 			collected_effects = null;
-
-			{
-				for (const source of /** @type {Set<Source>} */ (source_stacks)) {
-					source.updated = null;
-				}
-			}
 		}
 	}
 
@@ -1825,10 +1444,6 @@ ${properties}`
 		try {
 			effect_update_depth_exceeded();
 		} catch (error) {
-			{
-				// stack contains no useful information, replace it
-				define_property(error, 'stack', { value: '' });
-			}
 
 			// Best effort: invoke the boundary nearest the most recent
 			// effect and hope that it's relevant to the infinite loop
@@ -2097,10 +1712,6 @@ ${properties}`
 		/** @type {(() => void) | void} */
 		let stop;
 
-		{
-			tag(version, 'createSubscriber version');
-		}
-
 		return () => {
 			if (effect_tracking()) {
 				get$1(version);
@@ -2218,10 +1829,6 @@ ${properties}`
 
 		#effect_pending_subscriber = createSubscriber(() => {
 			this.#effect_pending = source(this.#local_pending_count);
-
-			{
-				tag(this.#effect_pending, '$effect.pending()');
-			}
 
 			return () => {
 				this.#effect_pending = null;
@@ -2660,19 +2267,11 @@ ${properties}`
 		var previous_component_context = component_context;
 		var previous_batch = current_batch;
 
-		{
-			var previous_dev_stack = dev_stack;
-		}
-
 		return function restore(activate_batch = true) {
 			set_active_effect(previous_effect);
 			set_active_reaction(previous_reaction);
 			set_component_context(previous_component_context);
 			if (activate_batch) previous_batch?.activate();
-
-			{
-				set_dev_stack(previous_dev_stack);
-			}
 		};
 	}
 
@@ -2696,10 +2295,6 @@ ${properties}`
 		set_active_reaction(null);
 		set_component_context(null);
 		if (deactivate_batch) current_batch?.deactivate();
-
-		{
-			set_dev_stack(null);
-		}
 	}
 
 	function increment_pending() {
@@ -2718,8 +2313,6 @@ ${properties}`
 
 	/** @import { Derived, Effect, Source } from '#client' */
 	/** @import { Batch } from './batch.js'; */
-
-	const recent_async_deriveds = new Set();
 
 	/**
 	 * @template V
@@ -2776,8 +2369,6 @@ ${properties}`
 
 		var promise = /** @type {Promise<V>} */ (/** @type {unknown} */ (undefined));
 		var signal = source(/** @type {V} */ (UNINITIALIZED));
-
-		signal.label = label;
 
 		// only suspend in async deriveds created on initialisation
 		var should_suspend = !active_reaction;
@@ -2855,12 +2446,6 @@ ${properties}`
 			}
 		});
 
-		{
-			// add a flag that lets this be printed as a derived
-			// when using `$inspect.trace()`
-			signal.f |= ASYNC;
-		}
-
 		return new Promise((fulfil) => {
 			/** @param {Promise<V>} p */
 			function next(p) {
@@ -2924,13 +2509,6 @@ ${properties}`
 	}
 
 	/**
-	 * The currently updating deriveds, used to detect infinite recursion
-	 * in dev mode and provide a nicer error than 'too much recursion'
-	 * @type {Derived[]}
-	 */
-	let stack = [];
-
-	/**
 	 * @param {Derived} derived
 	 * @returns {Effect | null}
 	 */
@@ -2959,22 +2537,12 @@ ${properties}`
 		set_active_effect(get_derived_parent_effect(derived));
 
 		{
-			let prev_eager_effects = eager_effects;
-			set_eager_effects(new Set());
 			try {
-				if (includes.call(stack, derived)) {
-					derived_references_self();
-				}
-
-				stack.push(derived);
-
 				derived.f &= ~WAS_MARKED;
 				destroy_derived_effects(derived);
 				value = update_reaction(derived);
 			} finally {
 				set_active_effect(prev_active_effect);
-				set_eager_effects(prev_eager_effects);
-				stack.pop();
 			}
 		}
 
@@ -3073,18 +2641,7 @@ ${properties}`
 	/** @type {Map<Source, any>} */
 	const old_values = new Map();
 
-	/**
-	 * @param {Set<any>} v
-	 */
-	function set_eager_effects(v) {
-		eager_effects = v;
-	}
-
 	let eager_effects_deferred = false;
-
-	function set_eager_effects_deferred() {
-		eager_effects_deferred = true;
-	}
 
 	/**
 	 * @template V
@@ -3165,10 +2722,6 @@ ${properties}`
 
 		let new_value = should_proxy ? proxy(value) : value;
 
-		{
-			tag_proxy(new_value, /** @type {string} */ (source.label));
-		}
-
 		return internal_set(source, new_value);
 	}
 
@@ -3192,36 +2745,6 @@ ${properties}`
 
 			var batch = Batch.ensure();
 			batch.capture(source, old_value);
-
-			{
-				if (active_effect !== null) {
-					source.updated ??= new Map();
-
-					// For performance reasons, when not using $inspect.trace, we only start collecting stack traces
-					// after the same source has been updated more than 5 times in the same flush cycle.
-					const count = (source.updated.get('')?.count ?? 0) + 1;
-					source.updated.set('', { error: /** @type {any} */ (null), count });
-
-					if (count > 5) {
-						const error = get_error('updated at');
-
-						if (error !== null) {
-							let entry = source.updated.get(error.stack);
-
-							if (!entry) {
-								entry = { error, count: 0 };
-								source.updated.set(error.stack, entry);
-							}
-
-							entry.count++;
-						}
-					}
-				}
-
-				if (active_effect !== null) {
-					source.set_during_effect = true;
-				}
-			}
 
 			if ((source.f & DERIVED) !== 0) {
 				const derived = /** @type {Derived} */ (source);
@@ -3310,12 +2833,6 @@ ${properties}`
 			// In legacy mode, skip the current effect to prevent infinite loops
 			if (!runes && reaction === active_effect) continue;
 
-			// Inspect effects need to run immediately, so that the stack trace makes sense
-			if ((flags & EAGER_EFFECT) !== 0) {
-				eager_effects.add(reaction);
-				continue;
-			}
-
 			var not_dirty = (flags & DIRTY) === 0;
 
 			// don't set a DIRTY reaction to MAYBE_DIRTY
@@ -3347,9 +2864,6 @@ ${properties}`
 	}
 
 	/** @import { Source } from '#client' */
-
-	// TODO move all regexes into shared module?
-	const regex_is_valid_identifier = /^[a-zA-Z_$][a-zA-Z_$0-9]*$/;
 
 	/**
 	 * @template T
@@ -3404,27 +2918,6 @@ ${properties}`
 			// We need to create the length source eagerly to ensure that
 			// mutations to the array are properly synced with our proxy
 			sources.set('length', state(/** @type {any[]} */ (value).length));
-			{
-				value = /** @type {any} */ (inspectable_array(/** @type {any[]} */ (value)));
-			}
-		}
-
-		/** Used in dev for $inspect.trace() */
-		var path = '';
-		let updating = false;
-		/** @param {string} new_path */
-		function update_path(new_path) {
-			if (updating) return;
-			updating = true;
-			path = new_path;
-
-			tag(version, `${path} version`);
-
-			// rename all child sources and child proxies
-			for (const [prop, source] of sources) {
-				tag(source, get_label(path, prop));
-			}
-			updating = false;
 		}
 
 		return new Proxy(/** @type {any} */ (value), {
@@ -3446,9 +2939,6 @@ ${properties}`
 					with_parent(() => {
 						var s = state(descriptor.value);
 						sources.set(prop, s);
-						if (typeof prop === 'string') {
-							tag(s, get_label(path, prop));
-						}
 						return s;
 					});
 				} else {
@@ -3466,10 +2956,6 @@ ${properties}`
 						const s = with_parent(() => state(UNINITIALIZED));
 						sources.set(prop, s);
 						increment(version);
-
-						{
-							tag(s, get_label(path, prop));
-						}
 					}
 				} else {
 					set(s, UNINITIALIZED);
@@ -3484,10 +2970,6 @@ ${properties}`
 					return value;
 				}
 
-				if (prop === PROXY_PATH_SYMBOL) {
-					return update_path;
-				}
-
 				var s = sources.get(prop);
 				var exists = prop in target;
 
@@ -3496,10 +2978,6 @@ ${properties}`
 					s = with_parent(() => {
 						var p = proxy(exists ? target[prop] : UNINITIALIZED);
 						var s = state(p);
-
-						{
-							tag(s, get_label(path, prop));
-						}
 
 						return s;
 					});
@@ -3555,10 +3033,6 @@ ${properties}`
 							var p = has ? proxy(target[prop]) : UNINITIALIZED;
 							var s = state(p);
 
-							{
-								tag(s, get_label(path, prop));
-							}
-
 							return s;
 						});
 
@@ -3590,10 +3064,6 @@ ${properties}`
 							// the value of the original item at that index.
 							other_s = with_parent(() => state(UNINITIALIZED));
 							sources.set(i + '', other_s);
-
-							{
-								tag(other_s, get_label(path, i));
-							}
 						}
 					}
 				}
@@ -3605,10 +3075,6 @@ ${properties}`
 				if (s === undefined) {
 					if (!has || get_descriptor(target, prop)?.writable) {
 						s = with_parent(() => state(undefined));
-
-						{
-							tag(s, get_label(path, prop));
-						}
 						set(s, proxy(value));
 
 						sources.set(prop, s);
@@ -3671,16 +3137,6 @@ ${properties}`
 	}
 
 	/**
-	 * @param {string} path
-	 * @param {string | symbol} prop
-	 */
-	function get_label(path, prop) {
-		if (typeof prop === 'symbol') return `${path}[Symbol(${prop.description ?? ''})]`;
-		if (regex_is_valid_identifier.test(prop)) return `${path}.${prop}`;
-		return /^\d+$/.test(prop) ? `${path}[${prop}]` : `${path}['${prop}']`;
-	}
-
-	/**
 	 * @param {any} value
 	 */
 	function get_proxied_value(value) {
@@ -3707,112 +3163,6 @@ ${properties}`
 	 */
 	function is(a, b) {
 		return Object.is(get_proxied_value(a), get_proxied_value(b));
-	}
-
-	const ARRAY_MUTATING_METHODS = new Set([
-		'copyWithin',
-		'fill',
-		'pop',
-		'push',
-		'reverse',
-		'shift',
-		'sort',
-		'splice',
-		'unshift'
-	]);
-
-	/**
-	 * Wrap array mutating methods so $inspect is triggered only once and
-	 * to prevent logging an array in intermediate state (e.g. with an empty slot)
-	 * @param {any[]} array
-	 */
-	function inspectable_array(array) {
-		return new Proxy(array, {
-			get(target, prop, receiver) {
-				var value = Reflect.get(target, prop, receiver);
-				if (!ARRAY_MUTATING_METHODS.has(/** @type {string} */ (prop))) {
-					return value;
-				}
-
-				/**
-				 * @this {any[]}
-				 * @param {any[]} args
-				 */
-				return function (...args) {
-					set_eager_effects_deferred();
-					var result = value.apply(this, args);
-					flush_eager_effects();
-					return result;
-				};
-			}
-		});
-	}
-
-	function init_array_prototype_warnings() {
-		const array_prototype = Array.prototype;
-		// The REPL ends up here over and over, and this prevents it from adding more and more patches
-		// of the same kind to the prototype, which would slow down everything over time.
-		// @ts-expect-error
-		const cleanup = Array.__svelte_cleanup;
-		if (cleanup) {
-			cleanup();
-		}
-
-		const { indexOf, lastIndexOf, includes } = array_prototype;
-
-		array_prototype.indexOf = function (item, from_index) {
-			const index = indexOf.call(this, item, from_index);
-
-			if (index === -1) {
-				for (let i = from_index ?? 0; i < this.length; i += 1) {
-					if (get_proxied_value(this[i]) === item) {
-						state_proxy_equality_mismatch('array.indexOf(...)');
-						break;
-					}
-				}
-			}
-
-			return index;
-		};
-
-		array_prototype.lastIndexOf = function (item, from_index) {
-			// we need to specify this.length - 1 because it's probably using something like
-			// `arguments` inside so passing undefined is different from not passing anything
-			const index = lastIndexOf.call(this, item, from_index ?? this.length - 1);
-
-			if (index === -1) {
-				for (let i = 0; i <= (from_index ?? this.length - 1); i += 1) {
-					if (get_proxied_value(this[i]) === item) {
-						state_proxy_equality_mismatch('array.lastIndexOf(...)');
-						break;
-					}
-				}
-			}
-
-			return index;
-		};
-
-		array_prototype.includes = function (item, from_index) {
-			const has = includes.call(this, item, from_index);
-
-			if (!has) {
-				for (let i = 0; i < this.length; i += 1) {
-					if (get_proxied_value(this[i]) === item) {
-						state_proxy_equality_mismatch('array.includes(...)');
-						break;
-					}
-				}
-			}
-
-			return has;
-		};
-
-		// @ts-expect-error
-		Array.__svelte_cleanup = () => {
-			array_prototype.indexOf = indexOf;
-			array_prototype.lastIndexOf = lastIndexOf;
-			array_prototype.includes = includes;
-		};
 	}
 
 	/**
@@ -3885,13 +3235,6 @@ ${properties}`
 		if (is_extensible(text_prototype)) {
 			// @ts-expect-error
 			text_prototype.__t = undefined;
-		}
-
-		{
-			// @ts-expect-error
-			element_prototype.__svelte_meta = null;
-
-			init_array_prototype_warnings();
 		}
 	}
 
@@ -4046,14 +3389,14 @@ ${properties}`
 	function validate_effect(rune) {
 		if (active_effect === null) {
 			if (active_reaction === null) {
-				effect_orphan(rune);
+				effect_orphan();
 			}
 
 			effect_in_unowned_derived();
 		}
 
 		if (is_destroying_effect) {
-			effect_in_teardown(rune);
+			effect_in_teardown();
 		}
 	}
 
@@ -4080,13 +3423,6 @@ ${properties}`
 	function create_effect(type, fn) {
 		var parent = active_effect;
 
-		{
-			// Ensure the parent is never an inspect effect
-			while (parent !== null && (parent.f & EAGER_EFFECT) !== 0) {
-				parent = parent.parent;
-			}
-		}
-
 		if (parent !== null && (parent.f & INERT) !== 0) {
 			type |= INERT;
 		}
@@ -4108,10 +3444,6 @@ ${properties}`
 			wv: 0,
 			ac: null
 		};
-
-		{
-			effect.component_function = dev_current_component_function;
-		}
 
 		/** @type {Effect | null} */
 		var e = effect;
@@ -4193,13 +3525,7 @@ ${properties}`
 	 * @param {() => void | (() => void)} fn
 	 */
 	function user_effect(fn) {
-		validate_effect('$effect');
-
-		{
-			define_property(fn, 'name', {
-				value: '$effect'
-			});
-		}
+		validate_effect();
 
 		// Non-nested `$effect(...)` in a component should be deferred
 		// until the component is mounted
@@ -4221,6 +3547,16 @@ ${properties}`
 	 */
 	function create_user_effect(fn) {
 		return create_effect(EFFECT | USER_EFFECT, fn);
+	}
+
+	/**
+	 * Internal representation of `$effect.pre(...)`
+	 * @param {() => void | (() => void)} fn
+	 * @returns {Effect}
+	 */
+	function user_pre_effect(fn) {
+		validate_effect();
+		return create_effect(RENDER_EFFECT | USER_EFFECT, fn);
 	}
 
 	/**
@@ -4289,9 +3625,6 @@ ${properties}`
 	 */
 	function block(fn, flags = 0) {
 		var effect = create_effect(BLOCK_EFFECT | flags, fn);
-		{
-			effect.dev_stack = dev_stack;
-		}
 		return effect;
 	}
 
@@ -4301,9 +3634,6 @@ ${properties}`
 	 */
 	function managed(fn, flags = 0) {
 		var effect = create_effect(MANAGED_EFFECT | flags, fn);
-		{
-			effect.dev_stack = dev_stack;
-		}
 		return effect;
 	}
 
@@ -4416,10 +3746,6 @@ ${properties}`
 		// If the parent doesn't have any children, then skip this work altogether
 		if (parent !== null && parent.first !== null) {
 			unlink_effect(effect);
-		}
-
-		{
-			effect.component_function = null;
 		}
 
 		// `first` and `child` are nulled out in destroy_effect_children
@@ -4982,14 +4308,6 @@ ${properties}`
 		active_effect = effect;
 		is_updating_effect = true;
 
-		{
-			var previous_component_fn = dev_current_component_function;
-			set_dev_current_component_function(effect.component_function);
-			var previous_stack = /** @type {any} */ (dev_stack);
-			// only block effects have a dev stack, keep the current one otherwise
-			set_dev_stack(effect.dev_stack ?? dev_stack);
-		}
-
 		try {
 			if ((flags & (BLOCK_EFFECT | MANAGED_EFFECT)) !== 0) {
 				destroy_block_effect_children(effect);
@@ -5008,11 +4326,6 @@ ${properties}`
 		} finally {
 			is_updating_effect = was_updating_effect;
 			active_effect = previous_effect;
-
-			{
-				set_dev_current_component_function(previous_component_fn);
-				set_dev_stack(previous_stack);
-			}
 		}
 	}
 
@@ -5065,24 +4378,6 @@ ${properties}`
 					}
 				}
 			}
-		}
-
-		{
-			// TODO reinstate this, but make it actually work
-			// if (current_async_effect) {
-			// 	var tracking = (current_async_effect.f & REACTION_IS_UPDATING) !== 0;
-			// 	var was_read = current_async_effect.deps?.includes(signal);
-
-			// 	if (!tracking && !untracking && !was_read) {
-			// 		w.await_reactivity_loss(/** @type {string} */ (signal.label));
-
-			// 		var trace = get_error('traced at');
-			// 		// eslint-disable-next-line no-console
-			// 		if (trace) console.warn(trace);
-			// 	}
-			// }
-
-			recent_async_deriveds.delete(signal);
 		}
 
 		if (is_destroying_effect && old_values.has(signal)) {
@@ -5207,6 +4502,80 @@ ${properties}`
 			return fn();
 		} finally {
 			untracking = previous_untracking;
+		}
+	}
+
+	/**
+	 * Possibly traverse an object and read all its properties so that they're all reactive in case this is `$state`.
+	 * Does only check first level of an object for performance reasons (heuristic should be good for 99% of all cases).
+	 * @param {any} value
+	 * @returns {void}
+	 */
+	function deep_read_state(value) {
+		if (typeof value !== 'object' || !value || value instanceof EventTarget) {
+			return;
+		}
+
+		if (STATE_SYMBOL in value) {
+			deep_read(value);
+		} else if (!Array.isArray(value)) {
+			for (let key in value) {
+				const prop = value[key];
+				if (typeof prop === 'object' && prop && STATE_SYMBOL in prop) {
+					deep_read(prop);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Deeply traverse an object and read all its properties
+	 * so that they're all reactive in case this is `$state`
+	 * @param {any} value
+	 * @param {Set<any>} visited
+	 * @returns {void}
+	 */
+	function deep_read(value, visited = new Set()) {
+		if (
+			typeof value === 'object' &&
+			value !== null &&
+			// We don't want to traverse DOM elements
+			!(value instanceof EventTarget) &&
+			!visited.has(value)
+		) {
+			visited.add(value);
+			// When working with a possible SvelteDate, this
+			// will ensure we capture changes to it.
+			if (value instanceof Date) {
+				value.getTime();
+			}
+			for (let key in value) {
+				try {
+					deep_read(value[key], visited);
+				} catch (e) {
+					// continue
+				}
+			}
+			const proto = get_prototype_of(value);
+			if (
+				proto !== Object.prototype &&
+				proto !== Array.prototype &&
+				proto !== Map.prototype &&
+				proto !== Set.prototype &&
+				proto !== Date.prototype
+			) {
+				const descriptors = get_descriptors(proto);
+				for (let key in descriptors) {
+					const get = descriptors[key].get;
+					if (get) {
+						try {
+							get.call(value);
+						} catch (e) {
+							// continue
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -6526,14 +5895,6 @@ ${properties}`
 				var value = array[index];
 				var key = get_key(value, index);
 
-				{
-					// Check that the key function is idempotent (returns the same value when called twice)
-					var key_again = get_key(value, index);
-					if (key !== key_again) {
-						each_key_volatile(String(index), String(key), String(key_again));
-					}
-				}
-
 				var item = first_run ? null : items.get(key);
 
 				if (item) {
@@ -6577,7 +5938,8 @@ ${properties}`
 
 			if (length > keys.size) {
 				{
-					validate_each_keys(array, get_key);
+					// in prod, the additional information isn't printed, so don't bother computing it
+					each_key_duplicate();
 				}
 			}
 
@@ -6885,15 +6247,6 @@ ${properties}`
 
 		var i = (flags & EACH_INDEX_REACTIVE) !== 0 ? source(index) : null;
 
-		if (v) {
-			// For tracing purposes, we need to link the source signal we create with the
-			// collection + index so that tracing works as intended
-			v.trace = () => {
-				// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-				get_collection()[i?.v ?? index];
-			};
-		}
-
 		return {
 			v,
 			i,
@@ -6955,29 +6308,24 @@ ${properties}`
 	}
 
 	/**
-	 * @param {Array<any>} array
-	 * @param {(item: any, index: number) => string} key_fn
-	 * @returns {void}
+	 * @param {Comment} anchor
+	 * @param {Record<string, any>} $$props
+	 * @param {string} name
+	 * @param {Record<string, unknown>} slot_props
+	 * @param {null | ((anchor: Comment) => void)} fallback_fn
 	 */
-	function validate_each_keys(array, key_fn) {
-		const keys = new Map();
-		const length = array.length;
+	function slot(anchor, $$props, name, slot_props, fallback_fn) {
 
-		for (let i = 0; i < length; i++) {
-			const key = key_fn(array[i], i);
+		var slot_fn = $$props.$$slots?.[name];
+		// Interop: Can use snippets to fill slots
+		var is_interop = false;
+		if (slot_fn === true) {
+			slot_fn = $$props['children' ];
+			is_interop = true;
+		}
 
-			if (keys.has(key)) {
-				const a = String(keys.get(key));
-				const b = String(i);
-
-				/** @type {string | null} */
-				let k = String(key);
-				if (k.startsWith('[object ')) k = null;
-
-				each_key_duplicate(a, b, k);
-			}
-
-			keys.set(key, i);
+		if (slot_fn === undefined) ; else {
+			slot_fn(anchor, is_interop ? () => slot_props : slot_props);
 		}
 	}
 
@@ -6987,7 +6335,7 @@ ${properties}`
 	 */
 	function validate_store(store, name) {
 		if (store != null && typeof store.subscribe !== 'function') {
-			store_invalid_shape(name);
+			store_invalid_shape();
 		}
 	}
 
@@ -7020,10 +6368,6 @@ ${properties}`
 		block(() => {
 			const snippet = get_snippet() ?? null;
 
-			if (snippet == null) {
-				invalid_snippet();
-			}
-
 			branches.ensure(snippet, snippet && ((anchor) => snippet(anchor, ...args)));
 		}, EFFECT_TRANSPARENT);
 	}
@@ -7036,13 +6380,10 @@ ${properties}`
 	 */
 	function wrap_snippet(component, fn) {
 		const snippet = (/** @type {TemplateNode} */ node, /** @type {any[]} */ ...args) => {
-			var previous_component_function = dev_current_component_function;
-			set_dev_current_component_function(component);
 
 			try {
 				return fn(node, ...args);
 			} finally {
-				set_dev_current_component_function(previous_component_function);
 			}
 		};
 
@@ -8305,6 +7646,84 @@ ${properties}`
 		return element_or_component;
 	}
 
+	/** @import { ComponentContextLegacy } from '#client' */
+
+	/**
+	 * Legacy-mode only: Call `onMount` callbacks and set up `beforeUpdate`/`afterUpdate` effects
+	 * @param {boolean} [immutable]
+	 */
+	function init(immutable = false) {
+		const context = /** @type {ComponentContextLegacy} */ (component_context);
+
+		const callbacks = context.l.u;
+		if (!callbacks) return;
+
+		let props = () => deep_read_state(context.s);
+
+		if (immutable) {
+			let version = 0;
+			let prev = /** @type {Record<string, any>} */ ({});
+
+			// In legacy immutable mode, before/afterUpdate only fire if the object identity of a prop changes
+			const d = derived(() => {
+				let changed = false;
+				const props = context.s;
+				for (const key in props) {
+					if (props[key] !== prev[key]) {
+						prev[key] = props[key];
+						changed = true;
+					}
+				}
+				if (changed) version++;
+				return version;
+			});
+
+			props = () => get$1(d);
+		}
+
+		// beforeUpdate
+		if (callbacks.b.length) {
+			user_pre_effect(() => {
+				observe_all(context, props);
+				run_all(callbacks.b);
+			});
+		}
+
+		// onMount (must run before afterUpdate)
+		user_effect(() => {
+			const fns = untrack(() => callbacks.m.map(run));
+			return () => {
+				for (const fn of fns) {
+					if (typeof fn === 'function') {
+						fn();
+					}
+				}
+			};
+		});
+
+		// afterUpdate
+		if (callbacks.a.length) {
+			user_effect(() => {
+				observe_all(context, props);
+				run_all(callbacks.a);
+			});
+		}
+	}
+
+	/**
+	 * Invoke the getter of all signals associated with a component
+	 * so they can be registered to the effect this function is called in.
+	 * @param {ComponentContextLegacy} context
+	 * @param {(() => void)} props
+	 */
+	function observe_all(context, props) {
+		if (context.l.s) {
+			for (const signal of context.l.s) get$1(signal);
+		}
+
+		props();
+	}
+
 	/** @import { Readable } from './public' */
 
 	/**
@@ -8459,10 +7878,6 @@ ${properties}`
 			unsubscribe: noop$1
 		});
 
-		{
-			entry.source.label = store_name;
-		}
-
 		// if the component that setup this is already unmounted we don't want to register a subscription
 		if (entry.store !== store && !(IS_UNMOUNTED in stores)) {
 			entry.unsubscribe();
@@ -8554,10 +7969,6 @@ ${properties}`
 			return target.props[key];
 		},
 		set(target, key) {
-			{
-				// TODO should this happen in prod too?
-				props_rest_readonly(`${target.name}.${String(key)}`);
-			}
 
 			return false;
 		},
@@ -8589,7 +8000,7 @@ ${properties}`
 	/*#__NO_SIDE_EFFECTS__*/
 	function rest_props(props, exclude, name) {
 		return new Proxy(
-			{ props, exclude, name, other: {}, to_proxy: [] } ,
+			{ props, exclude },
 			rest_props_handler
 		);
 	}
@@ -8735,7 +8146,7 @@ ${properties}`
 			initial_value = get_fallback();
 
 			if (setter) {
-				if (runes) props_invalid_value(key);
+				if (runes) props_invalid_value();
 				setter(initial_value);
 			}
 		}
@@ -8804,10 +8215,6 @@ ${properties}`
 			overridden = false;
 			return getter();
 		});
-
-		{
-			d.label = key;
-		}
 
 		// Capture the initial value if it's bindable
 		if (bindable) get$1(d);
@@ -8880,40 +8287,6 @@ ${properties}`
 	/** @import { EventDispatcher } from './index.js' */
 	/** @import { NotFunction } from './internal/types.js' */
 
-	{
-		/**
-		 * @param {string} rune
-		 */
-		function throw_rune_error(rune) {
-			if (!(rune in globalThis)) {
-				// TODO if people start adjusting the "this can contain runes" config through v-p-s more, adjust this message
-				/** @type {any} */
-				let value; // let's hope noone modifies this global, but belts and braces
-				Object.defineProperty(globalThis, rune, {
-					configurable: true,
-					// eslint-disable-next-line getter-return
-					get: () => {
-						if (value !== undefined) {
-							return value;
-						}
-
-						rune_outside_svelte(rune);
-					},
-					set: (v) => {
-						value = v;
-					}
-				});
-			}
-		}
-
-		throw_rune_error('$state');
-		throw_rune_error('$effect');
-		throw_rune_error('$derived');
-		throw_rune_error('$inspect');
-		throw_rune_error('$props');
-		throw_rune_error('$bindable');
-	}
-
 	/**
 	 * `onMount`, like [`$effect`](https://svelte.dev/docs/svelte/$effect), schedules a function to run as soon as the component has been mounted to the DOM.
 	 * Unlike `$effect`, the provided function only runs once.
@@ -8930,7 +8303,7 @@ ${properties}`
 	 */
 	function onMount(fn) {
 		if (component_context === null) {
-			lifecycle_outside_component('onMount');
+			lifecycle_outside_component();
 		}
 
 		if (legacy_mode_flag && component_context.l !== null) {
@@ -8970,10 +8343,10 @@ ${properties}`
 	var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
 
 	/** Used as a reference to the global object. */
-	var root$g = freeGlobal || freeSelf || Function('return this')();
+	var root$i = freeGlobal || freeSelf || Function('return this')();
 
 	/** Built-in value references. */
-	var Symbol$1 = root$g.Symbol;
+	var Symbol$1 = root$i.Symbol;
 
 	/** Used for built-in method references. */
 	var objectProto$1 = Object.prototype;
@@ -9255,7 +8628,7 @@ ${properties}`
 	 * // => Logs the number of milliseconds it took for the deferred invocation.
 	 */
 	var now = function() {
-	  return root$g.Date.now();
+	  return root$i.Date.now();
 	};
 
 	/** Error message constants. */
@@ -10633,7 +10006,7 @@ ${properties}`
 
 	SimpleBar_1[FILENAME] = 'src/components/SimpleBar.svelte';
 
-	var root$f = add_locations(from_html(`<div><div class="simplebar-wrapper"><div class="simplebar-height-auto-observer-wrapper"><div class="simplebar-height-auto-observer"></div></div> <div class="simplebar-mask"><div class="simplebar-offset"><div class="simplebar-content-wrapper"><div class="simplebar-content"><!></div></div></div></div> <div class="simplebar-placeholder"></div></div> <div class="simplebar-track simplebar-horizontal"><div class="simplebar-scrollbar"></div></div> <div class="simplebar-track simplebar-vertical"><div class="simplebar-scrollbar"></div></div></div>`), SimpleBar_1[FILENAME], [
+	var root$h = add_locations(from_html(`<div><div class="simplebar-wrapper"><div class="simplebar-height-auto-observer-wrapper"><div class="simplebar-height-auto-observer"></div></div> <div class="simplebar-mask"><div class="simplebar-offset"><div class="simplebar-content-wrapper"><div class="simplebar-content"><!></div></div></div></div> <div class="simplebar-placeholder"></div></div> <div class="simplebar-track simplebar-horizontal"><div class="simplebar-scrollbar"></div></div> <div class="simplebar-track simplebar-vertical"><div class="simplebar-scrollbar"></div></div></div>`), SimpleBar_1[FILENAME], [
 		[
 			14,
 			0,
@@ -10655,17 +10028,20 @@ ${properties}`
 
 	function SimpleBar_1($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, true, SimpleBar_1);
+		push($$props, false);
 
-		let maxHeight = prop($$props, 'maxHeight', 3, "300px");
-		let container = tag(state(void 0), 'container');
+		let maxHeight = prop($$props, 'maxHeight', 8, "300px");
+		let container = mutable_source();
 
 		onMount(() => {
 			new SimpleBar(get$1(container));
 		});
 
 		var $$exports = { ...legacy_api() };
-		var div = root$f();
+
+		init();
+
+		var div = root$h();
 		var div_1 = child(div);
 		var div_2 = sibling(child(div_1), 2);
 		var div_3 = child(div_2);
@@ -10673,7 +10049,7 @@ ${properties}`
 		var div_5 = child(div_4);
 		var node = child(div_5);
 
-		add_svelte_meta(() => snippet(node, () => $$props.children ?? noop$1), 'render', SimpleBar_1, 23, 6);
+		slot(node, $$props, 'default', {});
 		bind_this(div, ($$value) => set(container, $$value), () => get$1(container));
 		template_effect(() => set_style(div, `max-height: ${maxHeight() ?? ''}`));
 		append($$anchor, div);
@@ -10761,21 +10137,93 @@ ${properties}`
 
 	const EXEC_OPTS = { timeout: 15000, shell: SHELL };
 
-	/** Returns installed versions of npm, yarn, pnpm (false if not found). */
+	/** Returns installed versions of npm, yarn, pnpm, composer (false if not found). */
 	const globalPackages = async () => {
-		const [npm, yarn, pnpm] = await Promise.allSettled([
+		const [npm, yarn, pnpm, composer] = await Promise.allSettled([
 			npmVersion(),
 			yarnVersion(),
 			pnpmVersion(),
+			composerVersion(),
 		]);
 		return {
 			npm: npm.status === "fulfilled" ? npm.value : false,
 			yarn: yarn.status === "fulfilled" ? yarn.value : false,
 			pnpm: pnpm.status === "fulfilled" ? pnpm.value : false,
+			composer: composer.status === "fulfilled" ? composer.value : false,
 		};
 	};
 
 	const openDirectory = async () => electron.ipcRenderer.invoke("show-open-dialog");
+
+	/** Read a project's composer.json and return the raw JSON string. */
+	const getProjectComposerPackages = (projectPath) =>
+		readFile(path.join(projectPath, "composer.json"), "utf-8");
+
+	/**
+	 * Write an updated version back into the project's composer.json.
+	 * Preserves the original version constraint prefix (^, ~, >=, etc.).
+	 * Returns the new version string, or null on failure.
+	 */
+	const updateComposerPackageVersion = async (
+		projectPath,
+		packageName,
+		latestVersion,
+		isDev,
+	) => {
+		const composerPath = path.join(projectPath, "composer.json");
+		const raw = await readFile(composerPath, "utf-8");
+		const composer = JSON.parse(raw);
+
+		const section = isDev ? "require-dev" : "require";
+		if (!composer[section]?.[packageName]) return null;
+
+		const prefix = (composer[section][packageName].match(/^[^\d]*/) ?? ["^"])[0];
+		const updated = prefix + latestVersion;
+		composer[section][packageName] = updated;
+
+		await writeFile(
+			composerPath,
+			JSON.stringify(composer, null, 4) + "\n",
+			"utf-8",
+		);
+		return updated;
+	};
+
+	/**
+	 * Check composer.lock status for a project.
+	 * Returns: "ok" | "stale" | "missing"
+	 */
+	const checkComposerLockFile = (projectPath) => {
+		const composerPath = path.join(projectPath, "composer.json");
+		const lockPath = path.join(projectPath, "composer.lock");
+
+		try {
+			fs.accessSync(lockPath);
+		} catch {
+			return "missing";
+		}
+
+		try {
+			const composerMtime = fs.statSync(composerPath).mtimeMs;
+			const lockMtime = fs.statSync(lockPath).mtimeMs;
+			return composerMtime > lockMtime ? "stale" : "ok";
+		} catch {
+			return "missing";
+		}
+	};
+
+	/**
+	 * Run `composer install` in the project directory.
+	 * Returns the stdout on success.
+	 */
+	const runComposerInstall = async (projectPath) => {
+		const { stdout } = await exec("composer install", {
+			...EXEC_OPTS,
+			cwd: projectPath,
+			timeout: 120000,
+		});
+		return stdout;
+	};
 
 	/** Read a project's package.json and return the raw JSON string. */
 	const getProjectPackages = (projectPath) =>
@@ -10898,6 +10346,16 @@ ${properties}`
 		}
 	};
 
+	const composerVersion = async () => {
+		try {
+			const { stdout } = await exec("composer --version --no-ansi", EXEC_OPTS);
+			const match = stdout.match(/(\d+\.\d+\.\d+)/);
+			return match ? match[1] : stdout.trim();
+		} catch {
+			return false;
+		}
+	};
+
 	const isJson = (str) => {
 		try {
 			JSON.parse(str);
@@ -10909,14 +10367,14 @@ ${properties}`
 
 	Npm[FILENAME] = 'src/icons/npm.svelte';
 
-	var root$e = add_locations(from_svg(`<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0 10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625 11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281 13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438 19.445312 L 1.7773438 11.777344 z M 10.667969 11.777344 L 17.777344 11.777344 L 17.779297 11.777344 L 17.779297 19.443359 L 14.222656 19.443359 L 14.222656 21.222656 L 10.667969 21.222656 L 10.667969 11.777344 z M 19.556641 11.777344 L 30.222656 11.777344 L 30.224609 11.777344 L 30.224609 19.445312 L 28.445312 19.445312 L 28.445312 13.556641 L 26.667969 13.556641 L 26.667969 19.445312 L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641 L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344 z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16 13.556641 L 14.222656 13.556641 z"></path></svg>`), Npm[FILENAME], [[1, 0, [[2, 1]]]]);
+	var root$g = add_locations(from_svg(`<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 0 10 L 0 21 L 9 21 L 9 23 L 16 23 L 16 21 L 32 21 L 32 10 L 0 10 z M 1.7773438 11.777344 L 8.8886719 11.777344 L 8.890625 11.777344 L 8.890625 19.445312 L 7.1113281 19.445312 L 7.1113281 13.556641 L 5.3339844 13.556641 L 5.3339844 19.445312 L 1.7773438 19.445312 L 1.7773438 11.777344 z M 10.667969 11.777344 L 17.777344 11.777344 L 17.779297 11.777344 L 17.779297 19.443359 L 14.222656 19.443359 L 14.222656 21.222656 L 10.667969 21.222656 L 10.667969 11.777344 z M 19.556641 11.777344 L 30.222656 11.777344 L 30.224609 11.777344 L 30.224609 19.445312 L 28.445312 19.445312 L 28.445312 13.556641 L 26.667969 13.556641 L 26.667969 19.445312 L 24.890625 19.445312 L 24.890625 13.556641 L 23.111328 13.556641 L 23.111328 19.445312 L 19.556641 19.445312 L 19.556641 11.777344 z M 14.222656 13.556641 L 14.222656 17.667969 L 16 17.667969 L 16 13.556641 L 14.222656 13.556641 z"></path></svg>`), Npm[FILENAME], [[1, 0, [[2, 1]]]]);
 
 	function Npm($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, false, Npm);
+		push($$props, false);
 
 		var $$exports = { ...legacy_api() };
-		var svg = root$e();
+		var svg = root$g();
 
 		append($$anchor, svg);
 
@@ -10925,7 +10383,7 @@ ${properties}`
 
 	Pnpm[FILENAME] = 'src/icons/pnpm.svelte';
 
-	var root$d = add_locations(from_svg(`<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid meet" viewBox="66.09157809474142 33.5 184.5 184.49999999999997"><defs><path d="M237.6 95L187.6 95L187.6 45L237.6 45L237.6 95Z" id="bj0tb0Y8q"></path><path d="M182.59 95L132.59 95L132.59 45L182.59 45L182.59 95Z" id="dkDSTzPj3"></path><path d="M127.59 95L77.59 95L77.59 45L127.59 45L127.59 95Z" id="a4vNdcNLpF"></path><path d="M237.6 150L187.6 150L187.6 100L237.6 100L237.6 150Z" id="h2t4Zj1jSU"></path><path d="M182.59 150L132.59 150L132.59 100L182.59 100L182.59 150Z" id="b4t5pngwvT"></path><path d="M182.59 205L132.59 205L132.59 155L182.59 155L182.59 205Z" id="b9s1gd5m2"></path><path d="M237.6 205L187.6 205L187.6 155L237.6 155L237.6 205Z" id="cmt9WLvz7"></path><path d="M127.59 205L77.59 205L77.59 155L127.59 155L127.59 205Z" id="bJUNqgFSg"></path></defs><g><g><use xlink:href="#bj0tb0Y8q" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#dkDSTzPj3" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#a4vNdcNLpF" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#h2t4Zj1jSU" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#b4t5pngwvT" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#b9s1gd5m2" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#cmt9WLvz7" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#bJUNqgFSg" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g></g></svg>`), Pnpm[FILENAME], [
+	var root$f = add_locations(from_svg(`<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid meet" viewBox="66.09157809474142 33.5 184.5 184.49999999999997"><defs><path d="M237.6 95L187.6 95L187.6 45L237.6 45L237.6 95Z" id="bj0tb0Y8q"></path><path d="M182.59 95L132.59 95L132.59 45L182.59 45L182.59 95Z" id="dkDSTzPj3"></path><path d="M127.59 95L77.59 95L77.59 45L127.59 45L127.59 95Z" id="a4vNdcNLpF"></path><path d="M237.6 150L187.6 150L187.6 100L237.6 100L237.6 150Z" id="h2t4Zj1jSU"></path><path d="M182.59 150L132.59 150L132.59 100L182.59 100L182.59 150Z" id="b4t5pngwvT"></path><path d="M182.59 205L132.59 205L132.59 155L182.59 155L182.59 205Z" id="b9s1gd5m2"></path><path d="M237.6 205L187.6 205L187.6 155L237.6 155L237.6 205Z" id="cmt9WLvz7"></path><path d="M127.59 205L77.59 205L77.59 155L127.59 155L127.59 205Z" id="bJUNqgFSg"></path></defs><g><g><use xlink:href="#bj0tb0Y8q" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#dkDSTzPj3" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#a4vNdcNLpF" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#h2t4Zj1jSU" opacity="1" fill="#f9ad00" fill-opacity="1"></use></g><g><use xlink:href="#b4t5pngwvT" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#b9s1gd5m2" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#cmt9WLvz7" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g><g><use xlink:href="#bJUNqgFSg" opacity="1" fill="#4e4e4e" fill-opacity="1"></use></g></g></svg>`), Pnpm[FILENAME], [
 		[
 			1,
 			0,
@@ -10965,7 +10423,39 @@ ${properties}`
 
 	function Pnpm($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, false, Pnpm);
+		push($$props, false);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$f();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	Yarn[FILENAME] = 'src/icons/yarn.svelte';
+
+	var root$e = add_locations(from_svg(`<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29 23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C 27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M 16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781 10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C 12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C 12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391 12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391 10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391 9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781 10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391 10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391 12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219 12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609 13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13 22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219 22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219 22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609 20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609 19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20 20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781 20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391 16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219 14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391 11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5 17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391 9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984 9.0449219 z"></path></svg>`), Yarn[FILENAME], [[1, 0, [[2, 1]]]]);
+
+	function Yarn($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$e();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	Composer[FILENAME] = 'src/icons/composer.svelte';
+
+	var root$d = add_locations(from_svg(`<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M16 2 L28 9 L28 23 L16 30 L4 23 L4 9 Z" fill="none" stroke="currentColor" stroke-width="2.5"></path><text x="16" y="21.5" text-anchor="middle" font-size="13" font-weight="700" font-family="'SF Mono', 'Cascadia Code', monospace" fill="currentColor">C</text></svg>`), Composer[FILENAME], [[2, 0, [[3, 1], [9, 1]]]]);
+
+	function Composer($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false);
 
 		var $$exports = { ...legacy_api() };
 		var svg = root$d();
@@ -10975,68 +10465,53 @@ ${properties}`
 		return pop($$exports);
 	}
 
-	Yarn[FILENAME] = 'src/icons/yarn.svelte';
-
-	var root$c = add_locations(from_svg(`<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 16 3 C 8.8 3 3 8.8 3 16 C 3 23.2 8.8 29 16 29 C 23.2 29 29 23.2 29 16 C 29 8.8 23.2 3 16 3 z M 16 5 C 22.1 5 27 9.9 27 16 C 27 22.1 22.1 27 16 27 C 9.9 27 5 22.1 5 16 C 5 9.9 9.9 5 16 5 z M 16.208984 9.0449219 C 15.75918 9.1214844 15.300781 10.5 15.300781 10.5 C 15.300781 10.5 14.099609 10.300781 13.099609 11.300781 C 12.899609 11.500781 12.700391 11.599219 12.400391 11.699219 C 12.300391 11.799219 12.2 11.800391 12 12.400391 C 11.6 13.300391 12.599609 14.400391 12.599609 14.400391 C 10.499609 15.900391 10.599219 17.900391 10.699219 18.400391 C 9.3992187 19.500391 9.8992187 20.900781 10.199219 21.300781 C 10.399219 21.600781 10.599219 21.5 10.699219 21.5 C 10.699219 21.6 10.199219 22.200391 10.699219 22.400391 C 11.199219 22.700391 12.000391 22.800391 12.400391 22.400391 C 12.700391 22.100391 12.800391 21.499219 12.900391 21.199219 C 13.000391 21.099219 13.000391 21.399609 13.400391 21.599609 C 13.400391 21.599609 12.7 21.899609 13 22.599609 C 13.1 22.799609 13.4 23 14 23 C 14.2 23 16.599219 22.899219 17.199219 22.699219 C 17.599219 22.599219 17.699219 22.400391 17.699219 22.400391 C 20.299219 21.700391 20.799609 20.599219 22.599609 20.199219 C 23.199609 20.099219 23.199609 19.099219 22.099609 19.199219 C 21.299609 19.199219 20.6 19.6 20 20 C 19 20.6 18.300781 20.699609 18.300781 20.599609 C 18.200781 20.499609 18.699219 19.3 18.199219 18 C 17.699219 16.6 16.800391 16.199609 16.900391 16.099609 C 17.200391 15.599609 17.899219 14.800391 18.199219 13.400391 C 18.299219 12.500391 18.300391 11.000781 17.900391 10.300781 C 17.800391 10.100781 17.199219 10.5 17.199219 10.5 C 17.199219 10.5 16.600391 9.1996094 16.400391 9.0996094 C 16.337891 9.0496094 16.273242 9.0339844 16.208984 9.0449219 z"></path></svg>`), Yarn[FILENAME], [[1, 0, [[2, 1]]]]);
-
-	function Yarn($$anchor, $$props) {
-		check_target(new.target);
-		push($$props, false, Yarn);
-
-		var $$exports = { ...legacy_api() };
-		var svg = root$c();
-
-		append($$anchor, svg);
-
-		return pop($$exports);
-	}
-
 	Sidebar[FILENAME] = 'src/components/sidebar.svelte';
 
-	var root_3$1 = add_locations(from_html(`<div><button class="projectItem__btn svelte-1gr7gr8"><svg class="projectItem__icon svelte-1gr7gr8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg> <span class="projectItem__name svelte-1gr7gr8"> </span></button> <button class="projectItem__remove svelte-1gr7gr8" aria-label="Remove project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button> <button class="projectItem__close svelte-1gr7gr8" aria-label="Close project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg></button></div>`), Sidebar[FILENAME], [
+	var root_3$2 = add_locations(from_html(`<div><button class="projectItem__btn svelte-1gr7gr8"><svg class="projectItem__icon svelte-1gr7gr8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg> <span class="projectItem__name svelte-1gr7gr8"> </span></button> <button class="projectItem__remove svelte-1gr7gr8" aria-label="Remove project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button> <button class="projectItem__close svelte-1gr7gr8" aria-label="Close project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg></button></div>`), Sidebar[FILENAME], [
 		[
-			70,
+			71,
 			7,
 			[
-				[74, 8, [[78, 9, [[86, 10]]], [90, 9]]],
+				[75, 8, [[79, 9, [[87, 10]]], [91, 9]]],
 				[
-					92,
+					93,
 					8,
-					[[97, 9, [[104, 10], [105, 10], [108, 10], [109, 10]]]]
+					[[98, 9, [[105, 10], [106, 10], [109, 10], [110, 10]]]]
 				],
-				[112, 8, [[117, 9, [[124, 10], [125, 10]]]]]
+				[113, 8, [[118, 9, [[125, 10], [126, 10]]]]]
 			]
 		]
 	]);
 
-	var root_4$3 = add_locations(from_html(`<p class="sidebarSection__empty svelte-1gr7gr8">No projects yet</p>`), Sidebar[FILENAME], [[131, 6]]);
-	var root_1$2 = add_locations(from_html(`<div class="sidebar__scroll-content svelte-1gr7gr8"><section class="sidebarSection"><h2 class="sidebarSection__label svelte-1gr7gr8">Projects</h2> <!></section></div>`), Sidebar[FILENAME], [[64, 3, [[65, 4, [[66, 5]]]]]]);
-	var root_6$2 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">npm</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[161, 4, [[162, 5], [163, 5], [164, 5]]]]);
-	var root_7$2 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">yarn</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[168, 4, [[169, 5], [170, 5], [171, 5]]]]);
-	var root_8$1 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">pnpm</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[175, 4, [[176, 5], [177, 5], [178, 5]]]]);
-	var root_5$2 = add_locations(from_html(`<section class="sidebarSection" style="padding-left: 8px;padding-right: 8px; padding-bottom: 8px;"><h2 class="sidebarSection__label svelte-1gr7gr8" style="text-align: center;">Package Managers</h2> <!> <!> <!></section>`), Sidebar[FILENAME], [[153, 2, [[157, 3]]]]);
+	var root_4$4 = add_locations(from_html(`<p class="sidebarSection__empty svelte-1gr7gr8">No projects yet</p>`), Sidebar[FILENAME], [[132, 6]]);
+	var root_1$3 = add_locations(from_html(`<div class="sidebar__scroll-content svelte-1gr7gr8"><section class="sidebarSection"><h2 class="sidebarSection__label svelte-1gr7gr8">Projects</h2> <!></section></div>`), Sidebar[FILENAME], [[65, 3, [[66, 4, [[67, 5]]]]]]);
+	var root_6$3 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">npm</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[162, 4, [[163, 5], [164, 5], [165, 5]]]]);
+	var root_7$3 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">yarn</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[169, 4, [[170, 5], [171, 5], [172, 5]]]]);
+	var root_8$2 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">pnpm</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[176, 4, [[177, 5], [178, 5], [179, 5]]]]);
+	var root_9$2 = add_locations(from_html(`<div class="pkgItem svelte-1gr7gr8"><figure class="pkgItem__icon svelte-1gr7gr8"><!></figure> <span class="pkgItem__name svelte-1gr7gr8">composer</span> <span class="pkgItem__badge svelte-1gr7gr8"> </span></div>`), Sidebar[FILENAME], [[183, 4, [[184, 5], [185, 5], [186, 5]]]]);
+	var root_5$3 = add_locations(from_html(`<section class="sidebarSection" style="padding-left: 8px;padding-right: 8px; padding-bottom: 8px;"><h2 class="sidebarSection__label svelte-1gr7gr8" style="text-align: center;">Package Managers</h2> <!> <!> <!> <!></section>`), Sidebar[FILENAME], [[154, 2, [[158, 3]]]]);
 
-	var root$b = add_locations(from_html(`<aside class="sidebar svelte-1gr7gr8"><div><div class="sidebar__titlebar svelte-1gr7gr8"></div> <!> <button class="sidebar__addBtn svelte-1gr7gr8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add Project</button></div> <!></aside>`), Sidebar[FILENAME], [
+	var root$c = add_locations(from_html(`<aside class="sidebar svelte-1gr7gr8"><div><div class="sidebar__titlebar svelte-1gr7gr8"></div> <!> <button class="sidebar__addBtn svelte-1gr7gr8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-1gr7gr8"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add Project</button></div> <!></aside>`), Sidebar[FILENAME], [
 		[
-			58,
+			59,
 			0,
 			[
-				[59, 1, [[61, 2], [137, 2, [[138, 3, [[145, 4], [146, 4]]]]]]]
+				[60, 1, [[62, 2], [138, 2, [[139, 3, [[146, 4], [147, 4]]]]]]]
 			]
 		]
 	]);
 
 	function Sidebar($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, true, Sidebar);
+		push($$props, true);
 
 		const $projects = () => (
-			validate_store(projects, 'projects'),
+			validate_store(projects),
 			store_get(projects, '$projects', $$stores)
 		);
 
 		const $menuActive = () => (
-			validate_store(menuActive, 'menuActive'),
+			validate_store(menuActive),
 			store_get(menuActive, '$menuActive', $$stores)
 		);
 
@@ -11091,7 +10566,7 @@ ${properties}`
 		}
 
 		var $$exports = { ...legacy_api() };
-		var aside = root$b();
+		var aside = root$c();
 		var div = child(aside);
 		var node = sibling(child(div), 2);
 
@@ -11099,7 +10574,7 @@ ${properties}`
 			() => SimpleBar_1(node, {
 				maxHeight: "calc(100vh - 120px)",
 				children: wrap_snippet(Sidebar, ($$anchor, $$slotProps) => {
-					var div_1 = root_1$2();
+					var div_1 = root_1$3();
 					var section = child(div_1);
 					var node_1 = sibling(child(section), 2);
 
@@ -11118,7 +10593,7 @@ ${properties}`
 
 									name();
 
-									var div_2 = root_3$1();
+									var div_2 = root_3$2();
 									let classes;
 									var button = child(div_2);
 									var span = sibling(child(button), 2);
@@ -11156,7 +10631,7 @@ ${properties}`
 								}),
 								'each',
 								Sidebar,
-								69,
+								70,
 								6
 							);
 
@@ -11164,7 +10639,7 @@ ${properties}`
 						};
 
 						var alternate = ($$anchor) => {
-							var p = root_4$3();
+							var p = root_4$4();
 
 							append($$anchor, p);
 						};
@@ -11175,7 +10650,7 @@ ${properties}`
 							}),
 							'if',
 							Sidebar,
-							68,
+							69,
 							5
 						);
 					}
@@ -11188,7 +10663,7 @@ ${properties}`
 			}),
 			'component',
 			Sidebar,
-			63,
+			64,
 			2,
 			{ componentTag: 'SimpleBar' }
 		);
@@ -11198,17 +10673,17 @@ ${properties}`
 		var node_3 = sibling(div, 2);
 
 		{
-			var consequent_4 = ($$anchor) => {
-				var section_1 = root_5$2();
+			var consequent_5 = ($$anchor) => {
+				var section_1 = root_5$3();
 				var node_4 = sibling(child(section_1), 2);
 
 				{
 					var consequent_1 = ($$anchor) => {
-						var div_3 = root_6$2();
+						var div_3 = root_6$3();
 						var figure = child(div_3);
 						var node_5 = child(figure);
 
-						add_svelte_meta(() => Npm(node_5, {}), 'component', Sidebar, 162, 35, { componentTag: 'NpmIcon' });
+						add_svelte_meta(() => Npm(node_5, {}), 'component', Sidebar, 163, 35, { componentTag: 'NpmIcon' });
 
 						var span_1 = sibling(figure, 4);
 						var text_1 = child(span_1);
@@ -11222,7 +10697,7 @@ ${properties}`
 						}),
 						'if',
 						Sidebar,
-						160,
+						161,
 						3
 					);
 				}
@@ -11231,11 +10706,11 @@ ${properties}`
 
 				{
 					var consequent_2 = ($$anchor) => {
-						var div_4 = root_7$2();
+						var div_4 = root_7$3();
 						var figure_1 = child(div_4);
 						var node_7 = child(figure_1);
 
-						add_svelte_meta(() => Yarn(node_7, {}), 'component', Sidebar, 169, 35, { componentTag: 'YarnIcon' });
+						add_svelte_meta(() => Yarn(node_7, {}), 'component', Sidebar, 170, 35, { componentTag: 'YarnIcon' });
 
 						var span_2 = sibling(figure_1, 4);
 						var text_2 = child(span_2);
@@ -11249,7 +10724,7 @@ ${properties}`
 						}),
 						'if',
 						Sidebar,
-						167,
+						168,
 						3
 					);
 				}
@@ -11258,11 +10733,11 @@ ${properties}`
 
 				{
 					var consequent_3 = ($$anchor) => {
-						var div_5 = root_8$1();
+						var div_5 = root_8$2();
 						var figure_2 = child(div_5);
 						var node_9 = child(figure_2);
 
-						add_svelte_meta(() => Pnpm(node_9, {}), 'component', Sidebar, 176, 35, { componentTag: 'PnpmIcon' });
+						add_svelte_meta(() => Pnpm(node_9, {}), 'component', Sidebar, 177, 35, { componentTag: 'PnpmIcon' });
 
 						var span_3 = sibling(figure_2, 4);
 						var text_3 = child(span_3);
@@ -11276,7 +10751,34 @@ ${properties}`
 						}),
 						'if',
 						Sidebar,
-						174,
+						175,
+						3
+					);
+				}
+
+				var node_10 = sibling(node_8, 2);
+
+				{
+					var consequent_4 = ($$anchor) => {
+						var div_6 = root_9$2();
+						var figure_3 = child(div_6);
+						var node_11 = child(figure_3);
+
+						add_svelte_meta(() => Composer(node_11, {}), 'component', Sidebar, 184, 35, { componentTag: 'ComposerIcon' });
+
+						var span_4 = sibling(figure_3, 4);
+						var text_4 = child(span_4);
+						template_effect(($0) => set_text(text_4, $0), [() => get$1(packages).composer.trim()]);
+						append($$anchor, div_6);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_10, ($$render) => {
+							if (get$1(packages).composer) $$render(consequent_4);
+						}),
+						'if',
+						Sidebar,
+						182,
 						3
 					);
 				}
@@ -11285,11 +10787,11 @@ ${properties}`
 
 			add_svelte_meta(
 				() => if_block(node_3, ($$render) => {
-					if (get$1(packages).npm || get$1(packages).yarn || get$1(packages).pnpm) $$render(consequent_4);
+					if (get$1(packages).npm || get$1(packages).yarn || get$1(packages).pnpm || get$1(packages).composer) $$render(consequent_5);
 				}),
 				'if',
 				Sidebar,
-				152,
+				153,
 				1
 			);
 		}
@@ -11351,20 +10853,20 @@ ${properties}`
 	Loader[FILENAME] = 'node_modules/svelte-sonner/dist/Loader.svelte';
 
 	const bars = Array(12).fill(0);
-	var root_1$1 = add_locations(from_html(`<div class="sonner-loading-bar"></div>`), Loader[FILENAME], [[15, 3]]);
-	var root$a = add_locations(from_html(`<div><div class="sonner-spinner"></div></div>`), Loader[FILENAME], [[9, 0, [[13, 1]]]]);
+	var root_1$2 = add_locations(from_html(`<div class="sonner-loading-bar"></div>`), Loader[FILENAME], [[15, 3]]);
+	var root$b = add_locations(from_html(`<div><div class="sonner-spinner"></div></div>`), Loader[FILENAME], [[9, 0, [[13, 1]]]]);
 
 	function Loader($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, true, Loader);
+		push($$props, true);
 
 		var $$exports = { ...legacy_api() };
-		var div = root$a();
+		var div = root$b();
 		var div_1 = child(div);
 
 		add_svelte_meta(
 			() => each(div_1, 23, () => bars, (_, i) => `spinner-bar-${i}`, ($$anchor, _) => {
-				var div_2 = root_1$1();
+				var div_2 = root_1$2();
 
 				append($$anchor, div_2);
 			}),
@@ -11863,18 +11365,18 @@ ${properties}`
 		return 1 / (1.5 + factor);
 	}
 
-	var root_2$3 = add_locations(from_html(`<div><!></div>`), Toast[FILENAME], [[318, 2]]);
-	var root_4$2 = add_locations(from_html(`<button data-close-button=""><!></button>`), Toast[FILENAME], [[377, 2]]);
-	var root_7$1 = add_locations(from_html(`<div data-icon=""><!> <!></div>`), Toast[FILENAME], [[397, 3]]);
-	var root_20$1 = add_locations(from_html(`<div data-description=""><!></div>`), Toast[FILENAME], [[435, 4]]);
-	var root_25$1 = add_locations(from_html(`<button data-button="" data-cancel=""> </button>`), Toast[FILENAME], [[457, 4]]);
-	var root_28$1 = add_locations(from_html(`<button data-button=""> </button>`), Toast[FILENAME], [[480, 4]]);
-	var root_6$1 = add_locations(from_html(`<!> <div data-content=""><div data-title=""><!></div> <!></div> <!> <!>`, 1), Toast[FILENAME], [[420, 2, [[421, 3]]]]);
-	var root$9 = add_locations(from_html(`<li aria-atomic="true" data-sonner-toast=""><!> <!></li>`), Toast[FILENAME], [[333, 0]]);
+	var root_2$4 = add_locations(from_html(`<div><!></div>`), Toast[FILENAME], [[318, 2]]);
+	var root_4$3 = add_locations(from_html(`<button data-close-button=""><!></button>`), Toast[FILENAME], [[377, 2]]);
+	var root_7$2 = add_locations(from_html(`<div data-icon=""><!> <!></div>`), Toast[FILENAME], [[397, 3]]);
+	var root_20$2 = add_locations(from_html(`<div data-description=""><!></div>`), Toast[FILENAME], [[435, 4]]);
+	var root_25$2 = add_locations(from_html(`<button data-button="" data-cancel=""> </button>`), Toast[FILENAME], [[457, 4]]);
+	var root_28$2 = add_locations(from_html(`<button data-button=""> </button>`), Toast[FILENAME], [[480, 4]]);
+	var root_6$2 = add_locations(from_html(`<!> <div data-content=""><div data-title=""><!></div> <!></div> <!> <!>`, 1), Toast[FILENAME], [[420, 2, [[421, 3]]]]);
+	var root$a = add_locations(from_html(`<li aria-atomic="true" data-sonner-toast=""><!> <!></li>`), Toast[FILENAME], [[333, 0]]);
 
 	function Toast($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, true, Toast);
+		push($$props, true);
 
 		const // height index is used to calculate the offset as it gets updated before the toast array, which means we can calculate the new layout faster.
 		// use scaledRectHeight as it's more precise
@@ -11902,7 +11404,7 @@ ${properties}`
 
 			{
 				var consequent = ($$anchor) => {
-					var div = root_2$3();
+					var div = root_2$4();
 					var node_1 = child(div);
 
 					add_svelte_meta(() => snippet(node_1, () => $$props.loadingIcon), 'render', Toast, 322, 3);
@@ -12272,7 +11774,7 @@ ${properties}`
 		);
 
 		var $$exports = { ...legacy_api() };
-		var li = root$9();
+		var li = root$a();
 
 		set_attribute(li, 'tabindex', 0);
 
@@ -12281,7 +11783,7 @@ ${properties}`
 
 		{
 			var consequent_1 = ($$anchor) => {
-				var button = root_4$2();
+				var button = root_4$3();
 				var node_3 = child(button);
 
 				add_svelte_meta(() => snippet(node_3, () => $$props.closeIcon ?? noop$1), 'render', Toast, 388, 3);
@@ -12344,12 +11846,12 @@ ${properties}`
 			};
 
 			var alternate_4 = ($$anchor) => {
-				var fragment_3 = root_6$1();
+				var fragment_3 = root_6$2();
 				var node_6 = first_child(fragment_3);
 
 				{
 					var consequent_11 = ($$anchor) => {
-						var div_1 = root_7$1();
+						var div_1 = root_7$2();
 						var node_7 = child(div_1);
 
 						{
@@ -12574,7 +12076,7 @@ ${properties}`
 
 				{
 					var consequent_15 = ($$anchor) => {
-						var div_4 = root_20$1();
+						var div_4 = root_20$2();
 						var node_21 = child(div_4);
 
 						{
@@ -12663,7 +12165,7 @@ ${properties}`
 							};
 
 							var consequent_17 = ($$anchor) => {
-								var button_1 = root_25$1();
+								var button_1 = root_25$2();
 								var text_2 = child(button_1);
 
 								template_effect(
@@ -12742,7 +12244,7 @@ ${properties}`
 							};
 
 							var consequent_20 = ($$anchor) => {
-								var button_2 = root_28$1();
+								var button_2 = root_28$2();
 								var text_3 = child(button_2);
 
 								template_effect(
@@ -12873,11 +12375,27 @@ ${properties}`
 
 	SuccessIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/SuccessIcon.svelte';
 
-	var root$8 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-success-icon=""><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"></path></svg>`), SuccessIcon[FILENAME], [[1, 0, [[9, 1]]]]);
+	var root$9 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-success-icon=""><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"></path></svg>`), SuccessIcon[FILENAME], [[1, 0, [[9, 1]]]]);
 
 	function SuccessIcon($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, false, SuccessIcon);
+		push($$props, false);
+
+		var $$exports = { ...legacy_api() };
+		var svg = root$9();
+
+		append($$anchor, svg);
+
+		return pop($$exports);
+	}
+
+	ErrorIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/ErrorIcon.svelte';
+
+	var root$8 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-error-icon=""><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"></path></svg>`), ErrorIcon[FILENAME], [[1, 0, [[9, 1]]]]);
+
+	function ErrorIcon($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, false);
 
 		var $$exports = { ...legacy_api() };
 		var svg = root$8();
@@ -12887,13 +12405,13 @@ ${properties}`
 		return pop($$exports);
 	}
 
-	ErrorIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/ErrorIcon.svelte';
+	WarningIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/WarningIcon.svelte';
 
-	var root$7 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-error-icon=""><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"></path></svg>`), ErrorIcon[FILENAME], [[1, 0, [[9, 1]]]]);
+	var root$7 = add_locations(from_svg(`<svg viewBox="0 0 64 64" fill="currentColor" height="20" width="20" data-sonner-warning-icon="" xmlns="http://www.w3.org/2000/svg"><path d="M32.427,7.987c2.183,0.124 4,1.165 5.096,3.281l17.936,36.208c1.739,3.66 -0.954,8.585 -5.373,8.656l-36.119,0c-4.022,-0.064 -7.322,-4.631 -5.352,-8.696l18.271,-36.207c0.342,-0.65 0.498,-0.838 0.793,-1.179c1.186,-1.375 2.483,-2.111 4.748,-2.063Zm-0.295,3.997c-0.687,0.034 -1.316,0.419 -1.659,1.017c-6.312,11.979 -12.397,24.081 -18.301,36.267c-0.546,1.225 0.391,2.797 1.762,2.863c12.06,0.195 24.125,0.195 36.185,0c1.325,-0.064 2.321,-1.584 1.769,-2.85c-5.793,-12.184 -11.765,-24.286 -17.966,-36.267c-0.366,-0.651 -0.903,-1.042 -1.79,-1.03Z"></path><path d="M33.631,40.581l-3.348,0l-0.368,-16.449l4.1,0l-0.384,16.449Zm-3.828,5.03c0,-0.609 0.197,-1.113 0.592,-1.514c0.396,-0.4 0.935,-0.601 1.618,-0.601c0.684,0 1.223,0.201 1.618,0.601c0.395,0.401 0.593,0.905 0.593,1.514c0,0.587 -0.193,1.078 -0.577,1.473c-0.385,0.395 -0.929,0.593 -1.634,0.593c-0.705,0 -1.249,-0.198 -1.634,-0.593c-0.384,-0.395 -0.576,-0.886 -0.576,-1.473Z"></path></svg>`), WarningIcon[FILENAME], [[1, 0, [[9, 1], [12, 1]]]]);
 
-	function ErrorIcon($$anchor, $$props) {
+	function WarningIcon($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, false, ErrorIcon);
+		push($$props, false);
 
 		var $$exports = { ...legacy_api() };
 		var svg = root$7();
@@ -12903,13 +12421,13 @@ ${properties}`
 		return pop($$exports);
 	}
 
-	WarningIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/WarningIcon.svelte';
+	InfoIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/InfoIcon.svelte';
 
-	var root$6 = add_locations(from_svg(`<svg viewBox="0 0 64 64" fill="currentColor" height="20" width="20" data-sonner-warning-icon="" xmlns="http://www.w3.org/2000/svg"><path d="M32.427,7.987c2.183,0.124 4,1.165 5.096,3.281l17.936,36.208c1.739,3.66 -0.954,8.585 -5.373,8.656l-36.119,0c-4.022,-0.064 -7.322,-4.631 -5.352,-8.696l18.271,-36.207c0.342,-0.65 0.498,-0.838 0.793,-1.179c1.186,-1.375 2.483,-2.111 4.748,-2.063Zm-0.295,3.997c-0.687,0.034 -1.316,0.419 -1.659,1.017c-6.312,11.979 -12.397,24.081 -18.301,36.267c-0.546,1.225 0.391,2.797 1.762,2.863c12.06,0.195 24.125,0.195 36.185,0c1.325,-0.064 2.321,-1.584 1.769,-2.85c-5.793,-12.184 -11.765,-24.286 -17.966,-36.267c-0.366,-0.651 -0.903,-1.042 -1.79,-1.03Z"></path><path d="M33.631,40.581l-3.348,0l-0.368,-16.449l4.1,0l-0.384,16.449Zm-3.828,5.03c0,-0.609 0.197,-1.113 0.592,-1.514c0.396,-0.4 0.935,-0.601 1.618,-0.601c0.684,0 1.223,0.201 1.618,0.601c0.395,0.401 0.593,0.905 0.593,1.514c0,0.587 -0.193,1.078 -0.577,1.473c-0.385,0.395 -0.929,0.593 -1.634,0.593c-0.705,0 -1.249,-0.198 -1.634,-0.593c-0.384,-0.395 -0.576,-0.886 -0.576,-1.473Z"></path></svg>`), WarningIcon[FILENAME], [[1, 0, [[9, 1], [12, 1]]]]);
+	var root$6 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-info-icon=""><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"></path></svg>`), InfoIcon[FILENAME], [[1, 0, [[9, 1]]]]);
 
-	function WarningIcon($$anchor, $$props) {
+	function InfoIcon($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, false, WarningIcon);
+		push($$props, false);
 
 		var $$exports = { ...legacy_api() };
 		var svg = root$6();
@@ -12919,32 +12437,16 @@ ${properties}`
 		return pop($$exports);
 	}
 
-	InfoIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/InfoIcon.svelte';
-
-	var root$5 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" height="20" width="20" data-sonner-info-icon=""><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"></path></svg>`), InfoIcon[FILENAME], [[1, 0, [[9, 1]]]]);
-
-	function InfoIcon($$anchor, $$props) {
-		check_target(new.target);
-		push($$props, false, InfoIcon);
-
-		var $$exports = { ...legacy_api() };
-		var svg = root$5();
-
-		append($$anchor, svg);
-
-		return pop($$exports);
-	}
-
 	CloseIcon[FILENAME] = 'node_modules/svelte-sonner/dist/icons/CloseIcon.svelte';
 
-	var root$4 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-sonner-close-icon=""><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`), CloseIcon[FILENAME], [[1, 0, [[13, 1], [14, 1]]]]);
+	var root$5 = add_locations(from_svg(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" data-sonner-close-icon=""><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`), CloseIcon[FILENAME], [[1, 0, [[13, 1], [14, 1]]]]);
 
 	function CloseIcon($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, false, CloseIcon);
+		push($$props, false);
 
 		var $$exports = { ...legacy_api() };
-		var svg = root$4();
+		var svg = root$5();
 
 		append($$anchor, svg);
 
@@ -12996,12 +12498,12 @@ ${properties}`
 		return styles;
 	}
 
-	var root_2$2 = add_locations(from_html(`<ol></ol>`), Toaster[FILENAME], [[252, 3]]);
-	var root$3 = add_locations(from_html(`<section aria-live="polite" aria-relevant="additions text" aria-atomic="false" class="svelte-nbs0zk"><!></section>`), Toaster[FILENAME], [[239, 0]]);
+	var root_2$3 = add_locations(from_html(`<ol></ol>`), Toaster[FILENAME], [[252, 3]]);
+	var root$4 = add_locations(from_html(`<section aria-live="polite" aria-relevant="additions text" aria-atomic="false" class="svelte-nbs0zk"><!></section>`), Toaster[FILENAME], [[239, 0]]);
 
 	function Toaster($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, true, Toaster);
+		push($$props, true);
 
 		function getInitialTheme(t) {
 			if (strict_equals(t, 'system', false)) return t;
@@ -13072,9 +12574,7 @@ ${properties}`
 					'ondragend',
 					'onpointerdown',
 					'onpointerup'
-				],
-				'restProps'
-			);
+				]);
 
 		function getDocumentDirection() {
 			if (strict_equals(dir(), 'auto', false)) return dir();
@@ -13265,7 +12765,7 @@ ${properties}`
 		sonnerContext.set(new SonnerState());
 
 		var $$exports = { ...legacy_api() };
-		var section = root$3();
+		var section = root$4();
 
 		set_attribute(section, 'tabindex', -1);
 
@@ -13293,7 +12793,7 @@ ${properties}`
 
 						get$1(offsetObject);
 
-						var ol = root_2$2();
+						var ol = root_2$3();
 
 						attribute_effect(
 							ol,
@@ -17893,10 +17393,10 @@ ${properties}`
 	  mergeConfig,
 	} = axios;
 
-	const CACHE_TTL = 30 * 60 * 1000; // 30 minutes in-memory cache
-	const cache = new Map(); // name → { data, ts }
+	const CACHE_TTL$1 = 30 * 60 * 1000; // 30 minutes in-memory cache
+	const cache$1 = new Map(); // name → { data, ts }
 
-	const client = axios.create({
+	const client$1 = axios.create({
 		baseURL: "https://registry.npmjs.org/",
 		timeout: 10000,
 	});
@@ -17905,11 +17405,11 @@ ${properties}`
 	 * Fetch the latest package info from npm registry with in-memory caching.
 	 */
 	const getPackageInfo = async (packageName) => {
-		const hit = cache.get(packageName);
-		if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
+		const hit = cache$1.get(packageName);
+		if (hit && Date.now() - hit.ts < CACHE_TTL$1) return hit.data;
 
-		const { data } = await client.get(`/${encodeURIComponent(packageName)}/latest`);
-		cache.set(packageName, { data, ts: Date.now() });
+		const { data } = await client$1.get(`/${encodeURIComponent(packageName)}/latest`);
+		cache$1.set(packageName, { data, ts: Date.now() });
 		return data;
 	};
 
@@ -17939,26 +17439,26 @@ ${properties}`
 
 	PackageEditor[FILENAME] = 'src/components/PackageEditor.svelte';
 
-	var root_1 = add_locations(from_html(`<span class="meta__dot svelte-1awhm8x">·</span> <span class="meta__name svelte-1awhm8x"> </span>`, 1), PackageEditor[FILENAME], [[152, 4], [153, 4]]);
-	var root_2$1 = add_locations(from_html(`<span class="meta__version svelte-1awhm8x"> </span>`), PackageEditor[FILENAME], [[156, 4]]);
-	var root_4$1 = add_locations(from_html(`<span class="spin svelte-1awhm8x"></span> Installing…`, 1), PackageEditor[FILENAME], [[167, 6]]);
-	var root_5$1 = add_locations(from_svg(`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="12" height="12"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"></path></svg> `, 1), PackageEditor[FILENAME], [[169, 6, [[175, 19]]]]);
-	var root_3 = add_locations(from_html(`<button class="install-btn svelte-1awhm8x"><!></button>`), PackageEditor[FILENAME], [[161, 4]]);
-	var root_6 = add_locations(from_html(`<span class="stat stat--loading svelte-1awhm8x"><span class="spin svelte-1awhm8x"></span> </span>`), PackageEditor[FILENAME], [[182, 4, [[183, 5]]]]);
-	var root_7 = add_locations(from_html(`<span class="stat stat--warn svelte-1awhm8x"> </span>`), PackageEditor[FILENAME], [[187, 4]]);
-	var root_8 = add_locations(from_html(`<span class="stat stat--ok svelte-1awhm8x">All up to date</span>`), PackageEditor[FILENAME], [[189, 4]]);
-	var root_9 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"name"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[198, 17, [[199, 5], [199, 52], [201, 12], [201, 53]]]]);
-	var root_10 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"version"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[205, 20, [[206, 5], [206, 55], [209, 12], [209, 56]]]]);
-	var root_11 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"description"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[213, 24, [[214, 5], [214, 59], [217, 12], [217, 60]]]]);
-	var root_14 = add_locations(from_html(`<span class="tok-comma svelte-1awhm8x">,</span>`), PackageEditor[FILENAME], [[234, 57]]);
-	var root_15 = add_locations(from_html(`<span class="badge badge--loading svelte-1awhm8x"><span class="spin-sm svelte-1awhm8x"></span></span>`), PackageEditor[FILENAME], [[237, 48, [[239, 10]]]]);
-	var root_16 = add_locations(from_html(`<span class="badge badge--ok svelte-1awhm8x"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1awhm8x"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), PackageEditor[FILENAME], [[240, 49, [[242, 10, [[247, 11]]]]]]);
-	var root_17 = add_locations(from_html(`<button class="badge badge--update svelte-1awhm8x"> </button>`), PackageEditor[FILENAME], [[249, 53]]);
-	var root_18 = add_locations(from_html(`<span class="badge badge--error svelte-1awhm8x">✕</span>`), PackageEditor[FILENAME], [[253, 16]]);
-	var root_19 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), PackageEditor[FILENAME], [[254, 43, [[258, 10, [[263, 11], [263, 43]]]]]]);
-	var root_20 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Issues"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="5.5" x2="8" y2="8.5"></line><line x1="8" y1="10.5" x2="8.01" y2="10.5"></line></svg></a>`), PackageEditor[FILENAME], [[276, 38, [[280, 10, [[285, 11], [285, 43], [290, 12]]]]]]);
+	var root_1$1 = add_locations(from_html(`<span class="meta__dot svelte-1awhm8x">·</span> <span class="meta__name svelte-1awhm8x"> </span>`, 1), PackageEditor[FILENAME], [[152, 4], [153, 4]]);
+	var root_2$2 = add_locations(from_html(`<span class="meta__version svelte-1awhm8x"> </span>`), PackageEditor[FILENAME], [[156, 4]]);
+	var root_4$2 = add_locations(from_html(`<span class="spin svelte-1awhm8x"></span> Installing…`, 1), PackageEditor[FILENAME], [[167, 6]]);
+	var root_5$2 = add_locations(from_svg(`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="12" height="12"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"></path></svg> `, 1), PackageEditor[FILENAME], [[169, 6, [[175, 19]]]]);
+	var root_3$1 = add_locations(from_html(`<button class="install-btn svelte-1awhm8x"><!></button>`), PackageEditor[FILENAME], [[161, 4]]);
+	var root_6$1 = add_locations(from_html(`<span class="stat stat--loading svelte-1awhm8x"><span class="spin svelte-1awhm8x"></span> </span>`), PackageEditor[FILENAME], [[182, 4, [[183, 5]]]]);
+	var root_7$1 = add_locations(from_html(`<span class="stat stat--warn svelte-1awhm8x"> </span>`), PackageEditor[FILENAME], [[187, 4]]);
+	var root_8$1 = add_locations(from_html(`<span class="stat stat--ok svelte-1awhm8x">All up to date</span>`), PackageEditor[FILENAME], [[189, 4]]);
+	var root_9$1 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"name"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[198, 17, [[199, 5], [199, 52], [201, 12], [201, 53]]]]);
+	var root_10$1 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"version"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[205, 20, [[206, 5], [206, 55], [209, 12], [209, 56]]]]);
+	var root_11$1 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-key svelte-1awhm8x">&nbsp;&nbsp;"description"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-str svelte-1awhm8x"> </span><span class="tok-comma svelte-1awhm8x">,</span></div>`), PackageEditor[FILENAME], [[213, 24, [[214, 5], [214, 59], [217, 12], [217, 60]]]]);
+	var root_14$1 = add_locations(from_html(`<span class="tok-comma svelte-1awhm8x">,</span>`), PackageEditor[FILENAME], [[234, 57]]);
+	var root_15$1 = add_locations(from_html(`<span class="badge badge--loading svelte-1awhm8x"><span class="spin-sm svelte-1awhm8x"></span></span>`), PackageEditor[FILENAME], [[237, 48, [[239, 10]]]]);
+	var root_16$1 = add_locations(from_html(`<span class="badge badge--ok svelte-1awhm8x"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1awhm8x"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), PackageEditor[FILENAME], [[240, 49, [[242, 10, [[247, 11]]]]]]);
+	var root_17$1 = add_locations(from_html(`<button class="badge badge--update svelte-1awhm8x"> </button>`), PackageEditor[FILENAME], [[249, 53]]);
+	var root_18$1 = add_locations(from_html(`<span class="badge badge--error svelte-1awhm8x">✕</span>`), PackageEditor[FILENAME], [[253, 16]]);
+	var root_19$1 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), PackageEditor[FILENAME], [[254, 43, [[258, 10, [[263, 11], [263, 43]]]]]]);
+	var root_20$1 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Issues"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="5.5" x2="8" y2="8.5"></line><line x1="8" y1="10.5" x2="8.01" y2="10.5"></line></svg></a>`), PackageEditor[FILENAME], [[276, 38, [[280, 10, [[285, 11], [285, 43], [290, 12]]]]]]);
 
-	var root_13 = add_locations(from_html(`<div class="line pkg-line svelte-1awhm8x"><span class="tok-pkg svelte-1awhm8x"> </span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-ver svelte-1awhm8x"> </span><!><span class="pkg-status svelte-1awhm8x"><!><!><a class="link-icon svelte-1awhm8x" title="npm"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1awhm8x"><path d="M0 5h16v6H8v1H5v-1H0zm1 1v4h3V7h1v3h1V6zm5 0v5h2V7h2v4h1V6zm5 0v4h1V7h1v3h1V6z"></path></svg></a><!></span></div>`), PackageEditor[FILENAME], [
+	var root_13$1 = add_locations(from_html(`<div class="line pkg-line svelte-1awhm8x"><span class="tok-pkg svelte-1awhm8x"> </span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-ver svelte-1awhm8x"> </span><!><span class="pkg-status svelte-1awhm8x"><!><!><a class="link-icon svelte-1awhm8x" title="npm"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1awhm8x"><path d="M0 5h16v6H8v1H5v-1H0zm1 1v4h3V7h1v3h1V6zm5 0v5h2V7h2v4h1V6zm5 0v4h1V7h1v3h1V6z"></path></svg></a><!></span></div>`), PackageEditor[FILENAME], [
 		[
 			229,
 			5,
@@ -17971,20 +17471,20 @@ ${properties}`
 		]
 	]);
 
-	var root_12 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-section svelte-1awhm8x">&nbsp;&nbsp;"dependencies"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-brace svelte-1awhm8x"></span></div> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span><span class="tok-comma svelte-1awhm8x">,</span></div>`, 1), PackageEditor[FILENAME], [
+	var root_12$1 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-section svelte-1awhm8x">&nbsp;&nbsp;"dependencies"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-brace svelte-1awhm8x"></span></div> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span><span class="tok-comma svelte-1awhm8x">,</span></div>`, 1), PackageEditor[FILENAME], [
 		[222, 4, [[223, 5], [223, 64], [226, 12]]],
 		[296, 4, [[297, 5], [297, 53]]]
 	]);
 
-	var root_23 = add_locations(from_html(`<span class="tok-comma svelte-1awhm8x">,</span>`), PackageEditor[FILENAME], [[315, 60]]);
-	var root_24 = add_locations(from_html(`<span class="badge badge--loading svelte-1awhm8x"><span class="spin-sm svelte-1awhm8x"></span></span>`), PackageEditor[FILENAME], [[318, 48, [[320, 10]]]]);
-	var root_25 = add_locations(from_html(`<span class="badge badge--ok svelte-1awhm8x"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1awhm8x"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), PackageEditor[FILENAME], [[321, 49, [[323, 10, [[328, 11]]]]]]);
-	var root_26 = add_locations(from_html(`<button class="badge badge--update svelte-1awhm8x"> </button>`), PackageEditor[FILENAME], [[330, 53]]);
-	var root_27 = add_locations(from_html(`<span class="badge badge--error svelte-1awhm8x">✕</span>`), PackageEditor[FILENAME], [[334, 16]]);
-	var root_28 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), PackageEditor[FILENAME], [[335, 43, [[339, 10, [[344, 11], [344, 43]]]]]]);
+	var root_23$1 = add_locations(from_html(`<span class="tok-comma svelte-1awhm8x">,</span>`), PackageEditor[FILENAME], [[315, 60]]);
+	var root_24$1 = add_locations(from_html(`<span class="badge badge--loading svelte-1awhm8x"><span class="spin-sm svelte-1awhm8x"></span></span>`), PackageEditor[FILENAME], [[318, 48, [[320, 10]]]]);
+	var root_25$1 = add_locations(from_html(`<span class="badge badge--ok svelte-1awhm8x"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1awhm8x"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), PackageEditor[FILENAME], [[321, 49, [[323, 10, [[328, 11]]]]]]);
+	var root_26$1 = add_locations(from_html(`<button class="badge badge--update svelte-1awhm8x"> </button>`), PackageEditor[FILENAME], [[330, 53]]);
+	var root_27$1 = add_locations(from_html(`<span class="badge badge--error svelte-1awhm8x">✕</span>`), PackageEditor[FILENAME], [[334, 16]]);
+	var root_28$1 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), PackageEditor[FILENAME], [[335, 43, [[339, 10, [[344, 11], [344, 43]]]]]]);
 	var root_29 = add_locations(from_html(`<a class="link-icon svelte-1awhm8x" title="Issues"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1awhm8x"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="5.5" x2="8" y2="8.5"></line><line x1="8" y1="10.5" x2="8.01" y2="10.5"></line></svg></a>`), PackageEditor[FILENAME], [[357, 38, [[361, 10, [[366, 11], [366, 43], [371, 12]]]]]]);
 
-	var root_22 = add_locations(from_html(`<div class="line pkg-line svelte-1awhm8x"><span class="tok-pkg svelte-1awhm8x"> </span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-ver tok-ver--dev svelte-1awhm8x"> </span><!><span class="pkg-status svelte-1awhm8x"><!><!><a class="link-icon svelte-1awhm8x" title="npm"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1awhm8x"><path d="M0 5h16v6H8v1H5v-1H0zm1 1v4h3V7h1v3h1V6zm5 0v5h2V7h2v4h1V6zm5 0v4h1V7h1v3h1V6z"></path></svg></a><!></span></div>`), PackageEditor[FILENAME], [
+	var root_22$1 = add_locations(from_html(`<div class="line pkg-line svelte-1awhm8x"><span class="tok-pkg svelte-1awhm8x"> </span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-ver tok-ver--dev svelte-1awhm8x"> </span><!><span class="pkg-status svelte-1awhm8x"><!><!><a class="link-icon svelte-1awhm8x" title="npm"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1awhm8x"><path d="M0 5h16v6H8v1H5v-1H0zm1 1v4h3V7h1v3h1V6zm5 0v5h2V7h2v4h1V6zm5 0v4h1V7h1v3h1V6z"></path></svg></a><!></span></div>`), PackageEditor[FILENAME], [
 		[
 			310,
 			5,
@@ -17997,12 +17497,12 @@ ${properties}`
 		]
 	]);
 
-	var root_21 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-section svelte-1awhm8x">&nbsp;&nbsp;"devDependencies"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-brace svelte-1awhm8x"></span></div> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div>`, 1), PackageEditor[FILENAME], [
+	var root_21$1 = add_locations(from_html(`<div class="line svelte-1awhm8x"><span class="tok-section svelte-1awhm8x">&nbsp;&nbsp;"devDependencies"</span><span class="tok-colon svelte-1awhm8x">:</span><span class="tok-brace svelte-1awhm8x"></span></div> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div>`, 1), PackageEditor[FILENAME], [
 		[303, 4, [[304, 5], [304, 67], [307, 12]]],
 		[377, 4, [[377, 22]]]
 	]);
 
-	var root$2 = add_locations(from_html(`<div class="editor svelte-1awhm8x"><div class="editor__meta svelte-1awhm8x"><div class="editor__metaLeft svelte-1awhm8x"><span class="meta__filename svelte-1awhm8x">package.json</span> <!> <!></div> <div class="editor__metaRight svelte-1awhm8x"><!> <!> <span class="stat stat--total svelte-1awhm8x"> </span></div></div> <div class="editor__body svelte-1awhm8x"><div class="code svelte-1awhm8x"><div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div> <!> <!> <!> <!> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div></div></div></div>`), PackageEditor[FILENAME], [
+	var root$3 = add_locations(from_html(`<div class="editor svelte-1awhm8x"><div class="editor__meta svelte-1awhm8x"><div class="editor__metaLeft svelte-1awhm8x"><span class="meta__filename svelte-1awhm8x">package.json</span> <!> <!></div> <div class="editor__metaRight svelte-1awhm8x"><!> <!> <span class="stat stat--total svelte-1awhm8x"> </span></div></div> <div class="editor__body svelte-1awhm8x"><div class="code svelte-1awhm8x"><div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div> <!> <!> <!> <!> <!> <div class="line svelte-1awhm8x"><span class="tok-brace svelte-1awhm8x"></span></div></div></div></div>`), PackageEditor[FILENAME], [
 		[
 			147,
 			0,
@@ -18019,7 +17519,7 @@ ${properties}`
 
 	function PackageEditor($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, true, PackageEditor);
+		push($$props, true);
 
 		/**
 		 * Props:
@@ -18176,14 +17676,14 @@ ${properties}`
 		}
 
 		var $$exports = { ...legacy_api() };
-		var div = root$2();
+		var div = root$3();
 		var div_1 = child(div);
 		var div_2 = child(div_1);
 		var node = sibling(child(div_2), 2);
 
 		{
 			var consequent = ($$anchor) => {
-				var fragment = root_1();
+				var fragment = root_1$1();
 				var span = sibling(first_child(fragment), 2);
 				var text = child(span);
 				template_effect(() => set_text(text, get$1(pkg).name));
@@ -18205,7 +17705,7 @@ ${properties}`
 
 		{
 			var consequent_1 = ($$anchor) => {
-				var span_1 = root_2$1();
+				var span_1 = root_2$2();
 				var text_1 = child(span_1);
 				template_effect(() => set_text(text_1, `v${get$1(pkg).version ?? ''}`));
 				append($$anchor, span_1);
@@ -18227,17 +17727,17 @@ ${properties}`
 
 		{
 			var consequent_3 = ($$anchor) => {
-				var button = root_3();
+				var button = root_3$1();
 				var node_3 = child(button);
 
 				{
 					var consequent_2 = ($$anchor) => {
-						var fragment_1 = root_4$1();
+						var fragment_1 = root_4$2();
 						append($$anchor, fragment_1);
 					};
 
 					var alternate = ($$anchor) => {
-						var fragment_2 = root_5$1();
+						var fragment_2 = root_5$2();
 						var text_2 = sibling(first_child(fragment_2), 1, true);
 
 						template_effect(() => set_text(text_2, strict_equals(get$1(lockStatus), "missing") ? "Install" : "Sync"));
@@ -18274,21 +17774,21 @@ ${properties}`
 
 		{
 			var consequent_4 = ($$anchor) => {
-				var span_2 = root_6();
+				var span_2 = root_6$1();
 				var text_3 = sibling(child(span_2));
 				template_effect(() => set_text(text_3, ` Checking ${get$1(stats).loading ?? ''}…`));
 				append($$anchor, span_2);
 			};
 
 			var consequent_5 = ($$anchor) => {
-				var span_3 = root_7();
+				var span_3 = root_7$1();
 				var text_4 = child(span_3);
 				template_effect(() => set_text(text_4, `${get$1(stats).outdated ?? ''} outdated`));
 				append($$anchor, span_3);
 			};
 
 			var alternate_1 = ($$anchor) => {
-				var span_4 = root_8();
+				var span_4 = root_8$1();
 
 				append($$anchor, span_4);
 			};
@@ -18318,7 +17818,7 @@ ${properties}`
 
 		{
 			var consequent_6 = ($$anchor) => {
-				var div_7 = root_9();
+				var div_7 = root_9$1();
 				var span_7 = sibling(child(div_7), 2);
 				var text_6 = child(span_7);
 				template_effect(() => set_text(text_6, `"${get$1(pkg).name ?? ''}"`));
@@ -18340,7 +17840,7 @@ ${properties}`
 
 		{
 			var consequent_7 = ($$anchor) => {
-				var div_8 = root_10();
+				var div_8 = root_10$1();
 				var span_8 = sibling(child(div_8), 2);
 				var text_7 = child(span_8);
 				template_effect(() => set_text(text_7, `"${get$1(pkg).version ?? ''}"`));
@@ -18362,7 +17862,7 @@ ${properties}`
 
 		{
 			var consequent_8 = ($$anchor) => {
-				var div_9 = root_11();
+				var div_9 = root_11$1();
 				var span_9 = sibling(child(div_9), 2);
 				var text_8 = child(span_9);
 				template_effect(() => set_text(text_8, `"${get$1(pkg).description ?? ''}"`));
@@ -18384,7 +17884,7 @@ ${properties}`
 
 		{
 			var consequent_15 = ($$anchor) => {
-				var fragment_3 = root_12();
+				var fragment_3 = root_12$1();
 				var div_10 = first_child(fragment_3);
 				var span_10 = sibling(child(div_10), 2);
 
@@ -18403,7 +17903,7 @@ ${properties}`
 
 						ver();
 
-						var div_11 = root_13();
+						var div_11 = root_13$1();
 						var span_11 = child(div_11);
 						var text_9 = child(span_11);
 
@@ -18418,7 +17918,7 @@ ${properties}`
 
 						{
 							var consequent_9 = ($$anchor) => {
-								var span_13 = root_14();
+								var span_13 = root_14$1();
 
 								append($$anchor, span_13);
 							};
@@ -18441,7 +17941,7 @@ ${properties}`
 
 						{
 							var consequent_10 = ($$anchor) => {
-								var span_15 = root_15();
+								var span_15 = root_15$1();
 
 								append($$anchor, span_15);
 							};
@@ -18449,7 +17949,7 @@ ${properties}`
 							var d_1 = user_derived(() => strict_equals(getStatus(name(), ver()), "loading"));
 
 							var consequent_11 = ($$anchor) => {
-								var span_16 = root_16();
+								var span_16 = root_16$1();
 								var text_11 = sibling(child(span_16), 1, true);
 
 								reset(span_16);
@@ -18460,7 +17960,7 @@ ${properties}`
 							var d_2 = user_derived(() => strict_equals(getStatus(name(), ver()), "ok"));
 
 							var consequent_12 = ($$anchor) => {
-								var button_1 = root_17();
+								var button_1 = root_17$1();
 								var text_12 = child(button_1);
 
 								reset(button_1);
@@ -18476,7 +17976,7 @@ ${properties}`
 							var d_3 = user_derived(() => strict_equals(getStatus(name(), ver()), "update"));
 
 							var alternate_2 = ($$anchor) => {
-								var span_17 = root_18();
+								var span_17 = root_18$1();
 
 								append($$anchor, span_17);
 							};
@@ -18496,7 +17996,7 @@ ${properties}`
 
 						{
 							var consequent_13 = ($$anchor) => {
-								var a = root_19();
+								var a = root_19$1();
 
 								template_effect(() => set_attribute(a, 'href', get$1(infoMap)[name()].homepage));
 								append($$anchor, a);
@@ -18518,7 +18018,7 @@ ${properties}`
 
 						{
 							var consequent_14 = ($$anchor) => {
-								var a_2 = root_20();
+								var a_2 = root_20$1();
 
 								template_effect(() => set_attribute(a_2, 'href', get$1(infoMap)[name()].bugs.url));
 								append($$anchor, a_2);
@@ -18576,7 +18076,7 @@ ${properties}`
 
 		{
 			var consequent_22 = ($$anchor) => {
-				var fragment_4 = root_21();
+				var fragment_4 = root_21$1();
 				var div_13 = first_child(fragment_4);
 				var span_19 = sibling(child(div_13), 2);
 
@@ -18595,7 +18095,7 @@ ${properties}`
 
 						ver();
 
-						var div_14 = root_22();
+						var div_14 = root_22$1();
 						var span_20 = child(div_14);
 						var text_13 = child(span_20);
 
@@ -18610,7 +18110,7 @@ ${properties}`
 
 						{
 							var consequent_16 = ($$anchor) => {
-								var span_22 = root_23();
+								var span_22 = root_23$1();
 
 								append($$anchor, span_22);
 							};
@@ -18633,7 +18133,7 @@ ${properties}`
 
 						{
 							var consequent_17 = ($$anchor) => {
-								var span_24 = root_24();
+								var span_24 = root_24$1();
 
 								append($$anchor, span_24);
 							};
@@ -18641,7 +18141,7 @@ ${properties}`
 							var d_6 = user_derived(() => strict_equals(getStatus(name(), ver()), "loading"));
 
 							var consequent_18 = ($$anchor) => {
-								var span_25 = root_25();
+								var span_25 = root_25$1();
 								var text_15 = sibling(child(span_25), 1, true);
 
 								reset(span_25);
@@ -18652,7 +18152,7 @@ ${properties}`
 							var d_7 = user_derived(() => strict_equals(getStatus(name(), ver()), "ok"));
 
 							var consequent_19 = ($$anchor) => {
-								var button_2 = root_26();
+								var button_2 = root_26$1();
 								var text_16 = child(button_2);
 
 								reset(button_2);
@@ -18668,7 +18168,7 @@ ${properties}`
 							var d_8 = user_derived(() => strict_equals(getStatus(name(), ver()), "update"));
 
 							var alternate_3 = ($$anchor) => {
-								var span_26 = root_27();
+								var span_26 = root_27$1();
 
 								append($$anchor, span_26);
 							};
@@ -18688,7 +18188,7 @@ ${properties}`
 
 						{
 							var consequent_20 = ($$anchor) => {
-								var a_3 = root_28();
+								var a_3 = root_28$1();
 
 								template_effect(() => set_attribute(a_3, 'href', get$1(infoMap)[name()].homepage));
 								append($$anchor, a_3);
@@ -18776,46 +18276,956 @@ ${properties}`
 
 	delegate(['click']);
 
+	const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+	const cache = new Map(); // name → { data, ts }
+
+	const client = axios.create({
+		baseURL: "https://packagist.org/",
+		timeout: 10000,
+	});
+
+	/**
+	 * Compare two Composer normalized version strings (e.g. "1.2.3.0").
+	 * Returns negative if a < b, positive if a > b, 0 if equal.
+	 */
+	function compareNormalized(a, b) {
+		const ap = a.split(".").map(Number);
+		const bp = b.split(".").map(Number);
+		for (let i = 0; i < Math.max(ap.length, bp.length); i++) {
+			const diff = (ap[i] || 0) - (bp[i] || 0);
+			if (diff !== 0) return diff;
+		}
+		return 0;
+	}
+
+	/**
+	 * Given the versions map from Packagist, return the latest stable version string.
+	 * Filters out dev, alpha, beta, RC releases.
+	 */
+	function resolveLatestStable(versions) {
+		const stable = Object.entries(versions)
+			.filter(([key]) => {
+				const lower = key.toLowerCase();
+				return (
+					!lower.startsWith("dev-") &&
+					!lower.endsWith("-dev") &&
+					!lower.includes("alpha") &&
+					!lower.includes("beta") &&
+					!lower.includes("-rc") &&
+					key !== "dev-master"
+				);
+			})
+			.map(([, data]) => data)
+			.sort((a, b) =>
+				compareNormalized(
+					a.version_normalized || "0.0.0.0",
+					b.version_normalized || "0.0.0.0",
+				),
+			);
+
+		return stable[stable.length - 1] ?? null;
+	}
+
+	/**
+	 * Fetch the latest stable package info from Packagist with in-memory caching.
+	 * Returns { version, homepage, repository } or throws on failure.
+	 */
+	const getComposerPackageInfo = async (packageName) => {
+		const hit = cache.get(packageName);
+		if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
+
+		const { data } = await client.get(
+			`/packages/${encodeURIComponent(packageName)}.json`,
+		);
+		const latest = resolveLatestStable(data.package?.versions ?? {});
+		if (!latest) throw new Error(`No stable version found for ${packageName}`);
+
+		const result = {
+			version: latest.version,
+			homepage: latest.homepage || data.package?.repository || null,
+			repository: data.package?.repository || null,
+		};
+
+		cache.set(packageName, { data: result, ts: Date.now() });
+		return result;
+	};
+
+	/**
+	 * Fetch info for many Composer packages concurrently (default 6 at a time).
+	 * Calls onResult(name, data | null) as each response arrives.
+	 */
+	const fetchComposerPackagesInfo = async (
+		names,
+		onResult,
+		concurrency = 6,
+	) => {
+		const queue = [...names];
+
+		const worker = async () => {
+			while (queue.length > 0) {
+				const name = queue.shift();
+				if (!name) break;
+				try {
+					const data = await getComposerPackageInfo(name);
+					onResult(name, data);
+				} catch {
+					onResult(name, null);
+				}
+			}
+		};
+
+		await Promise.all(
+			Array.from({ length: Math.min(concurrency, names.length) }, worker),
+		);
+	};
+
+	ComposerEditor[FILENAME] = 'src/components/ComposerEditor.svelte';
+
+	var root_1 = add_locations(from_html(`<span class="meta__dot svelte-1lxqddh">·</span> <span class="meta__name svelte-1lxqddh"> </span>`, 1), ComposerEditor[FILENAME], [[160, 4], [161, 4]]);
+	var root_2$1 = add_locations(from_html(`<span class="meta__version svelte-1lxqddh"> </span>`), ComposerEditor[FILENAME], [[164, 4]]);
+	var root_4$1 = add_locations(from_html(`<span class="spin svelte-1lxqddh"></span> Installing…`, 1), ComposerEditor[FILENAME], [[175, 6]]);
+	var root_5$1 = add_locations(from_svg(`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" width="12" height="12"><path d="M8 2v8M5 7l3 3 3-3M3 12h10"></path></svg> `, 1), ComposerEditor[FILENAME], [[177, 6, [[183, 19]]]]);
+	var root_3 = add_locations(from_html(`<button class="install-btn svelte-1lxqddh"><!></button>`), ComposerEditor[FILENAME], [[169, 4]]);
+	var root_6 = add_locations(from_html(`<span class="stat stat--loading svelte-1lxqddh"><span class="spin svelte-1lxqddh"></span> </span>`), ComposerEditor[FILENAME], [[190, 4, [[191, 5]]]]);
+	var root_7 = add_locations(from_html(`<span class="stat stat--warn svelte-1lxqddh"> </span>`), ComposerEditor[FILENAME], [[195, 4]]);
+	var root_8 = add_locations(from_html(`<span class="stat stat--ok svelte-1lxqddh">All up to date</span>`), ComposerEditor[FILENAME], [[197, 4]]);
+	var root_9 = add_locations(from_html(`<div class="line svelte-1lxqddh"><span class="tok-key svelte-1lxqddh">&nbsp;&nbsp;"name"</span><span class="tok-colon svelte-1lxqddh">:</span><span class="tok-str svelte-1lxqddh"> </span><span class="tok-comma svelte-1lxqddh">,</span></div>`), ComposerEditor[FILENAME], [[207, 22, [[208, 5], [208, 52], [210, 12], [210, 58]]]]);
+	var root_10 = add_locations(from_html(`<div class="line svelte-1lxqddh"><span class="tok-key svelte-1lxqddh">&nbsp;&nbsp;"description"</span><span class="tok-colon svelte-1lxqddh">:</span><span class="tok-str svelte-1lxqddh"> </span><span class="tok-comma svelte-1lxqddh">,</span></div>`), ComposerEditor[FILENAME], [[214, 29, [[215, 5], [215, 59], [218, 12], [218, 65]]]]);
+	var root_13 = add_locations(from_html(`<span class="tok-comma svelte-1lxqddh">,</span>`), ComposerEditor[FILENAME], [[236, 57]]);
+	var root_15 = add_locations(from_html(`<span class="badge badge--loading svelte-1lxqddh"><span class="spin-sm svelte-1lxqddh"></span></span>`), ComposerEditor[FILENAME], [[239, 48, [[241, 10]]]]);
+	var root_16 = add_locations(from_html(`<span class="badge badge--ok svelte-1lxqddh"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1lxqddh"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), ComposerEditor[FILENAME], [[242, 49, [[244, 10, [[249, 11]]]]]]);
+	var root_17 = add_locations(from_html(`<button class="badge badge--update svelte-1lxqddh"> </button>`), ComposerEditor[FILENAME], [[251, 53]]);
+	var root_18 = add_locations(from_html(`<span class="badge badge--error svelte-1lxqddh">✕</span>`), ComposerEditor[FILENAME], [[255, 16]]);
+	var root_19 = add_locations(from_html(`<a class="link-icon svelte-1lxqddh" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1lxqddh"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), ComposerEditor[FILENAME], [[256, 43, [[260, 10, [[265, 11], [265, 43]]]]]]);
+	var root_14 = add_locations(from_html(`<span class="pkg-status svelte-1lxqddh"><!><!><a class="link-icon svelte-1lxqddh" title="Packagist"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1lxqddh"><path d="M8 1 L14 4.5 L14 11.5 L8 15 L2 11.5 L2 4.5 Z" fill="none" stroke="currentColor" stroke-width="1.5"></path><text x="8" y="10.5" text-anchor="middle" font-size="6" font-weight="700" fill="currentColor">P</text></svg></a></span>`), ComposerEditor[FILENAME], [[238, 25, [[269, 14, [[273, 9, [[274, 10], [279, 11]]]]]]]]);
+	var root_12 = add_locations(from_html(`<div class="line pkg-line svelte-1lxqddh"><span class="tok-pkg svelte-1lxqddh"> </span><span class="tok-colon svelte-1lxqddh">:</span><span class="tok-ver svelte-1lxqddh"> </span><!><!></div>`), ComposerEditor[FILENAME], [[231, 5, [[232, 6], [232, 67], [235, 13]]]]);
+
+	var root_11 = add_locations(from_html(`<div class="line svelte-1lxqddh"><span class="tok-section svelte-1lxqddh">&nbsp;&nbsp;"require"</span><span class="tok-colon svelte-1lxqddh">:</span><span class="tok-brace svelte-1lxqddh"></span></div> <!> <div class="line svelte-1lxqddh"><span class="tok-brace svelte-1lxqddh"></span><span class="tok-comma svelte-1lxqddh">,</span></div>`, 1), ComposerEditor[FILENAME], [
+		[223, 4, [[224, 5], [224, 59], [227, 12]]],
+		[292, 4, [[293, 5], [293, 53]]]
+	]);
+
+	var root_22 = add_locations(from_html(`<span class="tok-comma svelte-1lxqddh">,</span>`), ComposerEditor[FILENAME], [[313, 64]]);
+	var root_24 = add_locations(from_html(`<span class="badge badge--loading svelte-1lxqddh"><span class="spin-sm svelte-1lxqddh"></span></span>`), ComposerEditor[FILENAME], [[316, 48, [[318, 10]]]]);
+	var root_25 = add_locations(from_html(`<span class="badge badge--ok svelte-1lxqddh"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" class="svelte-1lxqddh"><polyline points="13 4 6.5 11 3 7.5"></polyline></svg> </span>`), ComposerEditor[FILENAME], [[319, 49, [[321, 10, [[326, 11]]]]]]);
+	var root_26 = add_locations(from_html(`<button class="badge badge--update svelte-1lxqddh"> </button>`), ComposerEditor[FILENAME], [[328, 53]]);
+	var root_27 = add_locations(from_html(`<span class="badge badge--error svelte-1lxqddh">✕</span>`), ComposerEditor[FILENAME], [[332, 16]]);
+	var root_28 = add_locations(from_html(`<a class="link-icon svelte-1lxqddh" title="Homepage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="svelte-1lxqddh"><circle cx="8" cy="8" r="6.5"></circle><path d="M8 1.5A9.5 9.5 0 0 1 11 8 9.5 9.5 0 0 1 8 14.5M8 1.5A9.5 9.5 0 0 0 5 8 9.5 9.5 0 0 0 8 14.5M1.5 8h13"></path></svg></a>`), ComposerEditor[FILENAME], [[333, 43, [[337, 10, [[342, 11], [342, 43]]]]]]);
+	var root_23 = add_locations(from_html(`<span class="pkg-status svelte-1lxqddh"><!><!><a class="link-icon svelte-1lxqddh" title="Packagist"><svg viewBox="0 0 16 16" fill="currentColor" class="svelte-1lxqddh"><path d="M8 1 L14 4.5 L14 11.5 L8 15 L2 11.5 L2 4.5 Z" fill="none" stroke="currentColor" stroke-width="1.5"></path><text x="8" y="10.5" text-anchor="middle" font-size="6" font-weight="700" fill="currentColor">P</text></svg></a></span>`), ComposerEditor[FILENAME], [[315, 25, [[346, 14, [[350, 9, [[351, 10], [356, 11]]]]]]]]);
+	var root_21 = add_locations(from_html(`<div class="line pkg-line svelte-1lxqddh"><span class="tok-pkg svelte-1lxqddh"> </span><span class="tok-colon svelte-1lxqddh">:</span><span class="tok-ver tok-ver--dev svelte-1lxqddh"> </span><!><!></div>`), ComposerEditor[FILENAME], [[308, 5, [[309, 6], [309, 67], [312, 13]]]]);
+
+	var root_20 = add_locations(from_html(`<div class="line svelte-1lxqddh"><span class="tok-section svelte-1lxqddh">&nbsp;&nbsp;"require-dev"</span><span class="tok-colon svelte-1lxqddh">:</span><span class="tok-brace svelte-1lxqddh"></span></div> <!> <div class="line svelte-1lxqddh"><span class="tok-brace svelte-1lxqddh"></span></div>`, 1), ComposerEditor[FILENAME], [
+		[300, 4, [[301, 5], [301, 63], [304, 12]]],
+		[369, 4, [[369, 22]]]
+	]);
+
+	var root$2 = add_locations(from_html(`<div class="editor svelte-1lxqddh"><div class="editor__meta svelte-1lxqddh"><div class="editor__metaLeft svelte-1lxqddh"><span class="meta__filename svelte-1lxqddh">composer.json</span> <!> <!></div> <div class="editor__metaRight svelte-1lxqddh"><!> <!> <span class="stat stat--total svelte-1lxqddh"> </span></div></div> <div class="editor__body svelte-1lxqddh"><div class="code svelte-1lxqddh"><div class="line svelte-1lxqddh"><span class="tok-brace svelte-1lxqddh"></span></div> <!> <!> <!> <!> <div class="line svelte-1lxqddh"><span class="tok-brace svelte-1lxqddh"></span></div></div></div></div>`), ComposerEditor[FILENAME], [
+		[
+			155,
+			0,
+			[
+				[156, 1, [[157, 2, [[158, 3]]], [167, 2, [[199, 3]]]]],
+				[
+					203,
+					1,
+					[[204, 2, [[205, 3, [[205, 21]]], [372, 3, [[372, 21]]]]]]
+				]
+			]
+		]
+	]);
+
+	function ComposerEditor($$anchor, $$props) {
+		check_target(new.target);
+		push($$props, true);
+
+		/**
+		 * Props:
+		 *   project   – { id, name, path }
+		 *   rawJson   – raw string content of composer.json
+		 *   onRefresh – callback(newRawJson) called after a version update
+		 */
+		let onRefresh = prop($$props, 'onRefresh', 3, () => {});
+
+		let composer = tag(
+			user_derived(() => {
+				try {
+					return JSON.parse($$props.rawJson);
+				} catch {
+					return {};
+				}
+			}),
+			'composer'
+		);
+
+		let infoMap = tag(state(proxy({})), 'infoMap');
+
+		user_effect(() => {
+			$$props.rawJson;
+
+			set(infoMap, {}, true);
+
+			// Exclude PHP itself and extension constraints (e.g. "php", "ext-json")
+			const isRealPackage = (name) => strict_equals(name, "php", false) && !name.startsWith("ext-") && !name.startsWith("lib-");
+
+			const allNames = [
+				...Object.keys(get$1(composer).require ?? {}).filter(isRealPackage),
+				...Object.keys(get$1(composer)["require-dev"] ?? {}).filter(isRealPackage)
+			];
+
+			if (strict_equals(allNames.length, 0)) return;
+
+			const initial = {};
+
+			for (const n of allNames) initial[n] = { status: "loading" };
+
+			set(infoMap, initial, true);
+
+			fetchComposerPackagesInfo(allNames, (name, data) => {
+				set(
+					infoMap,
+					{
+						...get$1(infoMap),
+						[name]: data
+							? { status: data.version ? "fetched" : "error", ...data }
+							: { status: "error" }
+					},
+					true
+				);
+			});
+		});
+
+		function getStatus(pkgName, currentRaw) {
+			const info = get$1(infoMap)[pkgName];
+
+			if (!info || strict_equals(info.status, "loading")) return "loading";
+			if (strict_equals(info.status, "error")) return "error";
+
+			const latest = info.version;
+
+			if (!latest) return "error";
+
+			const current = currentRaw.replace(/^[^\d]*/, "");
+
+			return strict_equals(current, latest) ? "ok" : "update";
+		}
+
+		function getLatest(pkgName) {
+			return get$1(infoMap)[pkgName]?.version ?? null;
+		}
+
+		async function handleUpdate(pkgName, latestVersion, isDev) {
+			try {
+				const updated = (await track_reactivity_loss(updateComposerPackageVersion($$props.project.path, pkgName, latestVersion, isDev)))();
+
+				toast.success(`Updated ${pkgName}`, { description: `→ ${updated}`, position: "bottom-center" });
+
+				try {
+					const newRaw = (await track_reactivity_loss(getProjectComposerPackages($$props.project.path)))();
+
+					onRefresh()(newRaw);
+				} catch {
+					/* ignore read error */
+				}
+
+				set(
+					infoMap,
+					{
+						...get$1(infoMap),
+						[pkgName]: { ...get$1(infoMap)[pkgName], status: "fetched" }
+					},
+					true
+				);
+			} catch(err) {
+				toast.error(`Failed to update ${pkgName}`, { description: err.message, position: "bottom-center" });
+			}
+		}
+
+		// Only count packages we actually fetch info for (not php/ext-*)
+		const isRealPackage = (name) => strict_equals(name, "php", false) && !name.startsWith("ext-") && !name.startsWith("lib-");
+
+		let stats = tag(
+			user_derived(() => {
+				let total = 0, outdated = 0, loading = 0;
+
+				for (const [name, raw] of Object.entries(get$1(composer).require ?? {})) {
+					if (!isRealPackage(name)) continue;
+
+					total++;
+
+					const s = getStatus(name, raw);
+
+					if (strict_equals(s, "loading")) loading++;
+					if (strict_equals(s, "update")) outdated++;
+				}
+
+				for (const [name, raw] of Object.entries(get$1(composer)["require-dev"] ?? {})) {
+					if (!isRealPackage(name)) continue;
+
+					total++;
+
+					const s = getStatus(name, raw);
+
+					if (strict_equals(s, "loading")) loading++;
+					if (strict_equals(s, "update")) outdated++;
+				}
+
+				return { total, outdated, loading };
+			}),
+			'stats'
+		);
+
+		let lockStatus = tag(state("ok"), 'lockStatus');
+		let installing = tag(state(false), 'installing');
+
+		user_effect(() => {
+			$$props.rawJson;
+
+			if ($$props.project?.path) {
+				set(lockStatus, checkComposerLockFile($$props.project.path), true);
+			}
+		});
+
+		async function handleInstall() {
+			set(installing, true);
+
+			try {
+				(await track_reactivity_loss(runComposerInstall($$props.project.path)))();
+				set(lockStatus, checkComposerLockFile($$props.project.path), true);
+				toast.success("composer install complete", { position: "bottom-center" });
+			} catch(err) {
+				toast.error("composer install failed", { description: err.message, position: "bottom-center" });
+			} finally {
+				set(installing, false);
+			}
+		}
+
+		var $$exports = { ...legacy_api() };
+		var div = root$2();
+		var div_1 = child(div);
+		var div_2 = child(div_1);
+		var node = sibling(child(div_2), 2);
+
+		{
+			var consequent = ($$anchor) => {
+				var fragment = root_1();
+				var span = sibling(first_child(fragment), 2);
+				var text = child(span);
+				template_effect(() => set_text(text, get$1(composer).name));
+				append($$anchor, fragment);
+			};
+
+			add_svelte_meta(
+				() => if_block(node, ($$render) => {
+					if (get$1(composer).name) $$render(consequent);
+				}),
+				'if',
+				ComposerEditor,
+				159,
+				3
+			);
+		}
+
+		var node_1 = sibling(node, 2);
+
+		{
+			var consequent_1 = ($$anchor) => {
+				var span_1 = root_2$1();
+				var text_1 = child(span_1);
+				template_effect(() => set_text(text_1, `v${get$1(composer).version ?? ''}`));
+				append($$anchor, span_1);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_1, ($$render) => {
+					if (get$1(composer).version) $$render(consequent_1);
+				}),
+				'if',
+				ComposerEditor,
+				163,
+				3
+			);
+		}
+
+		var div_3 = sibling(div_2, 2);
+		var node_2 = child(div_3);
+
+		{
+			var consequent_3 = ($$anchor) => {
+				var button = root_3();
+				var node_3 = child(button);
+
+				{
+					var consequent_2 = ($$anchor) => {
+						var fragment_1 = root_4$1();
+						append($$anchor, fragment_1);
+					};
+
+					var alternate = ($$anchor) => {
+						var fragment_2 = root_5$1();
+						var text_2 = sibling(first_child(fragment_2), 1, true);
+
+						template_effect(() => set_text(text_2, strict_equals(get$1(lockStatus), "missing") ? "Install" : "Sync"));
+						append($$anchor, fragment_2);
+					};
+
+					add_svelte_meta(
+						() => if_block(node_3, ($$render) => {
+							if (get$1(installing)) $$render(consequent_2); else $$render(alternate, -1);
+						}),
+						'if',
+						ComposerEditor,
+						174,
+						5
+					);
+				}
+				template_effect(() => button.disabled = get$1(installing));
+				delegated('click', button, handleInstall);
+				append($$anchor, button);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_2, ($$render) => {
+					if (strict_equals(get$1(lockStatus), "stale") || strict_equals(get$1(lockStatus), "missing")) $$render(consequent_3);
+				}),
+				'if',
+				ComposerEditor,
+				168,
+				3
+			);
+		}
+
+		var node_4 = sibling(node_2, 2);
+
+		{
+			var consequent_4 = ($$anchor) => {
+				var span_2 = root_6();
+				var text_3 = sibling(child(span_2));
+				template_effect(() => set_text(text_3, ` Checking ${get$1(stats).loading ?? ''}…`));
+				append($$anchor, span_2);
+			};
+
+			var consequent_5 = ($$anchor) => {
+				var span_3 = root_7();
+				var text_4 = child(span_3);
+				template_effect(() => set_text(text_4, `${get$1(stats).outdated ?? ''} outdated`));
+				append($$anchor, span_3);
+			};
+
+			var alternate_1 = ($$anchor) => {
+				var span_4 = root_8();
+
+				append($$anchor, span_4);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_4, ($$render) => {
+					if (get$1(stats).loading > 0) $$render(consequent_4); else if (get$1(stats).outdated > 0) $$render(consequent_5, 1); else $$render(alternate_1, -1);
+				}),
+				'if',
+				ComposerEditor,
+				189,
+				3
+			);
+		}
+
+		var span_5 = sibling(node_4, 2);
+		var text_5 = child(span_5);
+
+		var div_4 = sibling(div_1, 2);
+		var div_5 = child(div_4);
+		var div_6 = child(div_5);
+		var span_6 = child(div_6);
+
+		span_6.textContent = '{';
+
+		var node_5 = sibling(div_6, 2);
+
+		{
+			var consequent_6 = ($$anchor) => {
+				var div_7 = root_9();
+				var span_7 = sibling(child(div_7), 2);
+				var text_6 = child(span_7);
+				template_effect(() => set_text(text_6, `"${get$1(composer).name ?? ''}"`));
+				append($$anchor, div_7);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_5, ($$render) => {
+					if (get$1(composer).name) $$render(consequent_6);
+				}),
+				'if',
+				ComposerEditor,
+				207,
+				3
+			);
+		}
+
+		var node_6 = sibling(node_5, 2);
+
+		{
+			var consequent_7 = ($$anchor) => {
+				var div_8 = root_10();
+				var span_8 = sibling(child(div_8), 2);
+				var text_7 = child(span_8);
+				template_effect(() => set_text(text_7, `"${get$1(composer).description ?? ''}"`));
+				append($$anchor, div_8);
+			};
+
+			add_svelte_meta(
+				() => if_block(node_6, ($$render) => {
+					if (get$1(composer).description) $$render(consequent_7);
+				}),
+				'if',
+				ComposerEditor,
+				214,
+				3
+			);
+		}
+
+		var node_7 = sibling(node_6, 2);
+
+		{
+			var consequent_14 = ($$anchor) => {
+				var fragment_3 = root_11();
+				var div_9 = first_child(fragment_3);
+				var span_9 = sibling(child(div_9), 2);
+
+				span_9.textContent = '{';
+
+				var node_8 = sibling(div_9, 2);
+
+				add_svelte_meta(
+					() => each(node_8, 17, () => Object.entries(get$1(composer).require), index, ($$anchor, $$item, i) => {
+						var $$array = user_derived(() => to_array(get$1($$item), 2));
+						let name = () => get$1($$array)[0];
+
+						name();
+
+						let ver = () => get$1($$array)[1];
+
+						ver();
+
+						const isReal = tag(user_derived(() => isRealPackage(name())), 'isReal');
+
+						get$1(isReal);
+
+						var div_10 = root_12();
+						var span_10 = child(div_10);
+						var text_8 = child(span_10);
+
+						reset(span_10);
+
+						var span_11 = sibling(span_10, 2);
+						var text_9 = child(span_11);
+
+						reset(span_11);
+
+						var node_9 = sibling(span_11);
+
+						{
+							var consequent_8 = ($$anchor) => {
+								var span_12 = root_13();
+
+								append($$anchor, span_12);
+							};
+
+							var d = user_derived(() => i < Object.keys(get$1(composer).require).length - 1);
+
+							add_svelte_meta(
+								() => if_block(node_9, ($$render) => {
+									if (get$1(d)) $$render(consequent_8);
+								}),
+								'if',
+								ComposerEditor,
+								236,
+								7
+							);
+						}
+
+						var node_10 = sibling(node_9);
+
+						{
+							var consequent_13 = ($$anchor) => {
+								var span_13 = root_14();
+								var node_11 = child(span_13);
+
+								{
+									var consequent_9 = ($$anchor) => {
+										var span_14 = root_15();
+
+										append($$anchor, span_14);
+									};
+
+									var d_1 = user_derived(() => strict_equals(getStatus(name(), ver()), "loading"));
+
+									var consequent_10 = ($$anchor) => {
+										var span_15 = root_16();
+										var text_10 = sibling(child(span_15), 1, true);
+
+										reset(span_15);
+										template_effect(($0) => set_text(text_10, $0), [() => getLatest(name())]);
+										append($$anchor, span_15);
+									};
+
+									var d_2 = user_derived(() => strict_equals(getStatus(name(), ver()), "ok"));
+
+									var consequent_11 = ($$anchor) => {
+										var button_1 = root_17();
+										var text_11 = child(button_1);
+
+										reset(button_1);
+										template_effect(($0) => set_text(text_11, `↑ ${$0 ?? ''}`), [() => getLatest(name())]);
+
+										delegated('click', button_1, function click() {
+											return handleUpdate(name(), getLatest(name()), false);
+										});
+
+										append($$anchor, button_1);
+									};
+
+									var d_3 = user_derived(() => strict_equals(getStatus(name(), ver()), "update"));
+
+									var alternate_2 = ($$anchor) => {
+										var span_16 = root_18();
+
+										append($$anchor, span_16);
+									};
+
+									add_svelte_meta(
+										() => if_block(node_11, ($$render) => {
+											if (get$1(d_1)) $$render(consequent_9); else if (get$1(d_2)) $$render(consequent_10, 1); else if (get$1(d_3)) $$render(consequent_11, 2); else $$render(alternate_2, -1);
+										}),
+										'if',
+										ComposerEditor,
+										239,
+										8
+									);
+								}
+
+								var node_12 = sibling(node_11);
+
+								{
+									var consequent_12 = ($$anchor) => {
+										var a = root_19();
+
+										template_effect(() => set_attribute(a, 'href', get$1(infoMap)[name()].homepage));
+										append($$anchor, a);
+									};
+
+									add_svelte_meta(
+										() => if_block(node_12, ($$render) => {
+											if (get$1(infoMap)[name()]?.homepage) $$render(consequent_12);
+										}),
+										'if',
+										ComposerEditor,
+										256,
+										14
+									);
+								}
+
+								var a_1 = sibling(node_12);
+
+								reset(span_13);
+								template_effect(() => set_attribute(a_1, 'href', `https://packagist.org/packages/${name()}`));
+								append($$anchor, span_13);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_10, ($$render) => {
+									if (get$1(isReal)) $$render(consequent_13);
+								}),
+								'if',
+								ComposerEditor,
+								238,
+								13
+							);
+						}
+
+						reset(div_10);
+
+						template_effect(() => {
+							set_text(text_8, `    "${name() ?? ''}"`);
+							set_text(text_9, `"${ver() ?? ''}"`);
+						});
+
+						append($$anchor, div_10);
+					}),
+					'each',
+					ComposerEditor,
+					229,
+					4
+				);
+
+				var div_11 = sibling(node_8, 2);
+				var span_17 = child(div_11);
+
+				span_17.textContent = '  }';
+				append($$anchor, fragment_3);
+			};
+
+			var d_4 = user_derived(() => get$1(composer).require && Object.keys(get$1(composer).require).length > 0);
+
+			add_svelte_meta(
+				() => if_block(node_7, ($$render) => {
+					if (get$1(d_4)) $$render(consequent_14);
+				}),
+				'if',
+				ComposerEditor,
+				222,
+				3
+			);
+		}
+
+		var node_13 = sibling(node_7, 2);
+
+		{
+			var consequent_21 = ($$anchor) => {
+				var fragment_4 = root_20();
+				var div_12 = first_child(fragment_4);
+				var span_18 = sibling(child(div_12), 2);
+
+				span_18.textContent = '{';
+
+				var node_14 = sibling(div_12, 2);
+
+				add_svelte_meta(
+					() => each(node_14, 17, () => Object.entries(get$1(composer)["require-dev"]), index, ($$anchor, $$item, i) => {
+						var $$array_1 = user_derived(() => to_array(get$1($$item), 2));
+						let name = () => get$1($$array_1)[0];
+
+						name();
+
+						let ver = () => get$1($$array_1)[1];
+
+						ver();
+
+						const isReal = tag(user_derived(() => isRealPackage(name())), 'isReal');
+
+						get$1(isReal);
+
+						var div_13 = root_21();
+						var span_19 = child(div_13);
+						var text_12 = child(span_19);
+
+						reset(span_19);
+
+						var span_20 = sibling(span_19, 2);
+						var text_13 = child(span_20);
+
+						reset(span_20);
+
+						var node_15 = sibling(span_20);
+
+						{
+							var consequent_15 = ($$anchor) => {
+								var span_21 = root_22();
+
+								append($$anchor, span_21);
+							};
+
+							var d_5 = user_derived(() => i < Object.keys(get$1(composer)["require-dev"]).length - 1);
+
+							add_svelte_meta(
+								() => if_block(node_15, ($$render) => {
+									if (get$1(d_5)) $$render(consequent_15);
+								}),
+								'if',
+								ComposerEditor,
+								313,
+								7
+							);
+						}
+
+						var node_16 = sibling(node_15);
+
+						{
+							var consequent_20 = ($$anchor) => {
+								var span_22 = root_23();
+								var node_17 = child(span_22);
+
+								{
+									var consequent_16 = ($$anchor) => {
+										var span_23 = root_24();
+
+										append($$anchor, span_23);
+									};
+
+									var d_6 = user_derived(() => strict_equals(getStatus(name(), ver()), "loading"));
+
+									var consequent_17 = ($$anchor) => {
+										var span_24 = root_25();
+										var text_14 = sibling(child(span_24), 1, true);
+
+										reset(span_24);
+										template_effect(($0) => set_text(text_14, $0), [() => getLatest(name())]);
+										append($$anchor, span_24);
+									};
+
+									var d_7 = user_derived(() => strict_equals(getStatus(name(), ver()), "ok"));
+
+									var consequent_18 = ($$anchor) => {
+										var button_2 = root_26();
+										var text_15 = child(button_2);
+
+										reset(button_2);
+										template_effect(($0) => set_text(text_15, `↑ ${$0 ?? ''}`), [() => getLatest(name())]);
+
+										delegated('click', button_2, function click_1() {
+											return handleUpdate(name(), getLatest(name()), true);
+										});
+
+										append($$anchor, button_2);
+									};
+
+									var d_8 = user_derived(() => strict_equals(getStatus(name(), ver()), "update"));
+
+									var alternate_3 = ($$anchor) => {
+										var span_25 = root_27();
+
+										append($$anchor, span_25);
+									};
+
+									add_svelte_meta(
+										() => if_block(node_17, ($$render) => {
+											if (get$1(d_6)) $$render(consequent_16); else if (get$1(d_7)) $$render(consequent_17, 1); else if (get$1(d_8)) $$render(consequent_18, 2); else $$render(alternate_3, -1);
+										}),
+										'if',
+										ComposerEditor,
+										316,
+										8
+									);
+								}
+
+								var node_18 = sibling(node_17);
+
+								{
+									var consequent_19 = ($$anchor) => {
+										var a_2 = root_28();
+
+										template_effect(() => set_attribute(a_2, 'href', get$1(infoMap)[name()].homepage));
+										append($$anchor, a_2);
+									};
+
+									add_svelte_meta(
+										() => if_block(node_18, ($$render) => {
+											if (get$1(infoMap)[name()]?.homepage) $$render(consequent_19);
+										}),
+										'if',
+										ComposerEditor,
+										333,
+										14
+									);
+								}
+
+								var a_3 = sibling(node_18);
+
+								reset(span_22);
+								template_effect(() => set_attribute(a_3, 'href', `https://packagist.org/packages/${name()}`));
+								append($$anchor, span_22);
+							};
+
+							add_svelte_meta(
+								() => if_block(node_16, ($$render) => {
+									if (get$1(isReal)) $$render(consequent_20);
+								}),
+								'if',
+								ComposerEditor,
+								315,
+								13
+							);
+						}
+
+						reset(div_13);
+
+						template_effect(() => {
+							set_text(text_12, `    "${name() ?? ''}"`);
+							set_text(text_13, `"${ver() ?? ''}"`);
+						});
+
+						append($$anchor, div_13);
+					}),
+					'each',
+					ComposerEditor,
+					306,
+					4
+				);
+
+				var div_14 = sibling(node_14, 2);
+				var span_26 = child(div_14);
+
+				span_26.textContent = '  }';
+				append($$anchor, fragment_4);
+			};
+
+			var d_9 = user_derived(() => get$1(composer)["require-dev"] && Object.keys(get$1(composer)["require-dev"]).length > 0);
+
+			add_svelte_meta(
+				() => if_block(node_13, ($$render) => {
+					if (get$1(d_9)) $$render(consequent_21);
+				}),
+				'if',
+				ComposerEditor,
+				299,
+				3
+			);
+		}
+
+		var div_15 = sibling(node_13, 2);
+		var span_27 = child(div_15);
+
+		span_27.textContent = '}';
+		template_effect(() => set_text(text_5, `${get$1(stats).total ?? ''} packages`));
+		append($$anchor, div);
+
+		return pop($$exports);
+	}
+
+	delegate(['click']);
+
 	Main[FILENAME] = 'src/components/main.svelte';
 
 	var root_2 = add_locations(from_html(`<section class="empty svelte-ifpaur"><div class="empty__card svelte-ifpaur"><img src="./images/add.png" alt="Add project" class="empty__img svelte-ifpaur"/> <h1 class="empty__title svelte-ifpaur">No Project Selected</h1> <p class="empty__sub svelte-ifpaur">Add a project to view and manage its packages.</p> <button class="empty__btn svelte-ifpaur"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg" class="svelte-ifpaur"><line x1="12" y1="5" x2="12" y2="19" class="svelte-ifpaur"></line><line x1="5" y1="12" x2="19" y2="12" class="svelte-ifpaur"></line></svg> Add Project</button></div></section>`), Main[FILENAME], [
 		[
-			67,
+			80,
 			3,
 			[
 				[
-					68,
+					81,
 					4,
 					[
-						[69, 5],
-						[70, 5],
-						[71, 5],
-						[74, 5, [[75, 6, [[82, 7], [83, 7]]]]]
+						[82, 5],
+						[83, 5],
+						[84, 5],
+						[87, 5, [[88, 6, [[95, 7], [96, 7]]]]]
 					]
 				]
 			]
 		]
 	]);
 
-	var root_5 = add_locations(from_html(`<span class="pkgView__loadingDot svelte-ifpaur"></span>`), Main[FILENAME], [[108, 8]]);
+	var root_5 = add_locations(from_html(`<span class="pkgView__loadingDot svelte-ifpaur"></span>`), Main[FILENAME], [[121, 8]]);
 
 	var root_4 = add_locations(from_html(`<section class="pkgView svelte-ifpaur"><header class="pkgView__header svelte-ifpaur"><div class="pkgView__headerInner svelte-ifpaur"><svg class="pkgView__headerIcon svelte-ifpaur" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" class="svelte-ifpaur"></path></svg> <h1 class="pkgView__title svelte-ifpaur"> </h1> <!></div></header> <!></section>`), Main[FILENAME], [
-		[91, 4, [[92, 5, [[93, 6, [[94, 7, [[102, 8]]], [106, 7]]]]]]]
+		[
+			104,
+			4,
+			[[105, 5, [[106, 6, [[107, 7, [[115, 8]]], [119, 7]]]]]]
+		]
 	]);
 
-	var root$1 = add_locations(from_html(`<div class="content svelte-ifpaur"><!></div> <!>`, 1), Main[FILENAME], [[64, 0]]);
+	var root$1 = add_locations(from_html(`<div class="content svelte-ifpaur"><!></div> <!>`, 1), Main[FILENAME], [[77, 0]]);
 
 	function Main($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, true, Main);
+		push($$props, true);
 
 		const $menuActive = () => (
-			validate_store(menuActive, 'menuActive'),
+			validate_store(menuActive),
 			store_get(menuActive, '$menuActive', $$stores)
 		);
 
 		const $projects = () => (
-			validate_store(projects, 'projects'),
+			validate_store(projects),
 			store_get(projects, '$projects', $$stores)
 		);
 
@@ -18823,6 +19233,8 @@ ${properties}`
 		let currentProjectID = tag(state(false), 'currentProjectID');
 		let currentProject = tag(state(undefined), 'currentProject');
 		let rawJson = tag(state(""), 'rawJson');
+		let projectType = tag(state("npm" // "npm" | "composer"
+		), 'projectType');
 		let loading = tag(state(false), 'loading');
 
 		// Track menuActive and projects reactively (Svelte 5 pattern)
@@ -18847,7 +19259,14 @@ ${properties}`
 			set(loading, true);
 
 			try {
-				set(rawJson, (await track_reactivity_loss(getProjectPackages(projectPath)))(), true);
+				// Try composer.json first; fall back to package.json
+				try {
+					set(rawJson, (await track_reactivity_loss(getProjectComposerPackages(projectPath)))(), true);
+					set(projectType, "composer");
+				} catch {
+					set(rawJson, (await track_reactivity_loss(getProjectPackages(projectPath)))(), true);
+					set(projectType, "npm");
+				}
 			} catch {
 				set(rawJson, "");
 			}
@@ -18906,7 +19325,7 @@ ${properties}`
 							append($$anchor, section);
 						};
 
-						var alternate = ($$anchor) => {
+						var alternate_1 = ($$anchor) => {
 							var fragment_2 = comment();
 							var node_2 = first_child(fragment_2);
 
@@ -18935,7 +19354,7 @@ ${properties}`
 											}),
 											'if',
 											Main,
-											107,
+											120,
 											7
 										);
 									}
@@ -18945,23 +19364,57 @@ ${properties}`
 
 									var node_4 = sibling(header, 2);
 
-									add_svelte_meta(
-										() => PackageEditor(node_4, {
-											get project() {
-												return get$1(currentProject);
-											},
+									{
+										var consequent_2 = ($$anchor) => {
+											add_svelte_meta(
+												() => ComposerEditor($$anchor, {
+													get project() {
+														return get$1(currentProject);
+													},
 
-											get rawJson() {
-												return get$1(rawJson);
-											},
-											onRefresh: handleRefresh
-										}),
-										'component',
-										Main,
-										113,
-										5,
-										{ componentTag: 'PackageEditor' }
-									);
+													get rawJson() {
+														return get$1(rawJson);
+													},
+													onRefresh: handleRefresh
+												}),
+												'component',
+												Main,
+												127,
+												6,
+												{ componentTag: 'ComposerEditor' }
+											);
+										};
+
+										var alternate = ($$anchor) => {
+											add_svelte_meta(
+												() => PackageEditor($$anchor, {
+													get project() {
+														return get$1(currentProject);
+													},
+
+													get rawJson() {
+														return get$1(rawJson);
+													},
+													onRefresh: handleRefresh
+												}),
+												'component',
+												Main,
+												133,
+												6,
+												{ componentTag: 'PackageEditor' }
+											);
+										};
+
+										add_svelte_meta(
+											() => if_block(node_4, ($$render) => {
+												if (strict_equals(get$1(projectType), "composer")) $$render(consequent_2); else $$render(alternate, -1);
+											}),
+											'if',
+											Main,
+											126,
+											5
+										);
+									}
 
 									reset(section_1);
 									template_effect(() => set_text(text, get$1(currentProject).name));
@@ -18970,7 +19423,7 @@ ${properties}`
 								}),
 								'key',
 								Main,
-								90,
+								103,
 								3
 							);
 
@@ -18979,11 +19432,11 @@ ${properties}`
 
 						add_svelte_meta(
 							() => if_block(node_1, ($$render) => {
-								if (!get$1(currentProject)) $$render(consequent); else $$render(alternate, -1);
+								if (!get$1(currentProject)) $$render(consequent); else $$render(alternate_1, -1);
 							}),
 							'if',
 							Main,
-							66,
+							79,
 							2
 						);
 					}
@@ -18994,14 +19447,14 @@ ${properties}`
 			}),
 			'component',
 			Main,
-			65,
+			78,
 			1,
 			{ componentTag: 'SimpleBar' }
 		);
 
 		var node_5 = sibling(div, 2);
 
-		add_svelte_meta(() => Toaster(node_5, { position: 'bottom-center', theme: 'dark', richColors: true }), 'component', Main, 123, 0, { componentTag: 'Toaster' });
+		add_svelte_meta(() => Toaster(node_5, { position: 'bottom-center', theme: 'dark', richColors: true }), 'component', Main, 144, 0, { componentTag: 'Toaster' });
 		append($$anchor, fragment);
 
 		var $$pop = pop($$exports);
@@ -19019,7 +19472,7 @@ ${properties}`
 
 	function App($$anchor, $$props) {
 		check_target(new.target);
-		push($$props, false, App);
+		push($$props, false);
 
 		var $$exports = { ...legacy_api() };
 		var div = root();

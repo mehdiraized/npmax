@@ -234,7 +234,6 @@
 		right: -10px;
 	}
 
-
 .sidebar.svelte-1gr7gr8 {
   width: var(--sidebar-width, 240px);
   min-width: var(--sidebar-width, 240px);
@@ -1247,7 +1246,6 @@
 		transform: scale(0.8) translate(-50%, -50%);
 	}
 
-
 @charset "UTF-8";
 .editor.svelte-1awhm8x {
   margin: 1rem;
@@ -1526,6 +1524,293 @@
 }
 
 @keyframes svelte-1awhm8x-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.editor.svelte-1lxqddh {
+  margin: 1rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: var(--radius-lg, 18px);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  box-shadow: var(--shadow-md);
+}
+
+.editor__meta.svelte-1lxqddh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  flex-shrink: 0;
+}
+
+.editor__metaLeft.svelte-1lxqddh {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.meta__filename.svelte-1lxqddh {
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.55));
+}
+
+.meta__dot.svelte-1lxqddh {
+  color: var(--text-muted, rgba(255, 255, 255, 0.25));
+}
+
+.meta__name.svelte-1lxqddh {
+  font-weight: 600;
+  color: var(--text-primary, rgba(255, 255, 255, 0.9));
+}
+
+.meta__version.svelte-1lxqddh {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: rgba(91, 156, 246, 0.12);
+  color: rgba(91, 156, 246, 0.8);
+  border: 1px solid rgba(91, 156, 246, 0.2);
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+}
+
+.editor__metaRight.svelte-1lxqddh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat.svelte-1lxqddh {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stat--total.svelte-1lxqddh {
+  color: var(--text-muted, rgba(255, 255, 255, 0.28));
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stat--ok.svelte-1lxqddh {
+  color: rgba(52, 199, 89, 0.85);
+  background: rgba(52, 199, 89, 0.1);
+  border: 1px solid rgba(52, 199, 89, 0.18);
+}
+
+.stat--warn.svelte-1lxqddh {
+  color: rgba(255, 159, 10, 0.9);
+  background: rgba(255, 159, 10, 0.1);
+  border: 1px solid rgba(255, 159, 10, 0.2);
+}
+
+.stat--loading.svelte-1lxqddh {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.editor__body.svelte-1lxqddh {
+  flex: 1;
+  overflow: auto;
+  padding: 18px 0 24px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.code.svelte-1lxqddh {
+  margin: 0;
+  padding: 0 20px;
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+  font-size: 13px;
+  color: var(--text-primary, rgba(255, 255, 255, 0.9));
+}
+
+.line.svelte-1lxqddh {
+  line-height: 28px;
+  height: 28px;
+  white-space: nowrap;
+}
+
+.tok-brace.svelte-1lxqddh {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.tok-colon.svelte-1lxqddh {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.tok-comma.svelte-1lxqddh {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.tok-key.svelte-1lxqddh {
+  color: #9ecbff;
+}
+
+.tok-section.svelte-1lxqddh {
+  color: #e06c75;
+  font-weight: 600;
+}
+
+.tok-str.svelte-1lxqddh {
+  color: #98c379;
+}
+
+.tok-pkg.svelte-1lxqddh {
+  color: #c9d1d9;
+}
+
+.tok-ver.svelte-1lxqddh {
+  color: #f8c555;
+}
+
+.tok-ver--dev.svelte-1lxqddh {
+  color: #ce9178;
+}
+
+.pkg-line.svelte-1lxqddh {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-height: 26px;
+  gap: 0;
+  flex-wrap: nowrap;
+  white-space: pre;
+}
+
+.pkg-status.svelte-1lxqddh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 14px;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 11px;
+}
+
+.badge.svelte-1lxqddh {
+  display: inline-flex;
+  height: 19px;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.badge.svelte-1lxqddh svg:where(.svelte-1lxqddh) {
+  width: 11px;
+  height: 11px;
+}
+
+.badge--ok.svelte-1lxqddh {
+  color: rgba(52, 199, 89, 0.85);
+  background: rgba(52, 199, 89, 0.1);
+  border: 1px solid rgba(52, 199, 89, 0.18);
+}
+
+.badge--update.svelte-1lxqddh {
+  color: rgba(41, 182, 246, 0.95);
+  background: rgba(41, 182, 246, 0.12);
+  border: 1px solid rgba(41, 182, 246, 0.3);
+  transition: all 0.3s ease-in-out;
+  cursor: pointer;
+}
+.badge--update.svelte-1lxqddh:hover {
+  background: rgba(41, 182, 246, 0.25);
+  box-shadow: 0 0 10px rgba(41, 182, 246, 0.35);
+}
+
+.badge--error.svelte-1lxqddh {
+  color: rgba(255, 80, 80, 0.7);
+  background: rgba(255, 80, 80, 0.08);
+  border: 1px solid rgba(255, 80, 80, 0.15);
+}
+
+.badge--loading.svelte-1lxqddh {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3px 8px;
+}
+
+.install-btn.svelte-1lxqddh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 159, 10, 0.35);
+  background: rgba(255, 159, 10, 0.12);
+  color: rgba(255, 159, 10, 0.95);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+.install-btn.svelte-1lxqddh:hover {
+  background: rgba(255, 159, 10, 0.25);
+  box-shadow: 0 0 10px rgba(255, 159, 10, 0.2);
+}
+.install-btn.svelte-1lxqddh:active {
+  transform: scale(0.95);
+}
+.install-btn.svelte-1lxqddh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.link-icon.svelte-1lxqddh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--text-muted, rgba(255, 255, 255, 0.28));
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.15s ease;
+}
+.link-icon.svelte-1lxqddh svg:where(.svelte-1lxqddh) {
+  width: 12px;
+  height: 12px;
+}
+.link-icon.svelte-1lxqddh:hover {
+  color: var(--text-primary, rgba(255, 255, 255, 0.9));
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.spin.svelte-1lxqddh {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  animation: svelte-1lxqddh-spin 0.7s linear infinite;
+}
+
+.spin-sm.svelte-1lxqddh {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  animation: svelte-1lxqddh-spin 0.7s linear infinite;
+}
+
+@keyframes svelte-1lxqddh-spin {
   to {
     transform: rotate(360deg);
   }
