@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.2] - 2026-03-11
+
+### 🐛 Bug Fixes
+
+- update release links to point to the latest version ([a52fdfc](https://github.com/mehdiraized/npmax/commit/a52fdfc))
+
+---
+
 ## [2.3.1] - 2026-03-11
 
 ### 🐛 Bug Fixes
