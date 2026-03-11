@@ -16,23 +16,24 @@
 		<link rel="stylesheet" href="dist/css/style.css" />
 		<style>
 			:root {
-				--landing-bg: linear-gradient(180deg, #f4f7fb 0%, #ffffff 35%, #f8fafc 100%);
-				--surface: rgba(255, 255, 255, 0.88);
+				--landing-bg: linear-gradient(180deg, #f3f7fb 0%, #ffffff 34%, #f4f8fc 100%);
+				--surface: rgba(255, 255, 255, 0.92);
 				--surface-strong: #ffffff;
-				--surface-muted: #eef3f8;
-				--surface-border: rgba(24, 37, 56, 0.08);
-				--text-strong: #162033;
-				--text-body: #617187;
-				--text-soft: #74839a;
-				--accent: #1f7ae0;
-				--accent-strong: #1256b6;
-				--accent-soft: rgba(31, 122, 224, 0.12);
-				--accent-alt: #19b67c;
-				--shadow-lg: 0 28px 80px rgba(17, 33, 58, 0.12);
-				--shadow-md: 0 16px 40px rgba(17, 33, 58, 0.08);
+				--surface-muted: #f1f5f9;
+				--surface-border: rgba(18, 32, 53, 0.08);
+				--text-strong: #0f1728;
+				--text-body: #495b73;
+				--text-soft: #6f8097;
+				--accent: #1677e6;
+				--accent-strong: #0f58b6;
+				--accent-soft: rgba(22, 119, 230, 0.12);
+				--accent-alt: #17b882;
+				--shadow-lg: 0 34px 90px rgba(15, 23, 40, 0.13);
+				--shadow-md: 0 18px 48px rgba(15, 23, 40, 0.08);
+				--radius-xxl: 40px;
 				--radius-xl: 32px;
-				--radius-lg: 24px;
-				--radius-md: 18px;
+				--radius-lg: 26px;
+				--radius-md: 20px;
 			}
 
 			body {
@@ -68,8 +69,20 @@
 			}
 
 			.boxed-container {
-				max-width: 1440px;
+				max-width: 1720px;
 				box-shadow: none;
+			}
+
+			.container {
+				max-width: 1368px;
+				padding-left: 28px;
+				padding-right: 28px;
+			}
+
+			.container-sm {
+				max-width: 1160px;
+				padding-left: 28px;
+				padding-right: 28px;
 			}
 
 			a {
@@ -119,13 +132,13 @@
 			}
 
 			.hero {
-				padding: 28px 0 56px;
+				padding: 34px 0 76px;
 				text-align: left;
 			}
 
 			.hero-inner {
 				display: grid;
-				gap: 40px;
+				gap: 56px;
 				align-items: center;
 			}
 
@@ -150,24 +163,25 @@
 
 			.hero-title {
 				margin-top: 20px;
-				margin-bottom: 18px;
-				font-size: clamp(44px, 7vw, 76px);
-				line-height: 0.95;
+				margin-bottom: 22px;
+				font-size: clamp(48px, 7vw, 84px);
+				line-height: 0.92;
 				letter-spacing: -0.04em;
 				color: var(--text-strong);
 			}
 
 			.hero-paragraph {
 				max-width: 56ch;
-				margin-bottom: 18px;
-				font-size: 21px;
-				line-height: 1.75;
+				margin-bottom: 16px;
+				font-size: 22px;
+				line-height: 1.7;
 				color: var(--text-body);
 			}
 
 			.hero-summary {
 				margin-bottom: 34px;
-				font-size: 17px;
+				font-size: 18px;
+				line-height: 1.7;
 				color: var(--text-soft);
 			}
 
@@ -200,7 +214,7 @@
 			.hero-meta {
 				display: grid;
 				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 14px;
+				gap: 18px;
 			}
 
 			.hero-stat {
@@ -233,15 +247,26 @@
 			.hero-panel {
 				position: relative;
 				overflow: hidden;
-				padding: 18px;
+				padding: 26px 26px 0;
 				border: 1px solid var(--surface-border);
-				border-radius: var(--radius-xl);
+				border-radius: var(--radius-xxl);
 				background:
 					radial-gradient(circle at top right, rgba(25, 182, 124, 0.16), transparent 28%),
 					radial-gradient(circle at top left, rgba(31, 122, 224, 0.18), transparent 24%),
 					var(--surface);
 				box-shadow: var(--shadow-lg);
 				backdrop-filter: blur(18px);
+			}
+
+			.hero-panel::after {
+				content: "";
+				position: absolute;
+				inset: auto -10% -28% auto;
+				width: 280px;
+				height: 280px;
+				border-radius: 999px;
+				background: radial-gradient(circle, rgba(22, 119, 230, 0.18), transparent 68%);
+				pointer-events: none;
 			}
 
 			.hero-media {
@@ -254,30 +279,38 @@
 			}
 
 			.hero-media-container {
-				border-radius: 22px;
+				border-radius: 30px;
 				overflow: hidden;
 				border: 1px solid var(--surface-border);
 				background: var(--surface-strong);
 			}
 
 			.hero-media-image {
+				display: block;
+				width: calc(100% + 120px);
+				max-width: none;
+				margin-top: 10px;
+				margin-left: -58px;
 				transform: none;
 				box-shadow: none;
-				width: 100%;
 			}
 
 			.hero-highlights {
 				display: grid;
 				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 12px;
-				margin-top: 18px;
+				gap: 16px;
+				margin-top: -30px;
+				position: relative;
+				z-index: 2;
 			}
 
 			.highlight-card {
-				padding: 16px 18px;
-				border-radius: 18px;
-				background: var(--surface-muted);
+				padding: 18px 20px;
+				border-radius: 22px;
+				background: rgba(255, 255, 255, 0.82);
 				border: 1px solid var(--surface-border);
+				backdrop-filter: blur(18px);
+				box-shadow: 0 14px 32px rgba(15, 23, 40, 0.08);
 			}
 
 			.highlight-card strong {
@@ -306,7 +339,7 @@
 
 			.section-heading {
 				max-width: 760px;
-				margin: 0 auto 22px;
+				margin: 0 auto 30px;
 				text-align: center;
 			}
 
@@ -333,7 +366,7 @@
 			.download-grid,
 			.faq-grid {
 				display: grid;
-				gap: 18px;
+				gap: 22px;
 			}
 
 			.value-grid {
@@ -381,15 +414,155 @@
 			}
 
 			.features {
-				padding-top: 10px;
+				padding-top: 4px;
 			}
 
 			.features-inner {
-				padding: 52px;
+				padding: 58px 58px 64px;
+			}
+
+			.product-grid {
+				display: grid;
+				grid-template-columns: repeat(12, minmax(0, 1fr));
+				gap: 22px;
+				margin-top: 22px;
+			}
+
+			.product-card {
+				position: relative;
+				overflow: hidden;
+				display: flex;
+				flex-direction: column;
+				min-height: 280px;
+				padding: 30px;
+				border-radius: 30px;
+				background:
+					linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 252, 0.98));
+				border: 1px solid var(--surface-border);
+				box-shadow: var(--shadow-md);
+			}
+
+			.lights-off .product-card {
+				background:
+					linear-gradient(180deg, rgba(24, 37, 56, 0.98), rgba(19, 30, 47, 0.98));
+			}
+
+			.product-card::before {
+				content: "";
+				position: absolute;
+				inset: auto -18% -28% auto;
+				width: 220px;
+				height: 220px;
+				border-radius: 999px;
+				background: radial-gradient(circle, rgba(22, 119, 230, 0.16), transparent 68%);
+				pointer-events: none;
+			}
+
+			.product-card > * {
+				position: relative;
+				z-index: 1;
+			}
+
+			.product-card--hero {
+				grid-column: span 7;
+				min-height: 560px;
+				padding-bottom: 0;
+				background:
+					radial-gradient(circle at top left, rgba(22, 119, 230, 0.18), transparent 32%),
+					linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 249, 252, 0.98));
+			}
+
+			.product-card--wide {
+				grid-column: span 5;
+			}
+
+			.product-card--half {
+				grid-column: span 4;
+			}
+
+			.product-card--tall {
+				min-height: 360px;
+			}
+
+			.product-card--soft {
+				background:
+					linear-gradient(180deg, rgba(240, 247, 255, 0.98), rgba(248, 250, 252, 0.98));
+			}
+
+			.product-eyebrow {
+				margin-bottom: 12px;
+				font-size: 13px;
+				font-weight: 700;
+				letter-spacing: 0.1em;
+				text-transform: uppercase;
+				color: var(--accent);
+			}
+
+			.product-card h3 {
+				margin-top: 0;
+				margin-bottom: 12px;
+				font-size: clamp(24px, 2.4vw, 40px);
+				line-height: 1.06;
+				color: var(--text-strong);
+			}
+
+			.product-card--half h3,
+			.product-card--wide h3 {
+				font-size: 30px;
+			}
+
+			.product-card p {
+				max-width: 42ch;
+				margin-bottom: 0;
+				font-size: 17px;
+				line-height: 1.72;
+				color: var(--text-body);
+			}
+
+			.product-media {
+				margin-top: auto;
+			}
+
+			.product-media img {
+				display: block;
+				max-width: 100%;
+			}
+
+			.product-screenshot-wrap {
+				margin-top: 34px;
+				padding-top: 10px;
+			}
+
+			.product-screenshot {
+				width: calc(100% + 180px);
+				max-width: none;
+				margin-left: -86px;
+				border-radius: 28px 28px 0 0;
+				filter: drop-shadow(0 20px 42px rgba(15, 23, 40, 0.14));
+			}
+
+			.product-asset {
+				width: min(240px, 72%);
+				margin-top: 30px;
+				align-self: flex-end;
+			}
+
+			.product-list {
+				margin: 18px 0 0;
+				padding-left: 18px;
+			}
+
+			.product-list li {
+				margin-bottom: 10px;
+				color: var(--text-body);
 			}
 
 			.capability-grid {
 				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+
+			.capability-card {
+				padding: 30px;
 			}
 
 			.capability-list {
@@ -406,13 +579,13 @@
 			}
 
 			.workflow-shell {
-				padding: 52px;
+				padding: 58px;
 			}
 
 			.workflow-grid {
 				display: grid;
 				grid-template-columns: repeat(3, minmax(0, 1fr));
-				gap: 18px;
+				gap: 22px;
 			}
 
 			.workflow-step {
@@ -443,7 +616,7 @@
 			}
 
 			.downloads-shell {
-				padding: 52px;
+				padding: 58px;
 			}
 
 			.download-grid {
@@ -473,8 +646,8 @@
 			.community-shell {
 				display: grid;
 				grid-template-columns: 1.2fr 0.8fr;
-				gap: 24px;
-				padding: 52px;
+				gap: 28px;
+				padding: 58px;
 			}
 
 			.community-list {
@@ -520,7 +693,7 @@
 			}
 
 			.faq-shell {
-				padding: 52px;
+				padding: 58px;
 			}
 
 			.faq-grid {
@@ -589,7 +762,15 @@
 				}
 
 				.hero-inner {
-					grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+					grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+				}
+			}
+
+			@media (max-width: 1180px) {
+				.product-card--hero,
+				.product-card--wide,
+				.product-card--half {
+					grid-column: span 6;
 				}
 			}
 
@@ -603,6 +784,16 @@
 					grid-template-columns: 1fr;
 				}
 
+				.product-grid {
+					grid-template-columns: 1fr;
+				}
+
+				.product-card--hero,
+				.product-card--wide,
+				.product-card--half {
+					grid-column: auto;
+				}
+
 				.hero-highlights,
 				.hero-meta {
 					grid-template-columns: 1fr;
@@ -613,11 +804,21 @@
 				.downloads-shell,
 				.community-shell,
 				.faq-shell {
-					padding: 32px 24px;
+					padding: 36px 24px;
 				}
 
 				.site-header-inner {
 					flex-wrap: wrap;
+				}
+
+				.hero-media-image,
+				.product-screenshot {
+					width: 100%;
+					margin-left: 0;
+				}
+
+				.hero-highlights {
+					margin-top: 18px;
 				}
 			}
 
@@ -810,51 +1011,143 @@
 					<div class="container">
 						<div class="features-inner section-inner section-shell has-bottom-divider">
 							<div class="section-heading">
-								<span class="section-kicker">Why npMax</span>
-								<h2 class="section-title mt-0">Built for day-to-day dependency work</h2>
+								<span class="section-kicker">Product highlights</span>
+								<h2 class="section-title mt-0">A grid of real product features, not generic claims</h2>
 								<p class="section-paragraph">
-									npMax is not a generic launcher. It is a focused package management
-									workspace designed to reduce repetitive CLI steps while keeping the
-									important package details visible.
+									The layout below mirrors product-style launch pages: large showcase
+									cards, smaller capability tiles, and direct explanations of what the
+									app actually does inside a developer workflow.
 								</p>
 							</div>
 
-							<div class="value-grid">
-								<article class="value-card is-revealing">
-									<div class="value-index">01</div>
-									<h3>See what matters immediately</h3>
+							<div class="product-grid">
+								<article class="product-card product-card--hero is-revealing">
+									<div class="product-eyebrow">Full application view</div>
+									<h3>One desktop workspace for modern package maintenance.</h3>
 									<p>
-										Open a project and get a direct view of dependencies, versions,
-										outdated status, and install state without switching tools.
+										Inspect projects, compare versions, update dependencies, and keep
+										lock files aligned without bouncing between multiple terminal tabs
+										and browser pages.
 									</p>
+									<div class="product-media product-screenshot-wrap">
+										<img
+											class="product-screenshot asset-light"
+											src="dist/images/coverApp.png"
+											alt="npMax desktop screenshot"
+										/>
+										<img
+											class="product-screenshot asset-dark"
+											src="dist/images/coverApp.png"
+											alt="npMax desktop screenshot"
+										/>
+									</div>
 								</article>
-								<article class="value-card is-revealing">
-									<div class="value-index">02</div>
-									<h3>Update safely</h3>
+								<article class="product-card product-card--wide product-card--tall product-card--soft is-revealing">
+									<div class="product-eyebrow">Multi ecosystem support</div>
+									<h3>npm, yarn, pnpm, and Composer in one interface.</h3>
 									<p>
-										npMax preserves prefixes such as <code>^</code> and <code>~</code>
-										when updating versions, so quick edits stay consistent with your
-										existing constraints.
-									</p>
-								</article>
-								<article class="value-card is-revealing">
-									<div class="value-index">03</div>
-									<h3>Support mixed stacks</h3>
-									<p>
-										Node and PHP projects can live side by side. The app detects
+										npMax detects whether a project is driven by
 										<code>package.json</code> or <code>composer.json</code> and shows
-										the right editor automatically.
+										the correct editor immediately.
 									</p>
+									<div class="product-media">
+										<img
+											class="product-asset asset-light"
+											src="dist/images/feature-01-light.svg"
+											alt="Package manager illustration"
+										/>
+										<img
+											class="product-asset asset-dark"
+											src="dist/images/feature-01-dark.svg"
+											alt="Package manager illustration"
+										/>
+									</div>
+								</article>
+								<article class="product-card product-card--half is-revealing">
+									<div class="product-eyebrow">Outdated detection</div>
+									<h3>Live version checks from npm and Packagist.</h3>
+									<p>
+										Review installed versions against the latest stable release data
+										before changing anything in your project.
+									</p>
+									<div class="product-media">
+										<img
+											class="product-asset asset-light"
+											src="dist/images/feature-02-light.svg"
+											alt="Version checks illustration"
+										/>
+										<img
+											class="product-asset asset-dark"
+											src="dist/images/feature-02-dark.svg"
+											alt="Version checks illustration"
+										/>
+									</div>
+								</article>
+								<article class="product-card product-card--half is-revealing">
+									<div class="product-eyebrow">Semver safe updates</div>
+									<h3>Preserve <code>^</code>, <code>~</code>, and existing constraints automatically.</h3>
+									<p>
+										Quick updates remain aligned with the versioning style already used
+										in the repository.
+									</p>
+								</article>
+								<article class="product-card product-card--half is-revealing">
+									<div class="product-eyebrow">Lock file status</div>
+									<h3>Know when install or sync is required.</h3>
+									<p>
+										npMax indicates whether your lock file is stale and surfaces the
+										right next step for the selected project.
+									</p>
+								</article>
+								<article class="product-card product-card--half is-revealing">
+									<div class="product-eyebrow">Project sidebar</div>
+									<h3>Switch between repositories without losing context.</h3>
+									<p>
+										Keep multiple projects available in one sidebar instead of opening
+										separate terminal sessions for each repo.
+									</p>
+									<ul class="product-list">
+										<li>Useful for agencies and maintainers with many repos</li>
+										<li>Fast project-to-project dependency review</li>
+									</ul>
+								</article>
+								<article class="product-card product-card--half is-revealing">
+									<div class="product-eyebrow">Composer aware</div>
+									<h3>PHP packages get first-class treatment too.</h3>
+									<p>
+										The app resolves latest stable Composer packages, skips platform
+										requirements, and keeps the editing flow consistent with Node
+										projects.
+									</p>
+								</article>
+								<article class="product-card product-card--half is-revealing">
+									<div class="product-eyebrow">Cross platform</div>
+									<h3>Built for macOS, Windows, and Linux releases.</h3>
+									<p>
+										One interface and one product story across the desktop platforms
+										most development teams already use.
+									</p>
+									<div class="product-media">
+										<img
+											class="product-asset asset-light"
+											src="dist/images/feature-03-light.svg"
+											alt="Cross platform illustration"
+										/>
+										<img
+											class="product-asset asset-dark"
+											src="dist/images/feature-03-dark.svg"
+											alt="Cross platform illustration"
+										/>
+									</div>
 								</article>
 							</div>
 
 							<div class="section-heading" style="margin-top: 56px;">
-								<span class="section-kicker">Capabilities</span>
-								<h2 class="section-title mt-0">A clearer picture of what the app can do</h2>
+								<span class="section-kicker">Detailed capabilities</span>
+								<h2 class="section-title mt-0">Each core workflow is called out explicitly</h2>
 								<p class="section-paragraph">
-									From registry-aware version checks to lock file status and
-									multi-project navigation, npMax covers the dependency tasks that
-									usually get scattered across several tools.
+									These cards collect the app features in a more literal format so
+									visitors can scan and understand the exact scope quickly.
 								</p>
 							</div>
 
