@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.6.0] - 2026-03-11
+
+### ✨ Features
+
+- ignore specific paths in release workflow ([90d6c0c](https://github.com/mehdiraized/npmax/commit/90d6c0c))
+
+---
+
 ## [2.5.0] - 2026-03-11
 
 ### ✨ Features
