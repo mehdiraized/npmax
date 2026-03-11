@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.0] - 2026-03-11
+
+### ✨ Features
+
+- enhance update handling for macOS with manual download option ([f616671](https://github.com/mehdiraized/npmax/commit/f616671))
+
+---
+
 ## [2.9.0] - 2026-03-11
 
 ### ✨ Features
