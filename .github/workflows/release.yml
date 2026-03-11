@@ -237,6 +237,32 @@ jobs:
             fs.writeFileSync('RELEASE_BODY.md', body);
           "
 
+      - name: Collect release artifacts
+        id: release-files
+        shell: bash
+        run: |
+          mapfile -t files < <(find artifacts -type f \( \
+            -name '*.dmg' -o \
+            -name '*.zip' -o \
+            -name '*.exe' -o \
+            -name '*.AppImage' -o \
+            -name '*.deb' -o \
+            -name 'latest.yml' -o \
+            -name 'latest-mac.yml' -o \
+            -name 'latest-linux.yml' \
+          \) | sort)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No release artifacts were found."
+            exit 1
+          fi
+
+          {
+            echo 'files<<EOF'
+            printf '%s\n' "${files[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -246,12 +272,4 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
-          files: |
-            artifacts/mac-artifacts/*.dmg
-            artifacts/mac-artifacts/*.zip
-            artifacts/mac-artifacts/latest-mac.yml
-            artifacts/windows-artifacts/*.exe
-            artifacts/windows-artifacts/latest.yml
-            artifacts/linux-artifacts/*.AppImage
-            artifacts/linux-artifacts/*.deb
-            artifacts/linux-artifacts/latest-linux.yml
+          files: ${{ steps.release-files.outputs.files }}
