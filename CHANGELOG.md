@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.0] - 2026-03-11
+
+### ✨ Features
+
+- integrate IPC communication for project management and update notifications ([98cf666](https://github.com/mehdiraized/npmax/commit/98cf666))
+
+---
+
 ## [2.7.1] - 2026-03-11
 
 ### 🐛 Bug Fixes

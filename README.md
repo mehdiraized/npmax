@@ -6,26 +6,26 @@ The Open Source desktop GUI for npm, yarn, pnpm, and **Composer** packages.
 
 Runs on Linux, macOS and Windows.
 
-## Download npMax v2.7.1
+## Download npMax v2.8.0
 
 ### macOS
-**[Download for macOS Apple Silicon (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npMax-2.7.1-arm64.dmg)**
+**[Download for macOS Apple Silicon (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npMax-2.8.0-arm64.dmg)**
 
-**[Download for macOS Intel (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npMax-2.7.1.dmg)**
+**[Download for macOS Intel (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npMax-2.8.0.dmg)**
 
 ### Windows
-**[Download Installer for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npMax.Setup.2.7.1.exe)**
+**[Download Installer for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npMax.Setup.2.8.0.exe)**
 
-**[Download Portable for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npMax.2.7.1.exe)**
+**[Download Portable for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npMax.2.8.0.exe)**
 
 ### Linux
-**[Download AppImage (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npMax-2.7.1.AppImage)**
+**[Download AppImage (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npMax-2.8.0.AppImage)**
 
-**[Download AppImage (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npMax-2.7.1-arm64.AppImage)**
+**[Download AppImage (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npMax-2.8.0-arm64.AppImage)**
 
-**[Download .deb (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npmax_2.7.1_amd64.deb)**
+**[Download .deb (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npmax_2.8.0_amd64.deb)**
 
-**[Download .deb (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.7.1/npmax_2.7.1_arm64.deb)**
+**[Download .deb (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.8.0/npmax_2.8.0_arm64.deb)**
 
 [All Releases](https://github.com/mehdiraized/npmax/releases/)
 
