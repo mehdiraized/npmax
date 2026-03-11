@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.0] - 2026-03-11
+
+### ✨ Features
+
+- normalize version constraints and enhance update notifications ([4439daa](https://github.com/mehdiraized/npmax/commit/4439daa))
+
+---
+
 ## [2.3.2] - 2026-03-11
 
 ### 🐛 Bug Fixes
