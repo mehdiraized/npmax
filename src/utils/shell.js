@@ -76,6 +76,14 @@ const exec = promisify(execCb);
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
 
+const SEMVER_PREFIX_RE = /^(\^|~|>=|<=|>|<|=)\s*/;
+
+const getSupportedVersionPrefix = (rawVersion) => {
+	if (typeof rawVersion !== "string") return "";
+	const match = rawVersion.trim().match(SEMVER_PREFIX_RE);
+	return match ? match[0] : "";
+};
+
 const SHELL =
 	process.platform === "win32" ? undefined : process.env.SHELL || "/bin/zsh";
 
@@ -121,7 +129,7 @@ export const updateComposerPackageVersion = async (
 	const section = isDev ? "require-dev" : "require";
 	if (!composer[section]?.[packageName]) return null;
 
-	const prefix = (composer[section][packageName].match(/^[^\d]*/) ?? ["^"])[0];
+	const prefix = getSupportedVersionPrefix(composer[section][packageName]);
 	const updated = prefix + latestVersion;
 	composer[section][packageName] = updated;
 
@@ -191,7 +199,7 @@ export const updatePackageVersion = async (
 	const section = isDev ? "devDependencies" : "dependencies";
 	if (!pkg[section]?.[packageName]) return null;
 
-	const prefix = (pkg[section][packageName].match(/^[^\d]*/) ?? ["^"])[0];
+	const prefix = getSupportedVersionPrefix(pkg[section][packageName]);
 	const updated = prefix + latestVersion;
 	pkg[section][packageName] = updated;
 

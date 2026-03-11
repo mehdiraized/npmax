@@ -11,6 +11,7 @@ const { autoUpdater } = require("electron-updater");
 
 let appIcon = null;
 let window = null;
+let updateDownloadInProgress = false;
 
 const createWindow = () => {
 	const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -79,8 +80,20 @@ ipcMain.handle("show-open-dialog", async () => {
 	return result.filePaths;
 });
 
-ipcMain.on("download-update", () => {
-	autoUpdater.downloadUpdate();
+ipcMain.on("download-update", async () => {
+	if (updateDownloadInProgress) return;
+	updateDownloadInProgress = true;
+	try {
+		await autoUpdater.downloadUpdate();
+	} catch (err) {
+		updateDownloadInProgress = false;
+		if (window && !window.isDestroyed()) {
+			window.webContents.send(
+				"update-error",
+				err instanceof Error ? err.message : String(err),
+			);
+		}
+	}
 });
 
 ipcMain.on("install-update", () => {
@@ -92,6 +105,7 @@ function setupAutoUpdater() {
 	autoUpdater.autoInstallOnAppQuit = true;
 
 	autoUpdater.on("update-available", (info) => {
+		updateDownloadInProgress = false;
 		window.webContents.send("update-available", info);
 	});
 
@@ -100,11 +114,16 @@ function setupAutoUpdater() {
 	});
 
 	autoUpdater.on("update-downloaded", () => {
+		updateDownloadInProgress = false;
 		window.webContents.send("update-downloaded");
 	});
 
 	autoUpdater.on("error", (err) => {
+		updateDownloadInProgress = false;
 		console.error("Auto-updater error:", err.message);
+		if (window && !window.isDestroyed()) {
+			window.webContents.send("update-error", err.message);
+		}
 	});
 
 	// Check for updates 5 seconds after startup

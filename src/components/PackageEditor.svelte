@@ -26,6 +26,15 @@
 
 	let infoMap = $state({});
 
+	const SEMVER_PREFIX_RE = /^(\^|~|>=|<=|>|<|=)\s*/;
+
+	function normalizeVersionConstraint(raw) {
+		if (typeof raw !== "string") return null;
+		const trimmed = raw.trim();
+		const normalized = trimmed.replace(SEMVER_PREFIX_RE, "").trim();
+		return /^\d/.test(normalized) ? normalized : null;
+	}
+
 	$effect(() => {
 		// Touch reactive deps
 		const _ = rawJson;
@@ -58,7 +67,7 @@
 		if (info.status === "error") return "error";
 		const latest = info.version;
 		if (!latest) return "error";
-		const current = currentRaw.replace(/^[^\d]*/, "");
+		const current = normalizeVersionConstraint(currentRaw);
 		return current === latest ? "ok" : "update";
 	}
 

@@ -8,34 +8,53 @@
 	let downloading = $state(false);
 	let downloadPercent = $state(0);
 	let downloaded = $state(false);
+	let errorMessage = $state("");
 
 	function onUpdateAvailable(_, info) {
 		updateVersion = info.version;
+		errorMessage = "";
+		downloadPercent = 0;
+		downloaded = false;
+		downloading = false;
 		visible = true;
 	}
 
 	function onDownloadProgress(_, progress) {
+		downloading = true;
 		downloadPercent = Math.round(progress.percent);
 	}
 
 	function onUpdateDownloaded() {
 		downloading = false;
+		errorMessage = "";
+		downloadPercent = 100;
 		downloaded = true;
+	}
+
+	function onUpdateError(_, message) {
+		downloading = false;
+		downloaded = false;
+		errorMessage = message || "Unable to download the update.";
 	}
 
 	onMount(() => {
 		ipcRenderer.on("update-available", onUpdateAvailable);
 		ipcRenderer.on("update-download-progress", onDownloadProgress);
 		ipcRenderer.on("update-downloaded", onUpdateDownloaded);
+		ipcRenderer.on("update-error", onUpdateError);
 	});
 
 	onDestroy(() => {
 		ipcRenderer.removeListener("update-available", onUpdateAvailable);
 		ipcRenderer.removeListener("update-download-progress", onDownloadProgress);
 		ipcRenderer.removeListener("update-downloaded", onUpdateDownloaded);
+		ipcRenderer.removeListener("update-error", onUpdateError);
 	});
 
 	function startDownload() {
+		errorMessage = "";
+		downloaded = false;
+		downloadPercent = 0;
 		downloading = true;
 		ipcRenderer.send("download-update");
 	}
@@ -54,21 +73,24 @@
 		<div class="update-content">
 			<span class="update-icon">↑</span>
 			{#if downloaded}
-				<span class="update-text">
-					نسخه <strong>{updateVersion}</strong> آماده نصب است
-				</span>
-				<button class="btn-install" onclick={installUpdate}>نصب و راه‌اندازی مجدد</button>
+				<span class="update-text">Version <strong>{updateVersion}</strong> is ready to install</span>
+				<button class="btn-install" onclick={installUpdate}>Restart to install</button>
 			{:else if downloading}
-				<span class="update-text">در حال دانلود... {downloadPercent}%</span>
+				<span class="update-text">Downloading update... {downloadPercent}%</span>
 				<div class="progress-bar">
 					<div class="progress-fill" style="width: {downloadPercent}%"></div>
 				</div>
 			{:else}
-				<span class="update-text">
-					نسخه جدید <strong>{updateVersion}</strong> موجود است
-				</span>
-				<button class="btn-download" onclick={startDownload}>دانلود و نصب</button>
-				<button class="btn-dismiss" onclick={dismiss}>بعداً</button>
+				<div class="update-copy">
+					<span class="update-text">A new version <strong>{updateVersion}</strong> is available</span>
+					{#if errorMessage}
+						<span class="error-text">{errorMessage}</span>
+					{/if}
+				</div>
+				<button class="btn-download" onclick={startDownload}>
+					{errorMessage ? "Retry download" : "Download and install"}
+				</button>
+				<button class="btn-dismiss" onclick={dismiss}>Later</button>
 			{/if}
 		</div>
 	</div>
@@ -125,6 +147,20 @@
 		strong {
 			color: #fff;
 		}
+	}
+
+	.update-copy {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 180px;
+	}
+
+	.error-text {
+		color: #ff9a9a;
+		font-size: 12px;
+		line-height: 1.4;
 	}
 
 	.progress-bar {

@@ -2004,6 +2004,20 @@
   color: #fff;
 }
 
+.update-copy.svelte-rcr70m {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.error-text.svelte-rcr70m {
+  color: #ff9a9a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .progress-bar.svelte-rcr70m {
   flex: 1;
   height: 4px;
