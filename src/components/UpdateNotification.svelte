@@ -10,9 +10,13 @@
 	let downloadPercent = $state(0);
 	let downloaded = $state(false);
 	let errorMessage = $state("");
+	let manualDownloadOnly = $state(process.platform === "darwin");
+	let releasesUrl = $state("");
 
 	function onUpdateAvailable(_, info) {
 		updateVersion = info.version;
+		manualDownloadOnly = Boolean(info?.manualDownloadOnly);
+		releasesUrl = info?.releasesUrl || "";
 		errorMessage = "";
 		downloadPercent = 0;
 		downloaded = false;
@@ -79,6 +83,11 @@
 	});
 
 	function startDownload() {
+		if (manualDownloadOnly) {
+			openReleasePage();
+			return;
+		}
+
 		errorMessage = "";
 		downloaded = false;
 		downloadPercent = 0;
@@ -92,6 +101,11 @@
 
 	function checkForUpdates() {
 		ipcRenderer.send("check-for-updates");
+	}
+
+	function openReleasePage() {
+		void releasesUrl;
+		ipcRenderer.send("open-releases-page");
 	}
 
 	function dismiss() {
@@ -114,12 +128,19 @@
 			{:else}
 				<div class="update-copy">
 					<span class="update-text">A new version <strong>{updateVersion}</strong> is available</span>
+					{#if manualDownloadOnly}
+						<span class="hint-text">Automatic install is unavailable on this macOS build. Use the release download instead.</span>
+					{/if}
 					{#if errorMessage}
 						<span class="error-text">{errorMessage}</span>
 					{/if}
 				</div>
 				<button class="btn-download" onclick={startDownload}>
-					{errorMessage ? "Retry download" : "Download and install"}
+					{#if manualDownloadOnly}
+						Open release page
+					{:else}
+						{errorMessage ? "Retry download" : "Download and install"}
+					{/if}
 				</button>
 				{#if errorMessage}
 					<button class="btn-secondary" onclick={checkForUpdates}>Check again</button>
@@ -193,6 +214,12 @@
 
 	.error-text {
 		color: #ff9a9a;
+		font-size: 12px;
+		line-height: 1.4;
+	}
+
+	.hint-text {
+		color: rgba(255, 255, 255, 0.62);
 		font-size: 12px;
 		line-height: 1.4;
 	}

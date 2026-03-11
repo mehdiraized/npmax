@@ -22,6 +22,7 @@ const APP_VERSION = app.getVersion();
 const GITHUB_URL = pkg.github || "https://github.com/mehdiraized/npmax";
 const ISSUES_URL = pkg.bugs?.url || `${GITHUB_URL}/issues`;
 const RELEASES_URL = `${GITHUB_URL}/releases`;
+const isMacManualUpdateOnly = process.platform === "darwin";
 const REPOSITORY_URL =
 	typeof pkg.repository?.url === "string"
 		? pkg.repository.url.replace(/\.git$/, "")
@@ -317,6 +318,11 @@ ipcMain.handle("show-open-dialog", async () => {
 });
 
 ipcMain.on("download-update", async () => {
+	if (isMacManualUpdateOnly) {
+		await openExternalUrl(RELEASES_URL);
+		return;
+	}
+
 	if (updateDownloadInProgress) return;
 	updateDownloadInProgress = true;
 	try {
@@ -338,6 +344,10 @@ ipcMain.on("check-for-updates", () => {
 	void checkForAppUpdates({ manual: true });
 });
 
+ipcMain.on("open-releases-page", () => {
+	void openExternalUrl(RELEASES_URL);
+});
+
 function setupAutoUpdater() {
 	autoUpdater.autoDownload = false;
 	autoUpdater.autoInstallOnAppQuit = true;
@@ -353,7 +363,11 @@ function setupAutoUpdater() {
 		if (manualUpdateCheckInProgress) {
 			focusMainWindow();
 		}
-		sendToWindow("update-available", info);
+		sendToWindow("update-available", {
+			...info,
+			manualDownloadOnly: isMacManualUpdateOnly,
+			releasesUrl: RELEASES_URL,
+		});
 		manualUpdateCheckInProgress = false;
 	});
 
