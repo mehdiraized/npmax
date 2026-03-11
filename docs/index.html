@@ -4,12 +4,659 @@
 		<meta charset="utf-8" />
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>npMax Application</title>
+		<title>npMax | Desktop package manager for npm, yarn, pnpm, and Composer</title>
+		<meta
+			name="description"
+			content="npMax is an open source desktop GUI to inspect, update, and maintain npm, yarn, pnpm, and Composer dependencies across macOS, Windows, and Linux."
+		/>
 		<link
-			href="https://fonts.googleapis.com/css?family=Heebo:400,700|IBM+Plex+Sans:600"
+			href="https://fonts.googleapis.com/css?family=Heebo:400,500,700|IBM+Plex+Sans:500,600,700"
 			rel="stylesheet"
 		/>
 		<link rel="stylesheet" href="dist/css/style.css" />
+		<style>
+			:root {
+				--landing-bg: linear-gradient(180deg, #f4f7fb 0%, #ffffff 35%, #f8fafc 100%);
+				--surface: rgba(255, 255, 255, 0.88);
+				--surface-strong: #ffffff;
+				--surface-muted: #eef3f8;
+				--surface-border: rgba(24, 37, 56, 0.08);
+				--text-strong: #162033;
+				--text-body: #617187;
+				--text-soft: #74839a;
+				--accent: #1f7ae0;
+				--accent-strong: #1256b6;
+				--accent-soft: rgba(31, 122, 224, 0.12);
+				--accent-alt: #19b67c;
+				--shadow-lg: 0 28px 80px rgba(17, 33, 58, 0.12);
+				--shadow-md: 0 16px 40px rgba(17, 33, 58, 0.08);
+				--radius-xl: 32px;
+				--radius-lg: 24px;
+				--radius-md: 18px;
+			}
+
+			body {
+				background: var(--landing-bg);
+				color: var(--text-body);
+			}
+
+			body.lights-off {
+				--landing-bg: linear-gradient(180deg, #0f1724 0%, #142033 42%, #101927 100%);
+				--surface: rgba(22, 34, 51, 0.86);
+				--surface-strong: #182538;
+				--surface-muted: rgba(255, 255, 255, 0.04);
+				--surface-border: rgba(255, 255, 255, 0.08);
+				--text-strong: #f4f8ff;
+				--text-body: #a3b1c5;
+				--text-soft: #8c9ab0;
+				--accent: #68b3ff;
+				--accent-strong: #8bc5ff;
+				--accent-soft: rgba(104, 179, 255, 0.14);
+				--accent-alt: #4ce2a5;
+				--shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.28);
+				--shadow-md: 0 16px 40px rgba(0, 0, 0, 0.22);
+			}
+
+			html {
+				scroll-behavior: smooth;
+			}
+
+			body,
+			.body-wrap,
+			.is-boxed {
+				background: var(--landing-bg);
+			}
+
+			.boxed-container {
+				max-width: 1440px;
+				box-shadow: none;
+			}
+
+			a {
+				color: var(--accent);
+			}
+
+			p,
+			li {
+				color: var(--text-body);
+			}
+
+			.site-header {
+				padding: 28px 0 12px;
+			}
+
+			.site-header::before,
+			.cta::before,
+			.features::before {
+				display: none;
+			}
+
+			.site-header-inner {
+				gap: 24px;
+			}
+
+			.header-nav {
+				display: none;
+				align-items: center;
+				gap: 28px;
+			}
+
+			.header-nav a {
+				color: var(--text-soft);
+				font-size: 16px;
+				font-weight: 600;
+				text-decoration: none;
+			}
+
+			.header-nav a:hover {
+				color: var(--text-strong);
+			}
+
+			.header-actions {
+				display: flex;
+				align-items: center;
+				gap: 18px;
+			}
+
+			.hero {
+				padding: 28px 0 56px;
+				text-align: left;
+			}
+
+			.hero-inner {
+				display: grid;
+				gap: 40px;
+				align-items: center;
+			}
+
+			.hero-copy {
+				max-width: 620px;
+				padding-right: 0;
+			}
+
+			.hero-badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 10px;
+				padding: 10px 16px;
+				border-radius: 999px;
+				background: var(--accent-soft);
+				color: var(--accent);
+				font-size: 14px;
+				font-weight: 700;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+
+			.hero-title {
+				margin-top: 20px;
+				margin-bottom: 18px;
+				font-size: clamp(44px, 7vw, 76px);
+				line-height: 0.95;
+				letter-spacing: -0.04em;
+				color: var(--text-strong);
+			}
+
+			.hero-paragraph {
+				max-width: 56ch;
+				margin-bottom: 18px;
+				font-size: 21px;
+				line-height: 1.75;
+				color: var(--text-body);
+			}
+
+			.hero-summary {
+				margin-bottom: 34px;
+				font-size: 17px;
+				color: var(--text-soft);
+			}
+
+			.hero-cta {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 16px;
+				max-width: none;
+				margin: 0 0 36px;
+			}
+
+			.button.button-primary {
+				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+				border-radius: 14px;
+				box-shadow: 0 12px 24px rgba(31, 122, 224, 0.2);
+			}
+
+			.button.button-secondary {
+				background: transparent;
+				color: var(--text-strong) !important;
+				border: 1px solid var(--surface-border);
+				border-radius: 14px;
+			}
+
+			.button.button-secondary:hover {
+				background: var(--surface-muted);
+			}
+
+			.hero-meta {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 14px;
+			}
+
+			.hero-stat {
+				padding: 18px 20px;
+				border: 1px solid var(--surface-border);
+				border-radius: var(--radius-md);
+				background: var(--surface);
+				backdrop-filter: blur(16px);
+				box-shadow: var(--shadow-md);
+			}
+
+			.hero-stat strong {
+				display: block;
+				margin-bottom: 6px;
+				font-family: "IBM Plex Sans", sans-serif;
+				font-size: 30px;
+				line-height: 1;
+				color: var(--text-strong);
+			}
+
+			.hero-stat span {
+				font-size: 16px;
+				color: var(--text-soft);
+			}
+
+			.hero-visual {
+				position: relative;
+			}
+
+			.hero-panel {
+				position: relative;
+				overflow: hidden;
+				padding: 18px;
+				border: 1px solid var(--surface-border);
+				border-radius: var(--radius-xl);
+				background:
+					radial-gradient(circle at top right, rgba(25, 182, 124, 0.16), transparent 28%),
+					radial-gradient(circle at top left, rgba(31, 122, 224, 0.18), transparent 24%),
+					var(--surface);
+				box-shadow: var(--shadow-lg);
+				backdrop-filter: blur(18px);
+			}
+
+			.hero-media {
+				padding: 0;
+			}
+
+			.hero-media-illustration,
+			.header-illustration {
+				display: none !important;
+			}
+
+			.hero-media-container {
+				border-radius: 22px;
+				overflow: hidden;
+				border: 1px solid var(--surface-border);
+				background: var(--surface-strong);
+			}
+
+			.hero-media-image {
+				transform: none;
+				box-shadow: none;
+				width: 100%;
+			}
+
+			.hero-highlights {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 12px;
+				margin-top: 18px;
+			}
+
+			.highlight-card {
+				padding: 16px 18px;
+				border-radius: 18px;
+				background: var(--surface-muted);
+				border: 1px solid var(--surface-border);
+			}
+
+			.highlight-card strong {
+				display: block;
+				margin-bottom: 6px;
+				font-size: 15px;
+				color: var(--text-strong);
+			}
+
+			.highlight-card span {
+				font-size: 14px;
+				color: var(--text-soft);
+			}
+
+			.lights-toggle {
+				color: var(--text-soft);
+			}
+
+			.section-shell {
+				border: 1px solid var(--surface-border);
+				border-radius: var(--radius-xl);
+				background: var(--surface);
+				box-shadow: var(--shadow-md);
+				backdrop-filter: blur(18px);
+			}
+
+			.section-heading {
+				max-width: 760px;
+				margin: 0 auto 22px;
+				text-align: center;
+			}
+
+			.section-kicker {
+				display: inline-block;
+				margin-bottom: 10px;
+				font-size: 14px;
+				font-weight: 700;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+				color: var(--accent);
+			}
+
+			.section-title {
+				color: var(--text-strong);
+			}
+
+			.section-paragraph {
+				color: var(--text-body);
+			}
+
+			.value-grid,
+			.capability-grid,
+			.download-grid,
+			.faq-grid {
+				display: grid;
+				gap: 18px;
+			}
+
+			.value-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+
+			.value-card,
+			.capability-card,
+			.download-card,
+			.faq-card {
+				padding: 26px;
+				border-radius: var(--radius-lg);
+				background: var(--surface-strong);
+				border: 1px solid var(--surface-border);
+			}
+
+			.value-card h3,
+			.capability-card h3,
+			.download-card h3,
+			.faq-card h3 {
+				margin-top: 0;
+				margin-bottom: 12px;
+				color: var(--text-strong);
+			}
+
+			.value-card p,
+			.capability-card p,
+			.download-card p,
+			.faq-card p {
+				margin-bottom: 0;
+			}
+
+			.value-card .value-index {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 42px;
+				height: 42px;
+				margin-bottom: 16px;
+				border-radius: 14px;
+				background: var(--accent-soft);
+				color: var(--accent);
+				font-family: "IBM Plex Sans", sans-serif;
+				font-weight: 700;
+			}
+
+			.features {
+				padding-top: 10px;
+			}
+
+			.features-inner {
+				padding: 52px;
+			}
+
+			.capability-grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+
+			.capability-list {
+				margin: 16px 0 0;
+				padding-left: 18px;
+			}
+
+			.capability-list li {
+				margin-bottom: 10px;
+			}
+
+			.workflow {
+				padding: 0 0 24px;
+			}
+
+			.workflow-shell {
+				padding: 52px;
+			}
+
+			.workflow-grid {
+				display: grid;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				gap: 18px;
+			}
+
+			.workflow-step {
+				position: relative;
+				padding: 28px;
+				border-radius: var(--radius-lg);
+				background: var(--surface-strong);
+				border: 1px solid var(--surface-border);
+			}
+
+			.workflow-step strong {
+				display: inline-block;
+				margin-bottom: 16px;
+				color: var(--accent);
+				font-size: 14px;
+				font-weight: 700;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+
+			.workflow-step h3 {
+				margin-top: 0;
+				color: var(--text-strong);
+			}
+
+			.workflow-step p {
+				margin-bottom: 0;
+			}
+
+			.downloads-shell {
+				padding: 52px;
+			}
+
+			.download-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+
+			.download-card ul {
+				margin: 18px 0 0;
+				padding-left: 18px;
+			}
+
+			.download-card li {
+				margin-bottom: 10px;
+			}
+
+			.inline-link {
+				display: inline-flex;
+				margin-top: 18px;
+				font-weight: 700;
+				text-decoration: none;
+			}
+
+			.community {
+				padding: 0 0 24px;
+			}
+
+			.community-shell {
+				display: grid;
+				grid-template-columns: 1.2fr 0.8fr;
+				gap: 24px;
+				padding: 52px;
+			}
+
+			.community-list {
+				margin: 24px 0 0;
+				padding-left: 0;
+				list-style: none;
+			}
+
+			.community-list li {
+				display: flex;
+				align-items: flex-start;
+				gap: 12px;
+				margin-bottom: 16px;
+			}
+
+			.community-bullet {
+				flex: 0 0 auto;
+				width: 10px;
+				height: 10px;
+				margin-top: 10px;
+				border-radius: 999px;
+				background: var(--accent-alt);
+			}
+
+			.community-panel {
+				padding: 28px;
+				border-radius: var(--radius-lg);
+				background:
+					linear-gradient(145deg, rgba(31, 122, 224, 0.12), rgba(25, 182, 124, 0.12)),
+					var(--surface-strong);
+				border: 1px solid var(--surface-border);
+			}
+
+			.community-panel h3,
+			.community-panel p,
+			.community-panel li {
+				color: var(--text-strong);
+			}
+
+			.community-panel ul {
+				margin: 18px 0 0;
+				padding-left: 18px;
+			}
+
+			.faq-shell {
+				padding: 52px;
+			}
+
+			.faq-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+
+			.cta .section-inner {
+				padding: 32px 0 96px;
+			}
+
+			.cta-banner {
+				padding: 42px;
+				border-radius: var(--radius-xl);
+				background:
+					radial-gradient(circle at top right, rgba(31, 122, 224, 0.2), transparent 30%),
+					linear-gradient(135deg, rgba(24, 37, 56, 0.98), rgba(16, 25, 39, 0.98));
+				box-shadow: var(--shadow-lg);
+				text-align: center;
+			}
+
+			.cta-banner h2,
+			.cta-banner p {
+				color: #f4f8ff !important;
+			}
+
+			.cta-banner .hero-cta {
+				justify-content: center;
+				margin-bottom: 0;
+			}
+
+			.cta-banner .button-secondary {
+				color: #f4f8ff !important;
+				border-color: rgba(244, 248, 255, 0.24);
+				background: rgba(255, 255, 255, 0.06);
+			}
+
+			.cta-banner .button-secondary:hover {
+				background: rgba(255, 255, 255, 0.12);
+			}
+
+			.site-footer {
+				background: transparent;
+				color: var(--text-soft);
+			}
+
+			.site-footer-inner {
+				padding-top: 12px;
+				padding-bottom: 48px;
+			}
+
+			.site-footer a {
+				color: var(--text-soft);
+			}
+
+			.site-footer a:hover {
+				color: var(--text-strong);
+			}
+
+			.site-footer svg {
+				stroke: currentColor;
+			}
+
+			@media (min-width: 900px) {
+				.header-nav {
+					display: flex;
+				}
+
+				.hero-inner {
+					grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+				}
+			}
+
+			@media (max-width: 960px) {
+				.value-grid,
+				.workflow-grid,
+				.download-grid,
+				.faq-grid,
+				.community-shell,
+				.capability-grid {
+					grid-template-columns: 1fr;
+				}
+
+				.hero-highlights,
+				.hero-meta {
+					grid-template-columns: 1fr;
+				}
+
+				.features-inner,
+				.workflow-shell,
+				.downloads-shell,
+				.community-shell,
+				.faq-shell {
+					padding: 32px 24px;
+				}
+
+				.site-header-inner {
+					flex-wrap: wrap;
+				}
+			}
+
+			@media (max-width: 640px) {
+				.site-header {
+					padding-top: 18px;
+				}
+
+				.header-actions {
+					width: 100%;
+					justify-content: space-between;
+				}
+
+				.hero {
+					padding-top: 16px;
+					padding-bottom: 36px;
+				}
+
+				.hero-title {
+					font-size: 44px;
+				}
+
+				.hero-paragraph {
+					font-size: 18px;
+				}
+
+				.hero-cta {
+					align-items: stretch;
+				}
+
+				.hero-cta .button {
+					width: 100%;
+				}
+
+				.cta-banner {
+					padding: 32px 24px;
+				}
+			}
+		</style>
 		<script src="https://unpkg.com/scrollreveal@4.0.0/dist/scrollreveal.min.js"></script>
 	</head>
 
@@ -20,21 +667,47 @@
 					<div class="site-header-inner">
 						<div class="brand header-brand">
 							<h1 class="m-0">
-								<a href="https://github.com/mehdiraized/npmax">
+								<a href="https://github.com/mehdiraized/npmax" aria-label="npMax on GitHub">
 									<img
 										class="header-logo-image asset-light"
 										width="128"
 										src="dist/images/logo.png"
-										alt="Logo"
+										alt="npMax logo"
 									/>
 									<img
 										class="header-logo-image asset-dark"
 										width="128"
 										src="dist/images/logo.png"
-										alt="Logo"
+										alt="npMax logo"
 									/>
 								</a>
 							</h1>
+						</div>
+						<nav class="header-nav" aria-label="Primary">
+							<a href="#features">Features</a>
+							<a href="#workflow">Workflow</a>
+							<a href="#downloads">Downloads</a>
+							<a href="#faq">FAQ</a>
+						</nav>
+						<div class="header-actions">
+							<div class="lights-toggle">
+								<input
+									id="lights-toggle"
+									type="checkbox"
+									name="lights-toggle"
+									class="switch"
+									checked="checked"
+								/>
+								<label for="lights-toggle" class="text-xs">
+									<span>Turn me <span class="label-text">dark</span></span>
+								</label>
+							</div>
+							<a
+								class="button button-secondary button-sm"
+								href="https://github.com/mehdiraized/npmax"
+							>
+								GitHub
+							</a>
 						</div>
 					</div>
 				</div>
@@ -45,193 +718,408 @@
 					<div class="container">
 						<div class="hero-inner">
 							<div class="hero-copy">
-								<h1 class="hero-title mt-0">npMax</h1>
-								<p class="hero-paragraph">Project Package Manager</p>
+								<div class="hero-badge">Open source desktop dependency manager</div>
+								<h2 class="hero-title mt-0">
+									Package maintenance without the terminal overhead.
+								</h2>
+								<p class="hero-paragraph">
+									npMax gives your team one focused desktop app to inspect, update,
+									and keep <strong>npm</strong>, <strong>yarn</strong>,
+									<strong>pnpm</strong>, and <strong>Composer</strong> dependencies in
+									sync.
+								</p>
+								<p class="hero-summary">
+									Check outdated packages, preserve semver prefixes, monitor lock file
+									status, and switch between multiple projects from a clean interface
+									on macOS, Windows, and Linux.
+								</p>
 								<div class="hero-cta">
 									<a
 										class="button button-primary"
 										href="https://github.com/mehdiraized/npmax/releases/latest"
 									>
-										Download Now
+										Download latest release
 									</a>
-									<div class="lights-toggle">
-										<input
-											id="lights-toggle"
-											type="checkbox"
-											name="lights-toggle"
-											class="switch"
-											checked="checked"
-										/>
-										<label for="lights-toggle" class="text-xs">
-											<span>
-												Turn me <span class="label-text">dark</span>
-											</span>
-										</label>
+									<a
+										class="button button-secondary"
+										href="https://github.com/mehdiraized/npmax#readme"
+									>
+										Read documentation
+									</a>
+								</div>
+								<div class="hero-meta">
+									<div class="hero-stat">
+										<strong>4</strong>
+										<span>supported ecosystems: npm, yarn, pnpm, Composer</span>
+									</div>
+									<div class="hero-stat">
+										<strong>3</strong>
+										<span>desktop platforms with one shared workflow</span>
+									</div>
+									<div class="hero-stat">
+										<strong>1-click</strong>
+										<span>version updates with semver prefix preservation</span>
+									</div>
+									<div class="hero-stat">
+										<strong>Live</strong>
+										<span>registry and Packagist checks for outdated packages</span>
 									</div>
 								</div>
 							</div>
-							<div class="hero-media">
-								<div class="header-illustration">
-									<img
-										class="header-illustration-image asset-light"
-										src="dist/images/header-illustration-light.svg"
-										alt="Header illustration"
-									/>
-									<img
-										class="header-illustration-image asset-dark"
-										src="dist/images/header-illustration-dark.svg"
-										alt="Header illustration"
-									/>
-								</div>
-								<div class="hero-media-illustration">
-									<img
-										class="hero-media-illustration-image asset-light"
-										src="dist/images/hero-media-illustration-light.svg"
-										alt="Hero media illustration"
-									/>
-									<img
-										class="hero-media-illustration-image asset-dark"
-										src="dist/images/hero-media-illustration-dark.svg"
-										alt="Hero media illustration"
-									/>
-								</div>
-								<div class="hero-media-container">
-									<img
-										class="hero-media-image asset-light"
-										width="700"
-										src="dist/images/coverApp.png"
-										alt="Hero media"
-									/>
-									<img
-										class="hero-media-image asset-dark"
-										width="700"
-										src="dist/images/coverApp.png"
-										alt="Hero media"
-									/>
+							<div class="hero-visual">
+								<div class="hero-panel">
+									<div class="hero-media">
+										<div class="hero-media-container">
+											<img
+												class="hero-media-image asset-light"
+												src="dist/images/coverApp.png"
+												alt="npMax application screenshot"
+											/>
+											<img
+												class="hero-media-image asset-dark"
+												src="dist/images/coverApp.png"
+												alt="npMax application screenshot"
+											/>
+										</div>
+									</div>
+									<div class="hero-highlights">
+										<div class="highlight-card">
+											<strong>Project sidebar</strong>
+											<span>Jump between multiple repositories without losing context.</span>
+										</div>
+										<div class="highlight-card">
+											<strong>Lock file awareness</strong>
+											<span>Spot stale lock files and trigger install or sync quickly.</span>
+										</div>
+										<div class="highlight-card">
+											<strong>Registry-backed details</strong>
+											<span>Review current and latest versions with live package metadata.</span>
+										</div>
+										<div class="highlight-card">
+											<strong>Composer support</strong>
+											<span>Manage PHP package constraints with the same UI discipline.</span>
+										</div>
+									</div>
 								</div>
 							</div>
 						</div>
 					</div>
 				</section>
 
-				<section class="features section">
+				<section class="features section" id="features">
 					<div class="container">
-						<div class="features-inner section-inner has-bottom-divider">
-							<div class="features-header text-center">
-								<div class="container-sm">
-									<h2 class="section-title mt-0">About Product</h2>
-									<p class="section-paragraph">
-										The Open Source npm desktop GUI.
-										<br />
-										Runs on Linux, MacOS and Windows..
-									</p>
-									<div class="features-image">
-										<img
-											class="features-illustration asset-dark"
-											src="dist/images/features-illustration-dark.svg"
-											alt="Feature illustration"
-										/>
-										<img
-											class="features-box asset-dark"
-											width="600"
-											src="dist/images/coverApp.png"
-											alt="Feature box"
-										/>
-										<img
-											class="features-illustration asset-dark"
-											src="dist/images/features-illustration-top-dark.svg"
-											alt="Feature illustration top"
-										/>
-										<img
-											class="features-illustration asset-light"
-											src="dist/images/features-illustration-light.svg"
-											alt="Feature illustration"
-										/>
-										<img
-											class="features-box asset-light"
-											width="600"
-											src="dist/images/coverApp.png"
-											alt="Feature box"
-										/>
-										<img
-											class="features-illustration asset-light"
-											src="dist/images/features-illustration-top-light.svg"
-											alt="Feature illustration top"
-										/>
-									</div>
-								</div>
+						<div class="features-inner section-inner section-shell has-bottom-divider">
+							<div class="section-heading">
+								<span class="section-kicker">Why npMax</span>
+								<h2 class="section-title mt-0">Built for day-to-day dependency work</h2>
+								<p class="section-paragraph">
+									npMax is not a generic launcher. It is a focused package management
+									workspace designed to reduce repetitive CLI steps while keeping the
+									important package details visible.
+								</p>
 							</div>
-							<div class="features-wrap">
-								<div class="feature is-revealing">
-									<div class="feature-inner">
-										<div class="feature-icon">
-											<img
-												class="asset-light"
-												src="dist/images/feature-01-light.svg"
-												alt="Feature 01"
-											/>
-											<img
-												class="asset-dark"
-												src="dist/images/feature-01-dark.svg"
-												alt="Feature 01"
-											/>
+
+							<div class="value-grid">
+								<article class="value-card is-revealing">
+									<div class="value-index">01</div>
+									<h3>See what matters immediately</h3>
+									<p>
+										Open a project and get a direct view of dependencies, versions,
+										outdated status, and install state without switching tools.
+									</p>
+								</article>
+								<article class="value-card is-revealing">
+									<div class="value-index">02</div>
+									<h3>Update safely</h3>
+									<p>
+										npMax preserves prefixes such as <code>^</code> and <code>~</code>
+										when updating versions, so quick edits stay consistent with your
+										existing constraints.
+									</p>
+								</article>
+								<article class="value-card is-revealing">
+									<div class="value-index">03</div>
+									<h3>Support mixed stacks</h3>
+									<p>
+										Node and PHP projects can live side by side. The app detects
+										<code>package.json</code> or <code>composer.json</code> and shows
+										the right editor automatically.
+									</p>
+								</article>
+							</div>
+
+							<div class="section-heading" style="margin-top: 56px;">
+								<span class="section-kicker">Capabilities</span>
+								<h2 class="section-title mt-0">A clearer picture of what the app can do</h2>
+								<p class="section-paragraph">
+									From registry-aware version checks to lock file status and
+									multi-project navigation, npMax covers the dependency tasks that
+									usually get scattered across several tools.
+								</p>
+							</div>
+
+							<div class="capability-grid">
+								<article class="capability-card feature is-revealing">
+									<h3>Manage JavaScript and PHP dependencies</h3>
+									<p>
+										View package lists from <code>package.json</code> and
+										<code>composer.json</code>, inspect versions, and work with
+										regular or dev dependencies from one desktop app.
+									</p>
+									<ul class="capability-list">
+										<li>Supports npm, yarn, pnpm, and Composer projects</li>
+										<li>Detects real Composer packages and ignores platform entries</li>
+										<li>Useful when teams maintain full-stack repos</li>
+									</ul>
+								</article>
+								<article class="capability-card feature is-revealing">
+									<h3>Spot outdated packages with live version checks</h3>
+									<p>
+										npMax queries npm and Packagist to compare installed versions with
+										the latest available stable releases.
+									</p>
+									<ul class="capability-list">
+										<li>Surface outdated packages without manual registry lookups</li>
+										<li>Review version changes before editing constraints</li>
+										<li>Keep package decisions grounded in current registry data</li>
+									</ul>
+								</article>
+								<article class="capability-card feature is-revealing">
+									<h3>Keep lock files honest</h3>
+									<p>
+										The app indicates lock file status and offers a clear install or
+										sync path when project manifests and lock files drift apart.
+									</p>
+									<ul class="capability-list">
+										<li>Detect stale lock files quickly</li>
+										<li>Choose the right install command for your project</li>
+										<li>Reduce avoidable release friction</li>
+									</ul>
+								</article>
+								<article class="capability-card feature is-revealing">
+									<h3>Work across many projects</h3>
+									<p>
+										Keep a list of repositories in the sidebar, switch instantly, and
+										use the same dependency workflow without reopening terminal tabs.
+									</p>
+									<ul class="capability-list">
+										<li>Built for freelancers, agency teams, and maintainers</li>
+										<li>Good fit for multi-repo and client-heavy environments</li>
+										<li>Lower context switching while reviewing dependencies</li>
+									</ul>
+								</article>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<section class="workflow section" id="workflow">
+					<div class="container">
+						<div class="workflow-shell section-shell">
+							<div class="section-heading">
+								<span class="section-kicker">Workflow</span>
+								<h2 class="section-title mt-0">A short path from audit to update</h2>
+								<p class="section-paragraph">
+									The app is optimized for the common maintenance loop teams repeat
+									every week.
+								</p>
+							</div>
+							<div class="workflow-grid">
+								<article class="workflow-step is-revealing">
+									<strong>Step 1</strong>
+									<h3>Open a project</h3>
+									<p>
+										Add your repository, let npMax detect its package manager files,
+										and load the dependency list with current versions.
+									</p>
+								</article>
+								<article class="workflow-step is-revealing">
+									<strong>Step 2</strong>
+									<h3>Review version health</h3>
+									<p>
+										Inspect outdated status, compare installed and latest versions,
+										and decide which dependencies are ready to move.
+									</p>
+								</article>
+								<article class="workflow-step is-revealing">
+									<strong>Step 3</strong>
+									<h3>Update and sync</h3>
+									<p>
+										Apply updates, preserve your version prefix, and run the correct
+										install flow to bring lock files back in line.
+									</p>
+								</article>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<section class="section" id="downloads">
+					<div class="container">
+						<div class="downloads-shell section-shell">
+							<div class="section-heading">
+								<span class="section-kicker">Downloads</span>
+								<h2 class="section-title mt-0">Available for all major desktop platforms</h2>
+								<p class="section-paragraph">
+									Download the latest build from GitHub Releases and use the package
+									format that matches your environment.
+								</p>
+							</div>
+							<div class="download-grid">
+								<article class="download-card">
+									<h3>macOS</h3>
+									<p>
+										Native builds for both Apple Silicon and Intel Macs, suitable for
+										developers who want a desktop GUI beside their existing toolchain.
+									</p>
+									<ul>
+										<li>Apple Silicon (arm64) DMG</li>
+										<li>Intel (x64) DMG</li>
+									</ul>
+									<a
+										class="inline-link"
+										href="https://github.com/mehdiraized/npmax/releases/latest"
+									>
+										View macOS downloads
+									</a>
+								</article>
+								<article class="download-card">
+									<h3>Windows</h3>
+									<p>
+										Choose between the installer and portable build depending on how
+										you roll out tools inside your workflow or team environment.
+									</p>
+									<ul>
+										<li>Windows installer</li>
+										<li>Portable executable</li>
+									</ul>
+									<a
+										class="inline-link"
+										href="https://github.com/mehdiraized/npmax/releases/latest"
+									>
+										View Windows downloads
+									</a>
+								</article>
+								<article class="download-card">
+									<h3>Linux</h3>
+									<p>
+										Use AppImage for flexible distribution or install the packaged
+										<code>.deb</code> release for Debian-based environments.
+									</p>
+									<ul>
+										<li>AppImage for x64 and arm64</li>
+										<li><code>.deb</code> packages for x64 and arm64</li>
+									</ul>
+									<a
+										class="inline-link"
+										href="https://github.com/mehdiraized/npmax/releases/latest"
+									>
+										View Linux downloads
+									</a>
+								</article>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<section class="community section">
+					<div class="container">
+						<div class="community-shell section-shell">
+							<div>
+								<span class="section-kicker">Community</span>
+								<h2 class="section-title mt-0">Open source, practical, and easy to contribute to</h2>
+								<p class="section-paragraph">
+									npMax is free to use and lives in the open. The project already
+									provides a straightforward local development flow for contributors.
+								</p>
+								<ul class="community-list">
+									<li>
+										<span class="community-bullet"></span>
+										<div>
+											<strong>Built for real maintenance work.</strong>
+											The product direction is centered on everyday dependency tasks,
+											not on generic shell abstraction.
 										</div>
-										<div class="feature-content">
-											<h3 class="feature-title mt-0">
-												Manage npm & yarn & pnpm
-											</h3>
-											<p class="text-sm mb-0">
-												Add, remove, update local packages.
-											</p>
+									</li>
+									<li>
+										<span class="community-bullet"></span>
+										<div>
+											<strong>Simple contributor setup.</strong>
+											Clone the repo, run <code>npm install</code>, then
+											<code>npm run dev</code> to get started.
 										</div>
-									</div>
-								</div>
-								<div class="feature is-revealing">
-									<div class="feature-inner">
-										<div class="feature-icon">
-											<img
-												class="asset-light"
-												src="dist/images/feature-02-light.svg"
-												alt="Feature 02"
-											/>
-											<img
-												class="asset-dark"
-												src="dist/images/feature-02-dark.svg"
-												alt="Feature 02"
-											/>
+									</li>
+									<li>
+										<span class="community-bullet"></span>
+										<div>
+											<strong>Public roadmap and releases.</strong>
+											Users can follow changes through GitHub issues, pull requests,
+											and release artifacts.
 										</div>
-										<div class="feature-content">
-											<h3 class="feature-title mt-0">Manage Project</h3>
-											<p class="text-sm mb-0">
-												Manage projects in place, snapshots and projects history
-												comfort.
-											</p>
-										</div>
-									</div>
-								</div>
-								<div class="feature is-revealing">
-									<div class="feature-inner">
-										<div class="feature-icon">
-											<img
-												class="asset-light"
-												src="dist/images/feature-03-light.svg"
-												alt="Feature 03"
-											/>
-											<img
-												class="asset-dark"
-												src="dist/images/feature-03-dark.svg"
-												alt="Feature 03"
-											/>
-										</div>
-										<div class="feature-content">
-											<h3 class="feature-title mt-0">Easy Useful</h3>
-											<p class="text-sm mb-0">
-												Useful packages informations and live npm registry
-												status.
-											</p>
-										</div>
-									</div>
-								</div>
+									</li>
+								</ul>
+							</div>
+							<aside class="community-panel">
+								<h3 class="mt-0">Useful links</h3>
+								<p class="mb-16">
+									Start with the release page if you want the app now, or use the repo
+									if you want to contribute and inspect the codebase.
+								</p>
+								<ul class="mb-0">
+									<li>
+										<a href="https://github.com/mehdiraized/npmax/releases/latest">
+											Latest release
+										</a>
+									</li>
+									<li>
+										<a href="https://github.com/mehdiraized/npmax">GitHub repository</a>
+									</li>
+									<li>
+										<a href="https://github.com/mehdiraized/npmax/blob/master/CONTRIBUTING.md">
+											Contributing guide
+										</a>
+									</li>
+									<li>
+										<a href="https://t.me/npmax_app">Telegram community</a>
+									</li>
+									<li>
+										<a href="https://twitter.com/npMax_app">Project updates</a>
+									</li>
+								</ul>
+							</aside>
+						</div>
+					</div>
+				</section>
+
+				<section class="section" id="faq">
+					<div class="container">
+						<div class="faq-shell section-shell">
+							<div class="section-heading">
+								<span class="section-kicker">FAQ</span>
+								<h2 class="section-title mt-0">Questions people usually ask first</h2>
+							</div>
+							<div class="faq-grid">
+								<article class="faq-card">
+									<h3>Is npMax free to use?</h3>
+									<p>
+										Yes. npMax is an open source desktop application and the public
+										releases are available from GitHub.
+									</p>
+								</article>
+								<article class="faq-card">
+									<h3>Which package managers are supported?</h3>
+									<p>
+										The app supports npm, yarn, pnpm, and Composer. It detects the
+										project manifest and switches to the correct editor automatically.
+									</p>
+								</article>
+								<article class="faq-card">
+									<h3>Can I use it across multiple repos?</h3>
+									<p>
+										Yes. npMax includes a project sidebar so you can keep several
+										repositories available and move between them quickly.
+									</p>
+								</article>
 							</div>
 						</div>
 					</div>
@@ -239,18 +1127,25 @@
 
 				<section class="cta section">
 					<div class="container-sm">
-						<div class="cta-inner section-inner">
-							<div class="cta-header text-center">
-								<h2 class="section-title mt-0">Get it and Use it</h2>
+						<div class="section-inner">
+							<div class="cta-banner">
+								<h2 class="section-title mt-0">Ship dependency updates with less friction</h2>
 								<p class="section-paragraph">
-									npMax is forever free and open source.
+									Download npMax, connect your projects, and replace repetitive package
+									maintenance steps with a faster desktop workflow.
 								</p>
-								<div class="cta-cta">
+								<div class="hero-cta">
 									<a
 										class="button button-primary"
 										href="https://github.com/mehdiraized/npmax/releases/latest"
 									>
-										Download
+										Download now
+									</a>
+									<a
+										class="button button-secondary"
+										href="https://github.com/mehdiraized/npmax"
+									>
+										View source
 									</a>
 								</div>
 							</div>
@@ -263,48 +1158,27 @@
 				<div class="container">
 					<div class="site-footer-inner">
 						<div class="brand footer-brand">
-							<a href="https://github.com/mehdiraized/npmax">
-								<img
-									class="asset-light"
-									width="64"
-									src="dist/images/logo.png"
-									alt="Logo"
-								/>
-								<img
-									class="asset-dark"
-									width="64"
-									src="dist/images/logo.png"
-									alt="Logo"
-								/>
+							<a href="https://github.com/mehdiraized/npmax" aria-label="npMax on GitHub">
+								<img class="asset-light" width="64" src="dist/images/logo.png" alt="npMax logo" />
+								<img class="asset-dark" width="64" src="dist/images/logo.png" alt="npMax logo" />
 							</a>
 						</div>
 						<ul class="footer-links list-reset">
-							<li>
-								<a href="https://github.com/mehdiraized/npmax">Contribute</a>
-							</li>
-							<li>
-								<a href="https://github.com/mehdiraized/npmax">About us</a>
-							</li>
-							<li>
-								<a href="https://github.com/mehdiraized/npmax">FAQ's</a>
-							</li>
-							<li>
-								<a href="https://github.com/mehdiraized/npmax/releases/">
-									Changelog
-								</a>
-							</li>
+							<li><a href="#features">Features</a></li>
+							<li><a href="#downloads">Downloads</a></li>
+							<li><a href="https://github.com/mehdiraized/npmax/releases/">Releases</a></li>
+							<li><a href="https://github.com/mehdiraized/npmax">Contribute</a></li>
 						</ul>
 						<ul class="footer-social-links list-reset">
 							<li>
-								<a href="https://github.com/mehdiraized/npmax">
-									<span class="screen-reader-text">Github</span>
+								<a href="https://github.com/mehdiraized/npmax" aria-label="GitHub">
+									<span class="screen-reader-text">GitHub</span>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										width="48"
 										height="48"
 										viewBox="0 0 24 24"
 										fill="none"
-										stroke="#000"
 										stroke-width="1.5"
 										stroke-linecap="round"
 										stroke-linejoin="round"
@@ -318,7 +1192,7 @@
 							</li>
 						</ul>
 						<div class="footer-copyright">
-							&copy; 2020 npMax, all rights reserved
+							npMax is open source and available for macOS, Windows, and Linux.
 						</div>
 					</div>
 				</div>

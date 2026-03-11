@@ -7,6 +7,8 @@ const path = require("path");
 
 const newVersion = process.argv[2];
 const oldVersion = process.argv[3];
+const VERSION_PATTERN =
+	/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 if (!newVersion || !oldVersion) {
 	console.error(
@@ -14,6 +16,20 @@ if (!newVersion || !oldVersion) {
 	);
 	process.exit(1);
 }
+
+function assertValidVersion(version, label) {
+	if (!VERSION_PATTERN.test(version)) {
+		console.error(`Invalid ${label}: ${version}`);
+		process.exit(1);
+	}
+}
+
+function escapeRegExp(value) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+assertValidVersion(newVersion, "new version");
+assertValidVersion(oldVersion, "old version");
 
 const ROOT = process.cwd();
 
@@ -41,8 +57,7 @@ function updatePackageJson() {
 function updateReadme() {
 	const readmePath = path.join(ROOT, "README.md");
 	let content = fs.readFileSync(readmePath, "utf8");
-
-	const esc = (v) => v.replace(/\./g, "\\.");
+	const escapedOldVersion = escapeRegExp(oldVersion);
 
 	// Update section header
 	content = content.replace(
@@ -52,25 +67,25 @@ function updateReadme() {
 
 	// Replace version in the release URL path: /download/v2.0.0/ → /download/v2.0.1/
 	content = content.replace(
-		new RegExp(`/releases/download/v${esc(oldVersion)}/`, "g"),
-		`/releases/download/v${newVersion}/`,
+		new RegExp(`/releases/download/v${escapedOldVersion}/`, "g"),
+		() => `/releases/download/v${newVersion}/`,
 	);
 
 	// Replace version in file names inside download paths
 	// Covers: npMax-2.0.0, npMax.2.0.0, npMax.Setup.2.0.0
 	content = content.replace(
-		new RegExp(`(npMax[-\\.])${esc(oldVersion)}`, "g"),
-		`$1${newVersion}`,
+		new RegExp(`(npMax[-\\.])${escapedOldVersion}`, "g"),
+		(_, prefix) => `${prefix}${newVersion}`,
 	);
 	// Covers: npmax_2.0.0
 	content = content.replace(
-		new RegExp(`(npmax_)${esc(oldVersion)}`, "g"),
-		`$1${newVersion}`,
+		new RegExp(`(npmax_)${escapedOldVersion}`, "g"),
+		(_, prefix) => `${prefix}${newVersion}`,
 	);
 	// Covers: Setup.2.0.0 (for npMax.Setup.2.0.0.exe)
 	content = content.replace(
-		new RegExp(`(Setup\\.)${esc(oldVersion)}`, "g"),
-		`$1${newVersion}`,
+		new RegExp(`(Setup\\.)${escapedOldVersion}`, "g"),
+		(_, prefix) => `${prefix}${newVersion}`,
 	);
 
 	fs.writeFileSync(readmePath, content);
