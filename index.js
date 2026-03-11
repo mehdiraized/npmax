@@ -12,6 +12,12 @@ const { autoUpdater } = require("electron-updater");
 let appIcon = null;
 let window = null;
 let updateDownloadInProgress = false;
+let isQuitting = false;
+
+const sendToWindow = (channel, payload) => {
+	if (!window || window.isDestroyed()) return;
+	window.webContents.send(channel, payload);
+};
 
 const createWindow = () => {
 	const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -60,14 +66,20 @@ const createWindow = () => {
 	window = new BrowserWindow(baseConfig);
 
 	window.on("minimize", (e) => {
+		if (isQuitting) return;
 		e.preventDefault();
 		window.hide();
 	});
 
 	window.on("close", (e) => {
+		if (isQuitting) return;
 		e.preventDefault();
-		window.destroy();
+		isQuitting = true;
 		app.quit();
+	});
+
+	window.on("closed", () => {
+		window = null;
 	});
 
 	window.loadFile("public/index.html");
@@ -87,12 +99,10 @@ ipcMain.on("download-update", async () => {
 		await autoUpdater.downloadUpdate();
 	} catch (err) {
 		updateDownloadInProgress = false;
-		if (window && !window.isDestroyed()) {
-			window.webContents.send(
-				"update-error",
-				err instanceof Error ? err.message : String(err),
-			);
-		}
+		sendToWindow(
+			"update-error",
+			err instanceof Error ? err.message : String(err),
+		);
 	}
 });
 
@@ -106,24 +116,22 @@ function setupAutoUpdater() {
 
 	autoUpdater.on("update-available", (info) => {
 		updateDownloadInProgress = false;
-		window.webContents.send("update-available", info);
+		sendToWindow("update-available", info);
 	});
 
 	autoUpdater.on("download-progress", (progress) => {
-		window.webContents.send("update-download-progress", progress);
+		sendToWindow("update-download-progress", progress);
 	});
 
 	autoUpdater.on("update-downloaded", () => {
 		updateDownloadInProgress = false;
-		window.webContents.send("update-downloaded");
+		sendToWindow("update-downloaded");
 	});
 
 	autoUpdater.on("error", (err) => {
 		updateDownloadInProgress = false;
 		console.error("Auto-updater error:", err.message);
-		if (window && !window.isDestroyed()) {
-			window.webContents.send("update-error", err.message);
-		}
+		sendToWindow("update-error", err.message);
 	});
 
 	// Check for updates 5 seconds after startup
@@ -142,16 +150,35 @@ app.whenReady().then(() => {
 	appIcon = new Tray(`${__dirname}/public/favicon.png`);
 
 	const contextMenu = Menu.buildFromTemplate([
-		{ label: "Show", click: () => window.show() },
+		{
+			label: "Show",
+			click: () => {
+				if (!window || window.isDestroyed()) {
+					createWindow();
+					return;
+				}
+				window.show();
+			},
+		},
 		{
 			label: "Quit",
 			click: () => {
-				window.destroy();
+				isQuitting = true;
 				app.quit();
 			},
 		},
 	]);
 	appIcon.setContextMenu(contextMenu);
+});
+
+app.on("before-quit", () => {
+	isQuitting = true;
+});
+
+app.on("activate", () => {
+	if (BrowserWindow.getAllWindows().length === 0) {
+		createWindow();
+	}
 });
 
 app.on("window-all-closed", () => app.quit());

@@ -5,34 +5,16 @@
 
 	export let maxHeight = "300px";
 	let container;
+	let instance;
 
 	onMount(() => {
-		new SimpleBar(container);
+		instance = new SimpleBar(container);
+		return () => instance?.unMount();
 	});
 </script>
 
-<div style="max-height: {maxHeight}" bind:this={container}>
-	<div class="simplebar-wrapper">
-		<div class="simplebar-height-auto-observer-wrapper">
-			<div class="simplebar-height-auto-observer"></div>
-		</div>
-		<div class="simplebar-mask">
-			<div class="simplebar-offset">
-				<div class="simplebar-content-wrapper">
-					<div class="simplebar-content">
-						<slot />
-					</div>
-				</div>
-			</div>
-		</div>
-		<div class="simplebar-placeholder"></div>
-	</div>
-	<div class="simplebar-track simplebar-horizontal">
-		<div class="simplebar-scrollbar"></div>
-	</div>
-	<div class="simplebar-track simplebar-vertical">
-		<div class="simplebar-scrollbar"></div>
-	</div>
+<div data-simplebar style="max-height: {maxHeight}" bind:this={container}>
+	<slot />
 </div>
 
 <style global>

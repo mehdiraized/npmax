@@ -287,8 +287,9 @@
 		display: flex;
 		align-items: center;
 		border-radius: var(--radius-sm, 9px);
+		padding-right: 8px;
 		margin-bottom: 2px;
-		gap: 5px;
+		gap: 2px;
 		height: 34px;
 		transition: background var(--transition-fast, 0.15s ease);
 		-webkit-app-region: none;
