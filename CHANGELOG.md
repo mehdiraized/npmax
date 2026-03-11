@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.5.0] - 2026-03-11
+
+### ✨ Features
+
+- add GitHub Actions workflow for deploying pages ([418dc4f](https://github.com/mehdiraized/npmax/commit/418dc4f))
+
+---
+
 ## [2.4.0] - 2026-03-11
 
 ### ✨ Features
