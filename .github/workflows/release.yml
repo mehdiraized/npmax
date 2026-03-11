@@ -101,6 +101,7 @@ jobs:
           name: mac-artifacts
           path: |
             releases/*.dmg
+            releases/*.zip
             releases/latest-mac.yml
           if-no-files-found: error
 
@@ -247,6 +248,7 @@ jobs:
           make_latest: true
           files: |
             artifacts/mac-artifacts/*.dmg
+            artifacts/mac-artifacts/*.zip
             artifacts/mac-artifacts/latest-mac.yml
             artifacts/windows-artifacts/*.exe
             artifacts/windows-artifacts/latest.yml

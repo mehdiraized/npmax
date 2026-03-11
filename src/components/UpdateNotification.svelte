@@ -1,4 +1,5 @@
 <script>
+	import { toast } from "svelte-sonner";
 	import { onMount, onDestroy } from "svelte";
 
 	const { ipcRenderer } = require("electron");
@@ -34,18 +35,44 @@
 	function onUpdateError(_, message) {
 		downloading = false;
 		downloaded = false;
-		errorMessage = message || "Unable to download the update.";
+		errorMessage =
+			typeof message === "string"
+				? message
+				: message?.message || "Unable to download the update.";
+
+		if (message?.manual) {
+			toast.error("Update failed", {
+				description: errorMessage,
+				position: "bottom-center",
+			});
+		}
+	}
+
+	function onCheckingForUpdate(_, state) {
+		if (state?.manual) {
+			toast.info("Checking for updates...", {
+				position: "bottom-center",
+			});
+		}
+	}
+
+	function onUpdateNotAvailable(_, state) {
+		void state;
 	}
 
 	onMount(() => {
+		ipcRenderer.on("checking-for-update", onCheckingForUpdate);
 		ipcRenderer.on("update-available", onUpdateAvailable);
+		ipcRenderer.on("update-not-available", onUpdateNotAvailable);
 		ipcRenderer.on("update-download-progress", onDownloadProgress);
 		ipcRenderer.on("update-downloaded", onUpdateDownloaded);
 		ipcRenderer.on("update-error", onUpdateError);
 	});
 
 	onDestroy(() => {
+		ipcRenderer.removeListener("checking-for-update", onCheckingForUpdate);
 		ipcRenderer.removeListener("update-available", onUpdateAvailable);
+		ipcRenderer.removeListener("update-not-available", onUpdateNotAvailable);
 		ipcRenderer.removeListener("update-download-progress", onDownloadProgress);
 		ipcRenderer.removeListener("update-downloaded", onUpdateDownloaded);
 		ipcRenderer.removeListener("update-error", onUpdateError);
@@ -61,6 +88,10 @@
 
 	function installUpdate() {
 		ipcRenderer.send("install-update");
+	}
+
+	function checkForUpdates() {
+		ipcRenderer.send("check-for-updates");
 	}
 
 	function dismiss() {
@@ -90,6 +121,9 @@
 				<button class="btn-download" onclick={startDownload}>
 					{errorMessage ? "Retry download" : "Download and install"}
 				</button>
+				{#if errorMessage}
+					<button class="btn-secondary" onclick={checkForUpdates}>Check again</button>
+				{/if}
 				<button class="btn-dismiss" onclick={dismiss}>Later</button>
 			{/if}
 		</div>
@@ -202,6 +236,11 @@
 	.btn-install {
 		background: #5cb85c;
 		color: #fff;
+	}
+
+	.btn-secondary {
+		background: rgba(124, 158, 245, 0.14);
+		color: rgba(255, 255, 255, 0.8);
 	}
 
 	.btn-dismiss {

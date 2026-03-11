@@ -2059,6 +2059,11 @@ button.svelte-rcr70m:hover {
   color: #fff;
 }
 
+.btn-secondary.svelte-rcr70m {
+  background: rgba(124, 158, 245, 0.14);
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .btn-dismiss.svelte-rcr70m {
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.6);

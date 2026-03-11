@@ -1,5 +1,5 @@
 <script>
-	import { onMount } from "svelte";
+	import { onDestroy, onMount } from "svelte";
 	import SimpleBar from "../components/SimpleBar.svelte";
 	import { projects, menuActive } from "../store";
 	import { globalPackages, openDirectory } from "../utils/shell.js";
@@ -22,6 +22,12 @@
 		);
 		packages = await globalPackages();
 		localStorage.setItem("packages", JSON.stringify(packages));
+
+		window.addEventListener("npmax:add-project", addProject);
+	});
+
+	onDestroy(() => {
+		window.removeEventListener("npmax:add-project", addProject);
 	});
 
 	async function addProject() {

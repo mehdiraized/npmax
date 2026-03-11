@@ -1,4 +1,5 @@
 <script>
+	import { onDestroy, onMount } from "svelte";
 	import { blur } from "svelte/transition";
 	import { Toaster } from "svelte-sonner";
 	import SimpleBar from "../components/SimpleBar.svelte";
@@ -72,6 +73,26 @@
 	function handleRefresh(newRaw) {
 		rawJson = newRaw;
 	}
+
+	function reloadCurrentProject() {
+		if (currentProject?.path) {
+			loadProject(currentProject.path);
+		}
+	}
+
+	onMount(() => {
+		window.addEventListener(
+			"npmax:reload-current-project",
+			reloadCurrentProject,
+		);
+	});
+
+	onDestroy(() => {
+		window.removeEventListener(
+			"npmax:reload-current-project",
+			reloadCurrentProject,
+		);
+	});
 </script>
 
 <div class="content">
