@@ -334,8 +334,7 @@
 .projectItem.svelte-1gr7gr8:hover {
   background: rgba(255, 255, 255, 0.06);
 }
-.projectItem.svelte-1gr7gr8:hover .projectItem__remove:where(.svelte-1gr7gr8),
-.projectItem.svelte-1gr7gr8:hover .projectItem__close:where(.svelte-1gr7gr8) {
+.projectItem.svelte-1gr7gr8:hover .projectItem__remove:where(.svelte-1gr7gr8) {
   opacity: 1;
 }
 .projectItem.projectItem--active.svelte-1gr7gr8 {
