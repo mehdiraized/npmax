@@ -8,5 +8,11 @@
 		"Rezaei",
 		"simplebar",
 		"sirv"
+	],
+	"js/ts.suggest.jsdoc.enabled": true,
+	"github.copilot.chat.reviewSelection.instructions": [
+		{
+			"text": "Flag any use of /* */ block comments — they should be /** */ for JSDoc or // for inline."
+		}
 	]
 }
