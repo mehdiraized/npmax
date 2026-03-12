@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.10.1] - 2026-03-12
+
+### 🐛 Bug Fixes
+
+- add guidelines for comment style and JSDoc usage in project documentation ([cbf7005](https://github.com/mehdiraized/npmax/commit/cbf7005))
+
+### 📦 Other Changes
+
+- refactor: sidebar hover styles to simplify project item removal visibility ([94f3ced](https://github.com/mehdiraized/npmax/commit/94f3ced))
+
+---
+
 ## [2.10.0] - 2026-03-11
 
 ### ✨ Features
