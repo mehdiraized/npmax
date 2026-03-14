@@ -1,6 +1,10 @@
 <script>
 	import { toast } from "svelte-sonner";
-	import { fetchComposerPackagesInfo } from "../api/composer.js";
+	import PackageDetailsModal from "./PackageDetailsModal.svelte";
+	import {
+		fetchComposerPackagesInfo,
+		getComposerPackageDetails,
+	} from "../api/composer.js";
 	import {
 		updateComposerPackageVersion,
 		getProjectComposerPackages,
@@ -25,6 +29,12 @@
 	});
 
 	let infoMap = $state({});
+	let detailsOpen = $state(false);
+	let selectedPackageName = $state("");
+	let selectedCurrentVersion = $state(null);
+	let packageDetails = $state(null);
+	let detailsLoading = $state(false);
+	let detailsError = $state("");
 
 	const SEMVER_PREFIX_RE = /^(\^|~|>=|<=|>|<|=)\s*/;
 
@@ -76,6 +86,27 @@
 
 	function getLatest(pkgName) {
 		return infoMap[pkgName]?.version ?? null;
+	}
+
+	async function openPackageDetails(pkgName, currentRaw) {
+		selectedPackageName = pkgName;
+		selectedCurrentVersion = currentRaw;
+		detailsOpen = true;
+		detailsLoading = true;
+		detailsError = "";
+		packageDetails = null;
+
+		try {
+			packageDetails = await getComposerPackageDetails(pkgName);
+		} catch (err) {
+			detailsError = err.message || `Failed to load details for ${pkgName}`;
+		} finally {
+			detailsLoading = false;
+		}
+	}
+
+	function closePackageDetails() {
+		detailsOpen = false;
 	}
 
 	async function handleUpdate(pkgName, latestVersion, isDev) {
@@ -238,7 +269,12 @@
 				{#each Object.entries(composer.require) as [name, ver], i}
 					{@const isReal = isRealPackage(name)}
 					<div class="line pkg-line">
-						<span class="tok-pkg">&nbsp;&nbsp;&nbsp;&nbsp;"{name}"</span><span
+						<button
+							class="pkg-name tok-pkg"
+							onclick={() => openPackageDetails(name, ver)}
+						>
+							&nbsp;&nbsp;&nbsp;&nbsp;"{name}"
+						</button><span
 							class="tok-colon"
 							>:
 						</span><span class="tok-ver">"{ver}"</span
@@ -315,7 +351,12 @@
 				{#each Object.entries(composer["require-dev"]) as [name, ver], i}
 					{@const isReal = isRealPackage(name)}
 					<div class="line pkg-line">
-						<span class="tok-pkg">&nbsp;&nbsp;&nbsp;&nbsp;"{name}"</span><span
+						<button
+							class="pkg-name tok-pkg"
+							onclick={() => openPackageDetails(name, ver)}
+						>
+							&nbsp;&nbsp;&nbsp;&nbsp;"{name}"
+						</button><span
 							class="tok-colon"
 							>:
 						</span><span class="tok-ver tok-ver--dev">"{ver}"</span
@@ -382,6 +423,16 @@
 		</div>
 	</div>
 </div>
+
+<PackageDetailsModal
+	open={detailsOpen}
+	detail={packageDetails}
+	loading={detailsLoading}
+	error={detailsError}
+	requestedName={selectedPackageName}
+	currentVersion={selectedCurrentVersion}
+	on:close={closePackageDetails}
+/>
 
 <style lang="scss">
 	.editor {
@@ -520,6 +571,22 @@
 	.tok-pkg {
 		color: #c9d1d9;
 	}
+
+	.pkg-name {
+		padding: 0;
+		border: 0;
+		background: transparent;
+		font: inherit;
+		cursor: pointer;
+		text-align: left;
+		transition: color 0.18s ease, text-shadow 0.18s ease;
+
+		&:hover {
+			color: #ffffff;
+			text-shadow: 0 0 14px rgba(122, 179, 255, 0.28);
+		}
+	}
+
 	.tok-ver {
 		color: #f8c555;
 	}
