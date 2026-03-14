@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.11.0] - 2026-03-14
+
+### ✨ Features
+
+- add support for Swift, CocoaPods, Gradle, Flutter, Go, Rust, and Ruby ecosystems ([f4b69fe](https://github.com/mehdiraized/npmax/commit/f4b69fe))
+- enhance package details functionality with modal display ([9d85644](https://github.com/mehdiraized/npmax/commit/9d85644))
+
+### 📦 Other Changes
+
+- Merge remote-tracking branch 'origin/master' ([12d2098](https://github.com/mehdiraized/npmax/commit/12d2098))
+- Merge pull request #81 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-67fcbebea9 ([c25755f](https://github.com/mehdiraized/npmax/commit/c25755f))
+- build(deps): bump devalue in the npm_and_yarn group across 1 directory ([ecbe0fc](https://github.com/mehdiraized/npmax/commit/ecbe0fc))
+
+---
+
 ## [2.10.1] - 2026-03-12
 
 ### 🐛 Bug Fixes
