@@ -92,6 +92,11 @@
 				return "box";
 		}
 	}
+
+	function displayVersion(value) {
+		if (!value) return "Unknown";
+		return value === "manual" ? "Manual" : `v${value}`;
+	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -127,7 +132,7 @@
 							<div>
 								<h2 class="hero__title">{detail.name}</h2>
 								<div class="hero__versionRow">
-									<span class="hero__version">v{detail.version}</span>
+									<span class="hero__version">{displayVersion(detail.version)}</span>
 									{#if currentVersion}
 										<span class="hero__current">Current: {currentVersion}</span>
 									{/if}

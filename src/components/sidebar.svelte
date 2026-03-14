@@ -8,6 +8,13 @@
 	import PnpmIcon from "../icons/pnpm.svelte";
 	import YarnIcon from "../icons/yarn.svelte";
 	import ComposerIcon from "../icons/composer.svelte";
+	import SwiftIcon from "../icons/swift.svelte";
+	import CocoaPodsIcon from "../icons/cocoapods.svelte";
+	import GradleIcon from "../icons/gradle.svelte";
+	import FlutterIcon from "../icons/flutter.svelte";
+	import GoIcon from "../icons/go.svelte";
+	import RustIcon from "../icons/rust.svelte";
+	import RubyIcon from "../icons/ruby.svelte";
 
 	let packages = $state({});
 
@@ -156,7 +163,7 @@
 		</button>
 	</div>
 	<!-- Global package managers -->
-	{#if packages.npm || packages.yarn || packages.pnpm || packages.composer}
+	{#if packages.npm || packages.yarn || packages.pnpm || packages.composer || packages.swift || packages.cocoapods || packages.gradle || packages.flutter || packages.go || packages.cargo || packages.bundler}
 		<section
 			class="sidebarSection"
 			style="padding-left: 8px;padding-right: 8px; padding-bottom: 8px;"
@@ -190,6 +197,55 @@
 					<figure class="pkgItem__icon"><ComposerIcon /></figure>
 					<span class="pkgItem__name">composer</span>
 					<span class="pkgItem__badge">{packages.composer.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.swift}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><SwiftIcon /></figure>
+					<span class="pkgItem__name">swift</span>
+					<span class="pkgItem__badge">{packages.swift.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.cocoapods}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><CocoaPodsIcon /></figure>
+					<span class="pkgItem__name">cocoapods</span>
+					<span class="pkgItem__badge">{packages.cocoapods.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.gradle}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><GradleIcon /></figure>
+					<span class="pkgItem__name">gradle</span>
+					<span class="pkgItem__badge">{packages.gradle.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.flutter}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><FlutterIcon /></figure>
+					<span class="pkgItem__name">flutter</span>
+					<span class="pkgItem__badge">{packages.flutter.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.go}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><GoIcon /></figure>
+					<span class="pkgItem__name">go</span>
+					<span class="pkgItem__badge">{packages.go.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.cargo}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><RustIcon /></figure>
+					<span class="pkgItem__name">cargo</span>
+					<span class="pkgItem__badge">{packages.cargo.trim()}</span>
+				</div>
+			{/if}
+			{#if packages.bundler}
+				<div class="pkgItem">
+					<figure class="pkgItem__icon"><RubyIcon /></figure>
+					<span class="pkgItem__name">bundler</span>
+					<span class="pkgItem__badge">{packages.bundler.trim()}</span>
 				</div>
 			{/if}
 		</section>

@@ -4,10 +4,10 @@
 		<meta charset="utf-8" />
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>npMax | Desktop package manager for npm, yarn, pnpm, and Composer</title>
+		<title>npMax | Desktop dependency manager for Node, PHP, Apple, Android, Flutter, Go, Rust, and Ruby projects</title>
 		<meta
 			name="description"
-			content="npMax is an open source desktop GUI to inspect, update, and maintain npm, yarn, pnpm, and Composer dependencies across macOS, Windows, and Linux."
+			content="npMax is an open source desktop GUI to inspect, update, and maintain npm, yarn, pnpm, Composer, SwiftPM, CocoaPods, Gradle, Flutter, Go, Cargo, and Bundler dependencies across macOS, Windows, and Linux."
 		/>
 		<link
 			href="https://fonts.googleapis.com/css?family=Heebo:400,500,700|IBM+Plex+Sans:500,600,700"
@@ -183,6 +183,34 @@
 				font-size: 18px;
 				line-height: 1.7;
 				color: var(--text-soft);
+			}
+
+			.ecosystem-strip {
+				display: grid;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				gap: 12px;
+				margin: 0 0 30px;
+			}
+
+			.ecosystem-chip {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				padding: 12px 14px;
+				border-radius: 18px;
+				border: 1px solid var(--surface-border);
+				background: var(--surface);
+				box-shadow: var(--shadow-md);
+				font-size: 14px;
+				font-weight: 700;
+				color: var(--text-strong);
+			}
+
+			.ecosystem-chip svg {
+				width: 20px;
+				height: 20px;
+				color: var(--accent);
+				flex-shrink: 0;
 			}
 
 			.hero-cta {
@@ -804,6 +832,7 @@
 			}
 
 			@media (max-width: 960px) {
+				.ecosystem-strip,
 				.value-grid,
 				.workflow-grid,
 				.download-grid,
@@ -852,6 +881,10 @@
 			}
 
 			@media (max-width: 640px) {
+				.ecosystem-strip {
+					grid-template-columns: 1fr;
+				}
+
 				.site-header {
 					padding-top: 18px;
 				}
@@ -954,15 +987,43 @@
 								</h2>
 								<p class="hero-paragraph">
 									npMax gives your team one focused desktop app to inspect, update,
-									and keep <strong>npm</strong>, <strong>yarn</strong>,
-									<strong>pnpm</strong>, and <strong>Composer</strong> dependencies in
-									sync.
+									and keep <strong>npm</strong>, <strong>Composer</strong>,
+									<strong>SwiftPM</strong>, <strong>CocoaPods</strong>,
+									<strong>Gradle</strong>, <strong>Flutter</strong>,
+									<strong>Go</strong>, <strong>Cargo</strong>, and
+									<strong>Bundler</strong> dependencies in sync.
 								</p>
 								<p class="hero-summary">
 									Check outdated packages, preserve semver prefixes, monitor lock file
 									status, and switch between multiple projects from a clean interface
 									on macOS, Windows, and Linux.
 								</p>
+								<div class="ecosystem-strip" aria-label="Supported ecosystems">
+									<div class="ecosystem-chip">
+										<svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 7h24v10H12v2H7v-2H0zm2 2v6h4V9h2v6h2V7zm8 0v8h3V9h3v8h2V7zm8 0v6h2V9h2v6h2V7z"/></svg>
+										<span>Node.js</span>
+									</div>
+									<div class="ecosystem-chip">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 19 7v10l-7 4-7-4V7l7-4Z"/><path d="M9.6 8.4h4.8v7.2H9.6z"/></svg>
+										<span>PHP / Composer</span>
+									</div>
+									<div class="ecosystem-chip">
+										<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.7 2.8 5.2 12.3l2.9 2.9L20.5 2.8h-5.8ZM8.9 16l3 3 8.6-8.6h-5.8L8.9 16Zm2.5 3.5 2.6 1.7h6.5l-5.6-5.6-3.5 3.9Z"/></svg>
+										<span>Apple / Swift</span>
+									</div>
+									<div class="ecosystem-chip">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6.4 12 4l4 2.4v4.3L12 13 8 10.7V6.4Z"/><path d="M12 13v6M8.4 16.3 12 18.4l3.6-2.1"/><circle cx="18.1" cy="7.3" r="1.2" fill="currentColor" stroke="none"/></svg>
+										<span>Android / Gradle</span>
+									</div>
+									<div class="ecosystem-chip">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M6.5 12h11M12 6.5a10.5 10.5 0 0 1 3 5.5 10.5 10.5 0 0 1-3 5.5M12 6.5A10.5 10.5 0 0 0 9 12a10.5 10.5 0 0 0 3 5.5"/></svg>
+										<span>Flutter / pub.dev</span>
+									</div>
+									<div class="ecosystem-chip">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 13h8.5" stroke-linecap="round"/><path d="M14.5 9.5h5" stroke-linecap="round"/><path d="M16 15.5h3.5" stroke-linecap="round"/><circle cx="10" cy="13" r="4.2"/></svg>
+										<span>Go / Rust / Ruby</span>
+									</div>
+								</div>
 								<div class="hero-cta">
 									<a
 										class="button button-primary"
@@ -979,8 +1040,8 @@
 								</div>
 								<div class="hero-meta">
 									<div class="hero-stat">
-										<strong>4</strong>
-										<span>supported ecosystems: npm, yarn, pnpm, Composer</span>
+										<strong>11</strong>
+										<span>supported package flows across web, backend, mobile, and systems projects</span>
 									</div>
 									<div class="hero-stat">
 										<strong>3</strong>
@@ -992,7 +1053,7 @@
 									</div>
 									<div class="hero-stat">
 										<strong>Live</strong>
-										<span>registry and Packagist checks for outdated packages</span>
+										<span>registry checks across npm, Packagist, GitHub, Maven, CocoaPods, pub.dev, Go proxy, crates.io, and RubyGems</span>
 									</div>
 								</div>
 							</div>
@@ -1026,8 +1087,8 @@
 											<span>Review current and latest versions with live package metadata.</span>
 										</div>
 										<div class="highlight-card">
-											<strong>Composer support</strong>
-											<span>Manage PHP package constraints with the same UI discipline.</span>
+											<strong>Multi-stack support</strong>
+											<span>Manage backend, frontend, Apple, Android, Flutter, Go, Rust, and Ruby projects from one app.</span>
 										</div>
 									</div>
 								</div>
@@ -1073,17 +1134,27 @@
 								</article>
 								<article class="product-card product-card--wide product-card--soft is-revealing">
 									<div class="product-eyebrow">Multi ecosystem support</div>
-									<h3>npm, yarn, pnpm, and Composer in one interface.</h3>
+									<h3>Node, PHP, Apple, Android, Flutter, Go, Rust, and Ruby in one interface.</h3>
 									<p>
-										npMax detects whether a project is driven by
-										<code>package.json</code> or <code>composer.json</code> and shows
-										the correct editor immediately.
+										npMax detects the active manifest automatically and opens the
+										right editor for <code>package.json</code>, <code>composer.json</code>,
+										<code>Package.swift</code>, <code>Podfile</code>,
+										<code>build.gradle</code>, <code>libs.versions.toml</code>, and
+										<code>pubspec.yaml</code>, <code>go.mod</code>,
+										<code>Cargo.toml</code>, and <code>Gemfile</code>.
 									</p>
 									<div class="product-foot">
 										<span class="product-pill">npm</span>
 										<span class="product-pill">yarn</span>
 										<span class="product-pill">pnpm</span>
 										<span class="product-pill">Composer</span>
+										<span class="product-pill">SwiftPM</span>
+										<span class="product-pill">CocoaPods</span>
+										<span class="product-pill">Gradle</span>
+										<span class="product-pill">Flutter</span>
+										<span class="product-pill">Go</span>
+										<span class="product-pill">Cargo</span>
+										<span class="product-pill">Bundler</span>
 									</div>
 									<div class="product-media">
 										<img
@@ -1100,14 +1171,20 @@
 								</article>
 								<article class="product-card product-card--half is-revealing">
 									<div class="product-eyebrow">Outdated detection</div>
-									<h3>Live version checks from npm and Packagist.</h3>
+									<h3>Live version checks across the registries your team already uses.</h3>
 									<p>
 										Review installed versions against the latest stable release data
-										before changing anything in your project.
+										before changing anything in your project, whether it lives on npm,
+										Packagist, GitHub, Maven, CocoaPods, pub.dev, the Go proxy,
+										crates.io, or RubyGems.
 									</p>
 									<ul class="product-mini-list">
 										<li>npm registry lookups for Node packages</li>
 										<li>Packagist checks for Composer dependencies</li>
+										<li>GitHub releases and tags for Swift packages</li>
+										<li>Google Maven and Maven Central for Android artifacts</li>
+										<li>pub.dev metadata for Flutter and Dart packages</li>
+										<li>Go proxy, crates.io, and RubyGems for backend and systems packages</li>
 									</ul>
 									<div class="product-media">
 										<img
@@ -1161,16 +1238,23 @@
 									</ul>
 								</article>
 								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Composer aware</div>
-									<h3>PHP packages get first-class treatment too.</h3>
+									<div class="product-eyebrow">Mobile project aware</div>
+									<h3>Mobile and systems projects fit in the same workflow.</h3>
 									<p>
-										The app resolves latest stable Composer packages, skips platform
-										requirements, and keeps the editing flow consistent with Node
-										projects.
+										Swift Package Manager, CocoaPods, Gradle, Android Version
+										Catalogs, Flutter pubspec files, Go modules, Cargo manifests, and
+										Gemfiles are detected automatically so mobile and systems teams get
+										the same review, update, and sync loop.
 									</p>
 									<div class="product-foot">
-										<span class="product-pill">Skips php/ext/lib entries</span>
-										<span class="product-pill">Stable release resolution</span>
+										<span class="product-pill">Package.swift</span>
+										<span class="product-pill">Podfile</span>
+										<span class="product-pill">build.gradle</span>
+										<span class="product-pill">libs.versions.toml</span>
+										<span class="product-pill">pubspec.yaml</span>
+										<span class="product-pill">go.mod</span>
+										<span class="product-pill">Cargo.toml</span>
+										<span class="product-pill">Gemfile</span>
 									</div>
 								</article>
 								<article class="product-card product-card--half is-revealing">
@@ -1211,23 +1295,28 @@
 
 							<div class="capability-grid">
 								<article class="capability-card feature is-revealing">
-									<h3>Manage JavaScript and PHP dependencies</h3>
+									<h3>Manage backend, frontend, and mobile dependencies</h3>
 									<p>
-										View package lists from <code>package.json</code> and
-										<code>composer.json</code>, inspect versions, and work with
-										regular or dev dependencies from one desktop app.
+										View package lists from <code>package.json</code>,
+										<code>composer.json</code>, <code>Package.swift</code>,
+										<code>Podfile</code>, <code>build.gradle</code>,
+										<code>libs.versions.toml</code>, <code>pubspec.yaml</code>,
+										<code>go.mod</code>, <code>Cargo.toml</code>, and
+										<code>Gemfile</code>, then inspect and update them from one
+										desktop app.
 									</p>
 									<ul class="capability-list">
-										<li>Supports npm, yarn, pnpm, and Composer projects</li>
-										<li>Detects real Composer packages and ignores platform entries</li>
-										<li>Useful when teams maintain full-stack repos</li>
+										<li>Supports Node, PHP, Apple, Android, Flutter, Go, Rust, and Ruby projects</li>
+										<li>Handles regular and dev dependency sections where available</li>
+										<li>Useful when teams maintain full-stack, mobile, and systems repos</li>
 									</ul>
 								</article>
 								<article class="capability-card feature is-revealing">
 									<h3>Spot outdated packages with live version checks</h3>
 									<p>
-										npMax queries npm and Packagist to compare installed versions with
-										the latest available stable releases.
+										npMax queries the appropriate registry source for each ecosystem
+										to compare installed versions with the latest available stable
+										releases.
 									</p>
 									<ul class="capability-list">
 										<li>Surface outdated packages without manual registry lookups</li>
@@ -1458,10 +1547,13 @@
 									</p>
 								</article>
 								<article class="faq-card">
-									<h3>Which package managers are supported?</h3>
+									<h3>Which package managers and project types are supported?</h3>
 									<p>
-										The app supports npm, yarn, pnpm, and Composer. It detects the
-										project manifest and switches to the correct editor automatically.
+										The app supports npm, yarn, pnpm, Composer, Swift Package
+										Manager, CocoaPods, Gradle, Android Version Catalogs, Flutter
+										pubspec projects, Go modules, Cargo manifests, and Gemfiles. It
+										detects the project manifest and switches to the correct editor
+										automatically.
 									</p>
 								</article>
 								<article class="faq-card">

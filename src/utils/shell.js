@@ -3,6 +3,10 @@ import fs from "fs";
 import { join } from "path";
 import { exec as execCb, execFileSync } from "child_process";
 import { ipcRenderer } from "electron";
+import { parsePodfile, parseSwiftManifest } from "./apple.js";
+import { parseGradleManifest, parseVersionCatalog } from "./android.js";
+import { parsePubspec } from "./flutter.js";
+import { parseCargoToml, parseGemfile, parseGoMod } from "./polyglot.js";
 
 // ─── Fix PATH for production builds ──────────────────────────────────────────
 // Packaged Electron apps launched from Finder/Dock don't inherit the user's
@@ -89,19 +93,69 @@ const SHELL =
 
 const EXEC_OPTS = { timeout: 15000, shell: SHELL };
 
-/** Returns installed versions of npm, yarn, pnpm, composer (false if not found). */
+const findFileRecursive = (rootPath, targetName, depth = 4) => {
+	if (depth < 0) return null;
+
+	let entries = [];
+	try {
+		entries = fs.readdirSync(rootPath, { withFileTypes: true });
+	} catch {
+		return null;
+	}
+
+	for (const entry of entries) {
+		if (entry.name.startsWith(".git") || entry.name === "node_modules") continue;
+		const fullPath = join(rootPath, entry.name);
+		if (entry.isFile() && entry.name === targetName) return fullPath;
+		if (entry.isDirectory()) {
+			const nested = findFileRecursive(fullPath, targetName, depth - 1);
+			if (nested) return nested;
+		}
+	}
+
+	return null;
+};
+
+/** Returns installed versions of supported package tools (false if not found). */
 export const globalPackages = async () => {
-	const [npm, yarn, pnpm, composer] = await Promise.allSettled([
+	const [
+		npm,
+		yarn,
+		pnpm,
+		composer,
+		swift,
+		cocoapods,
+		gradle,
+		flutter,
+		go,
+		cargo,
+		bundler,
+	] =
+		await Promise.allSettled([
 		npmVersion(),
 		yarnVersion(),
 		pnpmVersion(),
 		composerVersion(),
+		swiftVersion(),
+		cocoapodsVersion(),
+		gradleVersion(),
+		flutterVersion(),
+		goVersion(),
+		cargoVersion(),
+		bundlerVersion(),
 	]);
 	return {
 		npm: npm.status === "fulfilled" ? npm.value : false,
 		yarn: yarn.status === "fulfilled" ? yarn.value : false,
 		pnpm: pnpm.status === "fulfilled" ? pnpm.value : false,
 		composer: composer.status === "fulfilled" ? composer.value : false,
+		swift: swift.status === "fulfilled" ? swift.value : false,
+		cocoapods: cocoapods.status === "fulfilled" ? cocoapods.value : false,
+		gradle: gradle.status === "fulfilled" ? gradle.value : false,
+		flutter: flutter.status === "fulfilled" ? flutter.value : false,
+		go: go.status === "fulfilled" ? go.value : false,
+		cargo: cargo.status === "fulfilled" ? cargo.value : false,
+		bundler: bundler.status === "fulfilled" ? bundler.value : false,
 	};
 };
 
@@ -181,6 +235,68 @@ export const runComposerInstall = async (projectPath) => {
 export const getProjectPackages = (projectPath) =>
 	readFile(join(projectPath, "package.json"), "utf-8");
 
+/** Read a project's Package.swift and return the raw manifest string. */
+export const getProjectSwiftPackages = (projectPath) =>
+	readFile(join(projectPath, "Package.swift"), "utf-8");
+
+/** Read a project's Podfile and return the raw manifest string. */
+export const getProjectPodPackages = (projectPath) =>
+	readFile(join(projectPath, "Podfile"), "utf-8");
+
+export const getProjectFlutterManifest = (projectPath) =>
+	readFile(join(projectPath, "pubspec.yaml"), "utf-8");
+
+export const getProjectGoManifest = (projectPath) =>
+	readFile(join(projectPath, "go.mod"), "utf-8");
+
+export const getProjectCargoManifest = (projectPath) =>
+	readFile(join(projectPath, "Cargo.toml"), "utf-8");
+
+export const getProjectGemfile = (projectPath) =>
+	readFile(join(projectPath, "Gemfile"), "utf-8");
+
+const ANDROID_MANIFESTS = [
+	join("gradle", "libs.versions.toml"),
+	join("app", "build.gradle.kts"),
+	join("app", "build.gradle"),
+	"build.gradle.kts",
+	"build.gradle",
+];
+
+export const findAndroidManifest = (projectPath) => {
+	for (const relativePath of ANDROID_MANIFESTS) {
+		const fullPath = join(projectPath, relativePath);
+		try {
+			fs.accessSync(fullPath);
+			return fullPath;
+		} catch {
+			/* keep searching */
+		}
+	}
+
+	const recursiveTargets = [
+		"libs.versions.toml",
+		"build.gradle.kts",
+		"build.gradle",
+	];
+	for (const target of recursiveTargets) {
+		const found = findFileRecursive(projectPath, target);
+		if (found) return found;
+	}
+
+	return null;
+};
+
+export const getProjectAndroidManifest = async (projectPath) => {
+	const manifestPath = findAndroidManifest(projectPath);
+	if (!manifestPath) throw new Error("No Android manifest found");
+	const raw = await readFile(manifestPath, "utf-8");
+	const projectType = manifestPath.endsWith("libs.versions.toml")
+		? "android-version-catalog"
+		: "android-gradle";
+	return { manifestPath, raw, projectType };
+};
+
 /**
  * Write an updated version back into the project's package.json.
  * Preserves the original semver prefix (^, ~, etc.).
@@ -205,6 +321,126 @@ export const updatePackageVersion = async (
 
 	await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + "\n", "utf-8");
 	return updated;
+};
+
+export const updateSwiftPackageVersion = async (
+	projectPath,
+	dependency,
+	latestVersion,
+) => {
+	const manifestPath = join(projectPath, "Package.swift");
+	const raw = await readFile(manifestPath, "utf-8");
+	const parsed = parseSwiftManifest(raw);
+	const target = parsed.dependencies.find((item) => item.id === dependency.id);
+
+	if (!target?.versionStart && target?.versionStart !== 0) return null;
+
+	const updatedRaw =
+		raw.slice(0, target.versionStart) +
+		latestVersion +
+		raw.slice(target.versionEnd);
+
+	await writeFile(manifestPath, updatedRaw, "utf-8");
+	return latestVersion;
+};
+
+export const updatePodPackageVersion = async (
+	projectPath,
+	dependency,
+	latestVersion,
+) => {
+	const podfilePath = join(projectPath, "Podfile");
+	const raw = await readFile(podfilePath, "utf-8");
+	const parsed = parsePodfile(raw);
+	const target = parsed.dependencies.find((item) => item.id === dependency.id);
+
+	if (!target) return null;
+
+	let updatedRaw;
+	if (target.versionStart == null) {
+		updatedRaw =
+			raw.slice(0, target.lineEnd) + `, '${latestVersion}'` + raw.slice(target.lineEnd);
+	} else {
+		updatedRaw =
+			raw.slice(0, target.versionStart) +
+			latestVersion +
+			raw.slice(target.versionEnd);
+	}
+
+	await writeFile(podfilePath, updatedRaw, "utf-8");
+	return latestVersion;
+};
+
+export const updateAndroidPackageVersion = async (
+	manifestPath,
+	projectType,
+	dependency,
+	latestVersion,
+) => {
+	const raw = await readFile(manifestPath, "utf-8");
+	const parsed =
+		projectType === "android-version-catalog"
+			? parseVersionCatalog(raw)
+			: parseGradleManifest(raw);
+	const target = parsed.dependencies.find((item) => item.id === dependency.id);
+	if (!target?.versionStart && target?.versionStart !== 0) return null;
+
+	const updatedRaw =
+		raw.slice(0, target.versionStart) +
+		latestVersion +
+		raw.slice(target.versionEnd);
+	await writeFile(manifestPath, updatedRaw, "utf-8");
+	return latestVersion;
+};
+
+export const updateFlutterPackageVersion = async (
+	projectPath,
+	dependency,
+	latestVersion,
+) => {
+	const manifestPath = join(projectPath, "pubspec.yaml");
+	const raw = await readFile(manifestPath, "utf-8");
+	const parsed = parsePubspec(raw);
+	const target = parsed.dependencies.find((item) => item.id === dependency.id);
+	if (!target?.versionStart && target?.versionStart !== 0) return null;
+
+	const updatedRaw =
+		raw.slice(0, target.versionStart) +
+		latestVersion +
+		raw.slice(target.versionEnd);
+	await writeFile(manifestPath, updatedRaw, "utf-8");
+	return latestVersion;
+};
+
+export const updatePolyglotPackageVersion = async (
+	projectPath,
+	projectType,
+	dependency,
+	latestVersion,
+) => {
+	const fileMap = {
+		go: "go.mod",
+		rust: "Cargo.toml",
+		ruby: "Gemfile",
+	};
+	const parserMap = {
+		go: parseGoMod,
+		rust: parseCargoToml,
+		ruby: parseGemfile,
+	};
+	const manifestPath = join(projectPath, fileMap[projectType]);
+	const raw = await readFile(manifestPath, "utf-8");
+	const parsed = parserMap[projectType](raw);
+	const target = parsed.dependencies.find((item) => item.id === dependency.id);
+	if (!target?.versionStart && target?.versionStart !== 0) return null;
+
+	const normalized = projectType === "go" ? latestVersion.replace(/^v?/, "") : latestVersion;
+	const updatedRaw =
+		raw.slice(0, target.versionStart) +
+		normalized +
+		raw.slice(target.versionEnd);
+	await writeFile(manifestPath, updatedRaw, "utf-8");
+	return projectType === "go" ? `v${normalized}` : normalized;
 };
 
 /**
@@ -244,6 +480,105 @@ export const checkLockFile = (projectPath) => {
 	}
 };
 
+export const checkSwiftResolvedFile = (projectPath) => {
+	const manifestPath = join(projectPath, "Package.swift");
+	const resolvedPath =
+		findFileRecursive(projectPath, "Package.resolved") ||
+		join(projectPath, "Package.resolved");
+
+	try {
+		fs.accessSync(resolvedPath);
+	} catch {
+		return "missing";
+	}
+
+	try {
+		const manifestMtime = fs.statSync(manifestPath).mtimeMs;
+		const resolvedMtime = fs.statSync(resolvedPath).mtimeMs;
+		return manifestMtime > resolvedMtime ? "stale" : "ok";
+	} catch {
+		return "missing";
+	}
+};
+
+export const checkPodLockFile = (projectPath) => {
+	const podfilePath = join(projectPath, "Podfile");
+	const lockPath = join(projectPath, "Podfile.lock");
+
+	try {
+		fs.accessSync(lockPath);
+	} catch {
+		return "missing";
+	}
+
+	try {
+		const manifestMtime = fs.statSync(podfilePath).mtimeMs;
+		const lockMtime = fs.statSync(lockPath).mtimeMs;
+		return manifestMtime > lockMtime ? "stale" : "ok";
+	} catch {
+		return "missing";
+	}
+};
+
+export const checkGradleLockFile = (projectPath, manifestPath) => {
+	const lockPath =
+		findFileRecursive(projectPath, "gradle.lockfile") ||
+		findFileRecursive(projectPath, "libs.versions.toml.lockfile");
+	if (!lockPath) return "missing";
+
+	try {
+		const manifestMtime = fs.statSync(manifestPath).mtimeMs;
+		const lockMtime = fs.statSync(lockPath).mtimeMs;
+		return manifestMtime > lockMtime ? "stale" : "ok";
+	} catch {
+		return "missing";
+	}
+};
+
+export const checkFlutterLockFile = (projectPath) => {
+	const manifestPath = join(projectPath, "pubspec.yaml");
+	const lockPath = join(projectPath, "pubspec.lock");
+
+	try {
+		fs.accessSync(lockPath);
+	} catch {
+		return "missing";
+	}
+
+	try {
+		const manifestMtime = fs.statSync(manifestPath).mtimeMs;
+		const lockMtime = fs.statSync(lockPath).mtimeMs;
+		return manifestMtime > lockMtime ? "stale" : "ok";
+	} catch {
+		return "missing";
+	}
+};
+
+export const checkPolyglotLockFile = (projectPath, projectType) => {
+	const config = {
+		go: { manifest: "go.mod", lock: "go.sum" },
+		rust: { manifest: "Cargo.toml", lock: "Cargo.lock" },
+		ruby: { manifest: "Gemfile", lock: "Gemfile.lock" },
+	}[projectType];
+	if (!config) return "missing";
+
+	const manifestPath = join(projectPath, config.manifest);
+	const lockPath = join(projectPath, config.lock);
+	try {
+		fs.accessSync(lockPath);
+	} catch {
+		return "missing";
+	}
+
+	try {
+		const manifestMtime = fs.statSync(manifestPath).mtimeMs;
+		const lockMtime = fs.statSync(lockPath).mtimeMs;
+		return manifestMtime > lockMtime ? "stale" : "ok";
+	} catch {
+		return "missing";
+	}
+};
+
 /**
  * Run the appropriate install command (npm/yarn/pnpm) in the project directory.
  * Auto-detects the package manager from the lock file or falls back to npm.
@@ -264,6 +599,68 @@ export const runInstall = async (projectPath) => {
 	}
 
 	const { stdout } = await exec(cmd, {
+		...EXEC_OPTS,
+		cwd: projectPath,
+		timeout: 120000,
+	});
+	return stdout;
+};
+
+export const runSwiftPackageResolve = async (projectPath) => {
+	const { stdout } = await exec("swift package resolve", {
+		...EXEC_OPTS,
+		cwd: projectPath,
+		timeout: 120000,
+	});
+	return stdout;
+};
+
+export const runPodInstall = async (projectPath) => {
+	const { stdout } = await exec("pod install", {
+		...EXEC_OPTS,
+		cwd: projectPath,
+		timeout: 120000,
+	});
+	return stdout;
+};
+
+export const runGradleSync = async (projectPath) => {
+	const wrapper =
+		process.platform === "win32"
+			? join(projectPath, "gradlew.bat")
+			: join(projectPath, "gradlew");
+	const command = fs.existsSync(wrapper)
+		? process.platform === "win32"
+			? "gradlew.bat help"
+			: "./gradlew help"
+		: "gradle help";
+
+	const { stdout } = await exec(command, {
+		...EXEC_OPTS,
+		cwd: projectPath,
+		timeout: 120000,
+	});
+	return stdout;
+};
+
+export const runFlutterPubGet = async (projectPath) => {
+	const { stdout } = await exec("flutter pub get", {
+		...EXEC_OPTS,
+		cwd: projectPath,
+		timeout: 120000,
+	});
+	return stdout;
+};
+
+export const runPolyglotSync = async (projectPath, projectType) => {
+	const command = {
+		go: "go mod tidy",
+		rust: "cargo check",
+		ruby: "bundle install",
+	}[projectType];
+	if (!command) throw new Error(`Unsupported ecosystem ${projectType}`);
+
+	const { stdout } = await exec(command, {
 		...EXEC_OPTS,
 		cwd: projectPath,
 		timeout: 120000,
@@ -302,6 +699,75 @@ const composerVersion = async () => {
 	try {
 		const { stdout } = await exec("composer --version --no-ansi", EXEC_OPTS);
 		const match = stdout.match(/(\d+\.\d+\.\d+)/);
+		return match ? match[1] : stdout.trim();
+	} catch {
+		return false;
+	}
+};
+
+const swiftVersion = async () => {
+	try {
+		const { stdout } = await exec("swift --version", EXEC_OPTS);
+		const match = stdout.match(/Swift version\s+([^\s]+)/i);
+		return match ? match[1] : stdout.trim();
+	} catch {
+		return false;
+	}
+};
+
+const cocoapodsVersion = async () => {
+	try {
+		const { stdout } = await exec("pod --version", EXEC_OPTS);
+		return stdout.trim();
+	} catch {
+		return false;
+	}
+};
+
+const gradleVersion = async () => {
+	try {
+		const { stdout } = await exec("gradle --version", EXEC_OPTS);
+		const match = stdout.match(/Gradle\s+(\d+\.\d+(?:\.\d+)?)/i);
+		return match ? match[1] : stdout.trim();
+	} catch {
+		return false;
+	}
+};
+
+const flutterVersion = async () => {
+	try {
+		const { stdout } = await exec("flutter --version", EXEC_OPTS);
+		const match = stdout.match(/Flutter\s+([0-9.]+)/i);
+		return match ? match[1] : stdout.trim().split("\n")[0];
+	} catch {
+		return false;
+	}
+};
+
+const goVersion = async () => {
+	try {
+		const { stdout } = await exec("go version", EXEC_OPTS);
+		const match = stdout.match(/go([0-9.]+)/i);
+		return match ? match[1] : stdout.trim();
+	} catch {
+		return false;
+	}
+};
+
+const cargoVersion = async () => {
+	try {
+		const { stdout } = await exec("cargo --version", EXEC_OPTS);
+		const match = stdout.match(/cargo\s+([0-9.]+)/i);
+		return match ? match[1] : stdout.trim();
+	} catch {
+		return false;
+	}
+};
+
+const bundlerVersion = async () => {
+	try {
+		const { stdout } = await exec("bundle --version", EXEC_OPTS);
+		const match = stdout.match(/Bundler version\s+([0-9.]+)/i);
 		return match ? match[1] : stdout.trim();
 	} catch {
 		return false;
