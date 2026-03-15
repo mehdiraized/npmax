@@ -1,8 +1,8 @@
 # npMax
 
-![screenshot-npMax-package-manager](https://mehdiraized.github.io/npmax/dist/images/coverApp.png)
+![screenshot-npMax-workspace](https://mehdiraized.github.io/npmax/dist/images/coverApp.png)
 
-The open source desktop GUI for Node.js, PHP, Apple, Android, Flutter, Go, Rust, and Ruby dependency management.
+The open source desktop workspace for project dependencies and installed app updates across macOS, Windows, and Linux.
 
 Runs on Linux, macOS and Windows.
 
@@ -31,6 +31,9 @@ Runs on Linux, macOS and Windows.
 
 ## Features
 
+- Scan installed desktop applications on the current machine
+- Surface app updates with cross-platform detection for macOS, Windows, and Linux
+- Match popular apps like **Steam**, **Android Studio**, **VS Code**, **Docker**, **Discord**, **Spotify**, and more through a broader catalog
 - View and manage **npm**, **yarn**, and **pnpm** packages from a `package.json`
 - View and manage **Composer** (PHP) packages from a `composer.json`
 - View and manage **Swift Package Manager** dependencies from a `Package.swift`
@@ -44,8 +47,19 @@ Runs on Linux, macOS and Windows.
 - Detect outdated packages with live version checks against npm, Packagist, GitHub, Maven, CocoaPods, pub.dev, the Go proxy, crates.io, and RubyGems
 - One-click version updates with semver prefix preservation (`^`, `~`, etc.)
 - Lock file status indicator with Install / Sync button
+- Installed Apps dashboard with search, filters, update badges, and refresh actions
 - Supports multiple projects in a sidebar
 - Cross-platform: macOS, Linux, Windows
+
+### Installed apps support
+
+npMax v3 adds a new system-wide view for desktop applications:
+
+- Scans installed apps from the current operating system instead of requiring a project folder first
+- Detects updates from native package managers where possible, including Homebrew Casks, winget, Flatpak, and Snap
+- Falls back to a curated app catalog with platform-specific identifiers and official release sources
+- Shows installed version, latest detected version, update source, and suggested update command when available
+- Keeps the legacy multi-project dependency workflow intact beside the new Installed Apps area
 
 ### Supported project files
 

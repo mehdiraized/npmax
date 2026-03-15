@@ -236,6 +236,14 @@ const buildAppMenu = () => {
 						focusMainWindow();
 					},
 				},
+				{
+					label: "Refresh Installed Apps",
+					accelerator: "CmdOrCtrl+Shift+I",
+					click: () => {
+						sendToWindow("menu-refresh-installed-apps");
+						focusMainWindow();
+					},
+				},
 				{ type: "separator" },
 				isMac ? { role: "close" } : { role: "quit" },
 			],
@@ -423,7 +431,9 @@ app.whenReady().then(() => {
 		version: APP_VERSION,
 		copyright: pkg.build?.copyright || pkg.copyright,
 		website: REPOSITORY_URL,
-		credits: `GitHub: ${REPOSITORY_URL}\nIssues: ${ISSUES_URL}`,
+		credits:
+			`Dependency workflows + installed app updates across macOS, Windows, and Linux.\n` +
+			`GitHub: ${REPOSITORY_URL}\nIssues: ${ISSUES_URL}`,
 	});
 
 	createWindow();

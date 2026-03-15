@@ -44,11 +44,17 @@
 				const projectPath = result[0];
 				const projectPathArray = result[0].split("/");
 				const projectName = projectPathArray[projectPathArray.length - 1];
+				const newId =
+					$projects.length > 0 ? $projects[$projects.length - 1].id + 1 : 0;
 				projects.update((list) => {
-					const newId = list.length > 0 ? list[list.length - 1].id + 1 : 0;
 					return [...list, { id: newId, name: projectName, path: projectPath }];
 				});
-				localStorage.setItem("projects", JSON.stringify($projects));
+				const nextProjects = [
+					...$projects,
+					{ id: newId, name: projectName, path: projectPath },
+				];
+				localStorage.setItem("projects", JSON.stringify(nextProjects));
+				menuActive.set(`project_${newId}`);
 			}
 		} catch (err) {
 			console.error(err);
@@ -57,27 +63,54 @@
 
 	function closeProject(id) {
 		if ($menuActive === `project_${id}`) {
-			menuActive.set(null);
+			menuActive.set("installed-apps");
 		}
 	}
 
 	function removeProject(id) {
 		const filtered = $projects.filter((item) => item.id !== id);
 		projects.set(filtered);
-		menuActive.set(null);
+		menuActive.set("installed-apps");
 		localStorage.setItem("projects", JSON.stringify(filtered));
 	}
 </script>
 
 <aside class="sidebar">
-	<div>
-		<!-- Drag region at the top (macOS traffic lights area) -->
+	<div class="sidebar__pane">
 		<div class="sidebar__titlebar"></div>
 
-		<SimpleBar maxHeight={"calc(100vh - 120px)"}>
+		<div class="sidebar__header">
+			<div class="sidebar__brand">
+				<div class="sidebar__brandMark">n</div>
+				<div>
+					<strong>npMax v3</strong>
+					<span>Projects + installed apps</span>
+				</div>
+			</div>
+		</div>
+
+		<SimpleBar maxHeight={"calc(100vh - 168px)"}>
 			<div class="sidebar__scroll-content">
 				<section class="sidebarSection">
-					<h2 class="sidebarSection__label">Projects</h2>
+					<h2 class="sidebarSection__label">Overview</h2>
+					<button
+						class:navCard--active={$menuActive === "installed-apps"}
+						class="navCard"
+						onclick={() => menuActive.set("installed-apps")}
+					>
+						<div>
+							<strong>Installed Apps</strong>
+							<span>Scan the full machine and watch for new releases.</span>
+						</div>
+						<small>System</small>
+					</button>
+				</section>
+
+				<section class="sidebarSection">
+					<div class="sidebarSection__heading">
+						<h2 class="sidebarSection__label">Projects</h2>
+						<button class="sidebarSection__link" onclick={addProject}>Add</button>
+					</div>
 
 					{#if $projects && $projects.length > 0}
 						{#each $projects as { id, name }}
@@ -162,15 +195,10 @@
 			Add Project
 		</button>
 	</div>
-	<!-- Global package managers -->
+
 	{#if packages.npm || packages.yarn || packages.pnpm || packages.composer || packages.swift || packages.cocoapods || packages.gradle || packages.flutter || packages.go || packages.cargo || packages.bundler}
-		<section
-			class="sidebarSection"
-			style="padding-left: 8px;padding-right: 8px; padding-bottom: 8px;"
-		>
-			<h2 class="sidebarSection__label" style="text-align: center;">
-				Package Managers
-			</h2>
+		<section class="sidebarSection sidebarSection--pkg">
+			<h2 class="sidebarSection__label">Package Managers</h2>
 			{#if packages.npm}
 				<div class="pkgItem">
 					<figure class="pkgItem__icon"><NpmIcon /></figure>
@@ -254,270 +282,216 @@
 
 <style lang="scss">
 	.sidebar {
-		width: var(--sidebar-width, 240px);
-		min-width: var(--sidebar-width, 240px);
+		width: 288px;
+		min-width: 288px;
 		height: 100vh;
+		padding: 14px;
 		display: flex;
 		flex-direction: column;
-		justify-content: space-between;
-		align-items: stretch;
-		position: sticky;
-		top: 0;
-		overflow: hidden;
+		gap: 12px;
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)),
+			radial-gradient(circle at top, rgba(120, 180, 255, 0.18), transparent 30%);
+		border-right: 1px solid rgba(255, 255, 255, 0.08);
+	}
 
-		background: var(--sidebar-bg, rgba(255, 255, 255, 0.06));
-		backdrop-filter: var(--blur-amount, blur(24px) saturate(180%));
-		-webkit-backdrop-filter: var(--blur-amount, blur(24px) saturate(180%));
-		border-right: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-		box-shadow:
-			1px 0 0 rgba(255, 255, 255, 0.06),
-			var(--shadow-md);
+	.sidebar__pane,
+	.sidebarSection--pkg {
+		background: rgba(255, 255, 255, 0.05);
+		backdrop-filter: var(--blur-amount, blur(18px));
+		-webkit-backdrop-filter: var(--blur-amount, blur(18px));
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 24px;
+	}
 
-		-webkit-app-region: drag;
+	.sidebar__pane {
+		flex: 1;
+		min-height: 0;
+		padding: 8px;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.sidebar__titlebar {
-		height: var(--titlebar-height, 44px);
-		min-height: var(--titlebar-height, 44px);
+		height: 26px;
 		-webkit-app-region: drag;
-		flex-shrink: 0;
+	}
+
+	.sidebar__header {
+		padding: 6px 10px 10px;
+	}
+
+	.sidebar__brand {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.sidebar__brandMark {
+		width: 38px;
+		height: 38px;
+		border-radius: 14px;
+		display: grid;
+		place-items: center;
+		font-size: 20px;
+		font-weight: 800;
+		background: linear-gradient(135deg, rgba(120, 180, 255, 0.9), rgba(88, 216, 194, 0.85));
+		color: #07131f;
+	}
+
+	.sidebar__brand span,
+	.sidebarSection__empty {
+		color: var(--text-secondary);
 	}
 
 	.sidebar__scroll-content {
-		padding: 4px 10px 8px;
-		-webkit-app-region: none;
+		padding: 6px;
+		display: flex;
+		flex-direction: column;
+		gap: 18px;
 	}
 
-	.sidebarSection {
+	.sidebarSection__heading {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 10px;
 	}
 
 	.sidebarSection__label {
-		font-size: 10px;
-		font-weight: 600;
-		letter-spacing: 0.7px;
+		font-size: 11px;
 		text-transform: uppercase;
-		color: var(--text-muted, rgba(255, 255, 255, 0.28));
-		padding: 0 8px;
-		margin-bottom: 6px;
-		line-height: 1;
+		letter-spacing: 0.18em;
+		color: var(--text-secondary);
+		margin-bottom: 10px;
 	}
 
-	.sidebarSection__empty {
+	.sidebarSection__link {
+		background: transparent;
+		border: 0;
+		color: #8fc4ff;
 		font-size: 12px;
-		color: var(--text-muted, rgba(255, 255, 255, 0.28));
-		padding: 6px 8px;
+	}
+
+	.navCard,
+	.projectItem,
+	.pkgItem,
+	.sidebar__addBtn {
+		border-radius: 16px;
+	}
+
+	.navCard {
+		width: 100%;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.04);
+		padding: 14px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		text-align: left;
+		color: var(--text-primary);
+	}
+
+	.navCard span,
+	.navCard small {
+		color: var(--text-secondary);
+	}
+
+	.navCard--active {
+		background: linear-gradient(180deg, rgba(120, 180, 255, 0.16), rgba(88, 216, 194, 0.12));
+		border-color: rgba(120, 180, 255, 0.26);
+	}
+
+	.projectItem {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		align-items: center;
+		gap: 6px;
+		padding: 4px;
+		border: 1px solid transparent;
+	}
+
+	.projectItem--active {
+		background: rgba(120, 180, 255, 0.1);
+		border-color: rgba(120, 180, 255, 0.2);
+	}
+
+	.projectItem__btn,
+	.projectItem__remove,
+	.projectItem__close,
+	.sidebar__addBtn {
+		border: 0;
+		background: transparent;
+		color: var(--text-primary);
+	}
+
+	.projectItem__btn {
+		padding: 10px 12px;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-width: 0;
+	}
+
+	.projectItem__icon {
+		width: 16px;
+		height: 16px;
+		color: #9bd0ff;
+		flex: 0 0 auto;
+	}
+
+	.projectItem__name {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.projectItem__remove,
+	.projectItem__close {
+		width: 28px;
+		height: 28px;
+		display: grid;
+		place-items: center;
+		color: var(--text-secondary);
+	}
+
+	.sidebar__addBtn {
+		margin-top: 12px;
+		padding: 13px 16px;
+		background: rgba(255, 255, 255, 0.06);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+	}
+
+	.sidebarSection--pkg {
+		padding: 14px 12px;
 	}
 
 	.pkgItem {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 6px 8px;
-		border-radius: var(--radius-sm, 9px);
-		color: var(--text-secondary, rgba(255, 255, 255, 0.55));
-		font-size: 13px;
-		height: 32px;
+		padding: 8px 10px;
+		background: rgba(255, 255, 255, 0.03);
+		margin-bottom: 6px;
 	}
 
 	.pkgItem__icon {
-		flex-shrink: 0;
-		width: 20px;
-		height: 20px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		fill: var(--text-secondary, rgba(255, 255, 255, 0.55));
-		line-height: 0;
+		width: 18px;
+		height: 18px;
+		display: grid;
+		place-items: center;
 	}
 
 	.pkgItem__name {
 		flex: 1;
-		font-weight: 500;
+		min-width: 0;
 	}
 
 	.pkgItem__badge {
 		font-size: 11px;
-		font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
-		color: var(--text-muted, rgba(255, 255, 255, 0.28));
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 7px;
-		border-radius: 99px;
-		letter-spacing: 0.3px;
-	}
-
-	.projectItem {
-		display: flex;
-		align-items: center;
-		border-radius: var(--radius-sm, 9px);
-		padding-right: 8px;
-		margin-bottom: 2px;
-		gap: 2px;
-		height: 34px;
-		transition: background var(--transition-fast, 0.15s ease);
-		-webkit-app-region: none;
-		overflow: hidden;
-
-		&:hover {
-			background: rgba(255, 255, 255, 0.06);
-
-			.projectItem__remove {
-				opacity: 1;
-			}
-		}
-
-		&.projectItem--active {
-			background: rgba(255, 255, 255, 0.1);
-			box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-
-			.projectItem__icon {
-				color: var(--accent, #5b9cf6);
-			}
-
-			.projectItem__name {
-				color: var(--text-primary, rgba(255, 255, 255, 0.92));
-				font-weight: 500;
-			}
-
-			.projectItem__remove,
-			.projectItem__close {
-				opacity: 1;
-			}
-		}
-	}
-
-	.projectItem__btn {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		height: 100%;
-		padding: 0 8px;
-		background: none;
-		border: none;
-		color: var(--text-secondary, rgba(255, 255, 255, 0.55));
-		font-size: 13px;
-		text-align: left;
-		cursor: pointer;
-		min-width: 0;
-		transition: color var(--transition-fast, 0.15s ease);
-
-		&:hover {
-			color: var(--text-primary, rgba(255, 255, 255, 0.92));
-		}
-	}
-
-	.projectItem__icon {
-		flex-shrink: 0;
-		width: 15px;
-		height: 15px;
-		color: var(--text-muted, rgba(255, 255, 255, 0.28));
-		transition: color var(--transition-fast, 0.15s ease);
-	}
-
-	.projectItem__name {
-		flex: 1;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		font-weight: 400;
-	}
-
-	.projectItem__close {
-		flex-shrink: 0;
-		opacity: 0;
-		width: 22px;
-		height: 22px;
-		border-radius: 50%;
-		border: none;
-		background: rgba(255, 255, 255, 0.1);
-		color: var(--text-secondary, rgba(255, 255, 255, 0.55));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-		transition:
-			opacity var(--transition-fast, 0.15s ease),
-			background var(--transition-fast, 0.15s ease);
-
-		svg {
-			width: 12px;
-			height: 12px;
-			stroke-width: 2.5;
-		}
-
-		&:hover {
-			background: rgba(255, 255, 255, 0.2);
-			color: var(--text-primary, rgba(255, 255, 255, 0.92));
-		}
-	}
-
-	.projectItem__remove {
-		flex-shrink: 0;
-		opacity: 0;
-		width: 22px;
-		height: 22px;
-		margin-right: 6px;
-		border-radius: 50%;
-		border: none;
-		background: rgba(255, 80, 80, 0.15);
-		color: var(--danger, rgba(255, 80, 80, 0.85));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-		transition:
-			opacity var(--transition-fast, 0.15s ease),
-			background var(--transition-fast, 0.15s ease);
-
-		svg {
-			width: 12px;
-			height: 12px;
-			stroke-width: 2.5;
-		}
-
-		&:hover {
-			background: rgba(255, 80, 80, 0.3);
-		}
-	}
-
-	.sidebar__addBtn {
-		width: calc(100% - 20px);
-		-webkit-app-region: none;
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 7px;
-		margin: 0 10px 14px;
-		padding: 9px 14px;
-		border-radius: var(--radius-md, 13px);
-		border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-		background: var(--glass-light, rgba(255, 255, 255, 0.07));
-		color: var(--text-secondary, rgba(255, 255, 255, 0.55));
-		font-size: 13px;
-		font-weight: 500;
-		cursor: pointer;
-		transition:
-			background var(--transition-base, 0.25s ease),
-			color var(--transition-base, 0.25s ease),
-			border-color var(--transition-base, 0.25s ease),
-			box-shadow var(--transition-base, 0.25s ease);
-
-		svg {
-			width: 14px;
-			height: 14px;
-			flex-shrink: 0;
-		}
-
-		&:hover {
-			background: var(--accent-subtle, rgba(91, 156, 246, 0.12));
-			color: var(--accent-hover, #7ab3ff);
-			border-color: rgba(91, 156, 246, 0.3);
-			box-shadow: 0 0 14px var(--accent-glow, rgba(91, 156, 246, 0.2));
-		}
-
-		&:active {
-			transform: scale(0.97);
-		}
+		color: var(--text-secondary);
 	}
 </style>

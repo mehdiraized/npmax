@@ -14,12 +14,17 @@
 		window.dispatchEvent(new CustomEvent("npmax:reload-current-project"));
 	};
 
+	const relayRefreshInstalledApps = () => {
+		window.dispatchEvent(new CustomEvent("npmax:refresh-installed-apps"));
+	};
+
 	onMount(() => {
 		ipcRenderer.on("menu-add-project", relayMenuAddProject);
 		ipcRenderer.on(
 			"menu-reload-current-project",
 			relayMenuReloadCurrentProject,
 		);
+		ipcRenderer.on("menu-refresh-installed-apps", relayRefreshInstalledApps);
 	});
 
 	onDestroy(() => {
@@ -27,6 +32,10 @@
 		ipcRenderer.removeListener(
 			"menu-reload-current-project",
 			relayMenuReloadCurrentProject,
+		);
+		ipcRenderer.removeListener(
+			"menu-refresh-installed-apps",
+			relayRefreshInstalledApps,
 		);
 	});
 </script>

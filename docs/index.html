@@ -4,10 +4,10 @@
 		<meta charset="utf-8" />
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>npMax | Desktop dependency manager for Node, PHP, Apple, Android, Flutter, Go, Rust, and Ruby projects</title>
+		<title>npMax | Desktop app and dependency update manager for macOS, Windows, and Linux</title>
 		<meta
 			name="description"
-			content="npMax is an open source desktop GUI to inspect, update, and maintain npm, yarn, pnpm, Composer, SwiftPM, CocoaPods, Gradle, Flutter, Go, Cargo, and Bundler dependencies across macOS, Windows, and Linux."
+			content="npMax is an open source desktop workspace to inspect project dependencies, scan installed system apps, and surface update opportunities across macOS, Windows, and Linux."
 		/>
 		<link
 			href="https://fonts.googleapis.com/css?family=Heebo:400,500,700|IBM+Plex+Sans:500,600,700"
@@ -981,22 +981,24 @@
 					<div class="container">
 						<div class="hero-inner">
 							<div class="hero-copy">
-								<div class="hero-badge">Open source desktop dependency manager</div>
+								<div class="hero-badge">Open source desktop update workspace</div>
 								<h2 class="hero-title mt-0">
-									Package maintenance without the terminal overhead.
+									Dependencies and installed apps, finally in one desktop workflow.
 								</h2>
 								<p class="hero-paragraph">
-									npMax gives your team one focused desktop app to inspect, update,
-									and keep <strong>npm</strong>, <strong>Composer</strong>,
-									<strong>SwiftPM</strong>, <strong>CocoaPods</strong>,
-									<strong>Gradle</strong>, <strong>Flutter</strong>,
-									<strong>Go</strong>, <strong>Cargo</strong>, and
-									<strong>Bundler</strong> dependencies in sync.
+									npMax gives your team one focused desktop app to inspect project
+									dependencies, scan the user’s installed applications, and surface
+									update opportunities across <strong>npm</strong>,
+									<strong>Composer</strong>, <strong>SwiftPM</strong>,
+									<strong>CocoaPods</strong>, <strong>Gradle</strong>,
+									<strong>Flutter</strong>, <strong>Go</strong>,
+									<strong>Cargo</strong>, <strong>Bundler</strong>, and system apps
+									like <strong>Steam</strong> and <strong>Android Studio</strong>.
 								</p>
 								<p class="hero-summary">
-									Check outdated packages, preserve semver prefixes, monitor lock file
-									status, and switch between multiple projects from a clean interface
-									on macOS, Windows, and Linux.
+									Check outdated packages, preserve semver prefixes, monitor lock
+									file status, scan installed apps, and switch between project and
+									system views from one interface on macOS, Windows, and Linux.
 								</p>
 								<div class="ecosystem-strip" aria-label="Supported ecosystems">
 									<div class="ecosystem-chip">
@@ -1113,11 +1115,11 @@
 							<div class="product-grid">
 								<article class="product-card product-card--hero is-revealing">
 									<div class="product-eyebrow">Full application view</div>
-									<h3>One desktop workspace for modern package maintenance.</h3>
+									<h3>One desktop workspace for project maintenance and installed app updates.</h3>
 									<p>
-										Inspect projects, compare versions, update dependencies, and keep
-										lock files aligned without bouncing between multiple terminal tabs
-										and browser pages.
+										Inspect repositories, compare dependency versions, scan the full
+										machine for installed apps, and keep both code and desktop tools
+										current without bouncing between terminal tabs and browser pages.
 									</p>
 									<div class="product-media product-screenshot-wrap">
 										<img
@@ -1224,6 +1226,20 @@
 										<span class="product-pill">yarn.lock</span>
 										<span class="product-pill">pnpm-lock.yaml</span>
 									</div>
+								</article>
+								<article class="product-card product-card--half is-revealing">
+									<div class="product-eyebrow">Installed apps</div>
+									<h3>See system apps and available updates without adding a project first.</h3>
+									<p>
+										npMax v3 introduces a dedicated Installed Apps view that scans the
+										current machine, highlights update opportunities, and pulls from
+										package-manager data plus a broader app catalog for popular tools.
+									</p>
+									<ul class="product-list">
+										<li>Cross-platform scanning for macOS, Windows, and Linux</li>
+										<li>Works with Homebrew Casks, winget, Flatpak, and Snap where available</li>
+										<li>Broader coverage for apps like Steam, Android Studio, Docker, and VS Code</li>
+									</ul>
 								</article>
 								<article class="product-card product-card--half is-revealing">
 									<div class="product-eyebrow">Project sidebar</div>
@@ -1337,6 +1353,19 @@
 									</ul>
 								</article>
 								<article class="capability-card feature is-revealing">
+									<h3>Track installed apps across the whole machine</h3>
+									<p>
+										Use the Installed Apps view to scan desktop software, review the
+										current version, and surface newer releases from native package
+										managers and curated source mappings.
+									</p>
+									<ul class="capability-list">
+										<li>Built for users who want app updates, not just project updates</li>
+										<li>Shows installed version, latest version, and update source when available</li>
+										<li>Keeps project-based workflows and system-wide workflows in one UI</li>
+									</ul>
+								</article>
+								<article class="capability-card feature is-revealing">
 									<h3>Work across many projects</h3>
 									<p>
 										Keep a list of repositories in the sidebar, switch instantly, and
@@ -1360,17 +1389,17 @@
 								<span class="section-kicker">Workflow</span>
 								<h2 class="section-title mt-0">A short path from audit to update</h2>
 								<p class="section-paragraph">
-									The app is optimized for the common maintenance loop teams repeat
-									every week.
+									The app is optimized for the recurring loop teams repeat every
+									week across both repositories and installed desktop software.
 								</p>
 							</div>
 							<div class="workflow-grid">
 								<article class="workflow-step is-revealing">
 									<strong>Step 1</strong>
-									<h3>Open a project</h3>
+									<h3>Choose a workspace view</h3>
 									<p>
-										Add your repository, let npMax detect its package manager files,
-										and load the dependency list with current versions.
+										Start from Installed Apps to scan the machine, or add a project
+										and let npMax detect the supported manifest automatically.
 									</p>
 								</article>
 								<article class="workflow-step is-revealing">
@@ -1572,10 +1601,10 @@
 					<div class="container-sm">
 						<div class="section-inner">
 							<div class="cta-banner">
-								<h2 class="section-title mt-0">Ship dependency updates with less friction</h2>
+								<h2 class="section-title mt-0">Ship updates with less friction</h2>
 								<p class="section-paragraph">
-									Download npMax, connect your projects, and replace repetitive package
-									maintenance steps with a faster desktop workflow.
+									Download npMax, connect your projects, scan installed apps, and
+									replace repetitive update work with one faster desktop workflow.
 								</p>
 								<div class="hero-cta">
 									<a

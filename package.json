@@ -1,10 +1,10 @@
 {
 	"name": "npmax",
-	"description": "Package Manager",
+	"description": "Cross-platform dependency and installed app update manager",
 	"version": "2.11.0",
 	"main": "index.js",
 	"license": "MIT",
-	"homepage": "https://mehd.ir",
+	"homepage": "https://mehdiraized.github.io/npmax/",
 	"github": "https://github.com/mehdiraized/npmax",
 	"author": {
 		"name": "mehdir",
@@ -93,7 +93,7 @@
 		"linux": {
 			"maintainer": "mehdir",
 			"category": "Utility",
-			"description": "npm package manager",
+			"description": "Cross-platform dependency and installed app update manager",
 			"packageCategory": "Utility",
 			"target": [
 				{
