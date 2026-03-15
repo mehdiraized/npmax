@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.12.0] - 2026-03-15
+
+### ✨ Features
+
+- add installed apps scanning and system-wide update management ([3f479d0](https://github.com/mehdiraized/npmax/commit/3f479d0))
+
+---
+
 ## [2.11.0] - 2026-03-14
 
 ### ✨ Features
