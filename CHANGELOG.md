@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.12.1] - 2026-03-16
+
+### 🐛 Bug Fixes
+
+- prevent startup flash and persist active view ([a2005d4](https://github.com/mehdiraized/npmax/commit/a2005d4))
+
+---
+
 ## [2.12.0] - 2026-03-15
 
 ### ✨ Features
