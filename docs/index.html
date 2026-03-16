@@ -301,6 +301,13 @@
 				padding: 0;
 			}
 
+			.hero-media-gallery {
+				display: grid;
+				grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+				gap: 18px;
+				align-items: stretch;
+			}
+
 			.hero-media-illustration,
 			.header-illustration {
 				display: none !important;
@@ -321,6 +328,45 @@
 				margin-left: -70px;
 				transform: none;
 				box-shadow: none;
+			}
+
+			.hero-shot {
+				display: flex;
+				flex-direction: column;
+				overflow: hidden;
+				border-radius: 28px;
+				border: 1px solid var(--surface-border);
+				background: var(--surface-strong);
+				box-shadow: 0 18px 44px rgba(15, 23, 40, 0.14);
+			}
+
+			.hero-shot img {
+				display: block;
+				width: 100%;
+				height: 100%;
+				object-fit: cover;
+			}
+
+			.hero-shot figcaption {
+				padding: 14px 16px 16px;
+				font-size: 14px;
+				font-weight: 700;
+				letter-spacing: 0.02em;
+				color: var(--text-strong);
+				background: rgba(255, 255, 255, 0.82);
+			}
+
+			.lights-off .hero-shot figcaption {
+				background: rgba(15, 23, 40, 0.78);
+			}
+
+			.hero-shot-stack {
+				display: grid;
+				gap: 18px;
+			}
+
+			.hero-shot--primary {
+				min-height: 100%;
 			}
 
 			.hero-highlights {
@@ -566,6 +612,28 @@
 				margin-left: -60px;
 				border-radius: 28px 28px 0 0;
 				filter: drop-shadow(0 20px 42px rgba(15, 23, 40, 0.14));
+			}
+
+			.product-screenshot-grid {
+				display: grid;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				gap: 16px;
+				width: 100%;
+			}
+
+			.product-screen {
+				overflow: hidden;
+				border-radius: 24px;
+				border: 1px solid var(--surface-border);
+				background: var(--surface-strong);
+				box-shadow: 0 18px 40px rgba(15, 23, 40, 0.12);
+			}
+
+			.product-screen img {
+				display: block;
+				width: 100%;
+				height: 100%;
+				object-fit: cover;
 			}
 
 			.product-asset {
@@ -875,6 +943,11 @@
 					margin-left: 0;
 				}
 
+				.hero-media-gallery,
+				.product-screenshot-grid {
+					grid-template-columns: 1fr;
+				}
+
 				.hero-highlights {
 					margin-top: 18px;
 				}
@@ -1062,17 +1135,30 @@
 							<div class="hero-visual">
 								<div class="hero-panel">
 									<div class="hero-media">
-										<div class="hero-media-container">
-											<img
-												class="hero-media-image asset-light"
-												src="dist/images/coverApp.png"
-												alt="npMax application screenshot"
-											/>
-											<img
-												class="hero-media-image asset-dark"
-												src="dist/images/coverApp.png"
-												alt="npMax application screenshot"
-											/>
+										<div class="hero-media-gallery">
+											<figure class="hero-shot hero-shot--primary">
+												<img
+													src="dist/images/screenshots/Apps.jpg"
+													alt="npMax installed apps view"
+												/>
+												<figcaption>Installed Apps overview</figcaption>
+											</figure>
+											<div class="hero-shot-stack">
+												<figure class="hero-shot">
+													<img
+														src="dist/images/screenshots/packages.jpg"
+														alt="npMax package editor view"
+													/>
+													<figcaption>Dependency management</figcaption>
+												</figure>
+												<figure class="hero-shot">
+													<img
+														src="dist/images/screenshots/projects.jpg"
+														alt="npMax project sidebar view"
+													/>
+													<figcaption>Multi-project workspace</figcaption>
+												</figure>
+											</div>
 										</div>
 									</div>
 									<div class="hero-highlights">
@@ -1122,16 +1208,26 @@
 										current without bouncing between terminal tabs and browser pages.
 									</p>
 									<div class="product-media product-screenshot-wrap">
-										<img
-											class="product-screenshot asset-light"
-											src="dist/images/coverApp.png"
-											alt="npMax desktop screenshot"
-										/>
-										<img
-											class="product-screenshot asset-dark"
-											src="dist/images/coverApp.png"
-											alt="npMax desktop screenshot"
-										/>
+										<div class="product-screenshot-grid">
+											<div class="product-screen">
+												<img
+													src="dist/images/screenshots/Apps.jpg"
+													alt="npMax installed apps screenshot"
+												/>
+											</div>
+											<div class="product-screen">
+												<img
+													src="dist/images/screenshots/packages.jpg"
+													alt="npMax packages screenshot"
+												/>
+											</div>
+											<div class="product-screen">
+												<img
+													src="dist/images/screenshots/projects.jpg"
+													alt="npMax projects screenshot"
+												/>
+											</div>
+										</div>
 									</div>
 								</article>
 								<article class="product-card product-card--wide product-card--soft is-revealing">

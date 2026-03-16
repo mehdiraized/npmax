@@ -1,6 +1,10 @@
 # npMax
 
-![screenshot-npMax-workspace](https://mehdiraized.github.io/npmax/dist/images/coverApp.png)
+<p align="center">
+  <img src="https://mehdiraized.github.io/npmax/dist/images/screenshots/Apps.jpg" alt="npMax installed apps view" width="32%" />
+  <img src="https://mehdiraized.github.io/npmax/dist/images/screenshots/packages.jpg" alt="npMax packages view" width="32%" />
+  <img src="https://mehdiraized.github.io/npmax/dist/images/screenshots/projects.jpg" alt="npMax projects view" width="32%" />
+</p>
 
 The open source desktop workspace for project dependencies and installed app updates across macOS, Windows, and Linux.
 
