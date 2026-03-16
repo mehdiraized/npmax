@@ -9,53 +9,63 @@
 			name="description"
 			content="npMax is an open source desktop workspace to inspect project dependencies, scan installed system apps, and surface update opportunities across macOS, Windows, and Linux."
 		/>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
-			href="https://fonts.googleapis.com/css?family=Heebo:400,500,700|IBM+Plex+Sans:500,600,700"
+			href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Space+Grotesk:wght@500;700&amp;display=swap"
 			rel="stylesheet"
 		/>
 		<link rel="stylesheet" href="dist/css/style.css" />
 		<style>
 			:root {
-				--landing-bg: linear-gradient(180deg, #f3f7fb 0%, #ffffff 34%, #f4f8fc 100%);
-				--surface: rgba(255, 255, 255, 0.92);
+				--landing-bg:
+					radial-gradient(circle at top left, rgba(18, 127, 255, 0.14), transparent 28%),
+					radial-gradient(circle at top right, rgba(20, 196, 142, 0.14), transparent 26%),
+					linear-gradient(180deg, #f4f8fc 0%, #ffffff 40%, #eef5fb 100%);
+				--surface: rgba(255, 255, 255, 0.86);
 				--surface-strong: #ffffff;
-				--surface-muted: #f1f5f9;
-				--surface-border: rgba(18, 32, 53, 0.08);
-				--text-strong: #0f1728;
-				--text-body: #495b73;
-				--text-soft: #6f8097;
-				--accent: #1677e6;
-				--accent-strong: #0f58b6;
-				--accent-soft: rgba(22, 119, 230, 0.12);
-				--accent-alt: #17b882;
-				--shadow-lg: 0 34px 90px rgba(15, 23, 40, 0.13);
-				--shadow-md: 0 18px 48px rgba(15, 23, 40, 0.08);
-				--radius-xxl: 40px;
+				--surface-muted: #edf4fb;
+				--surface-border: rgba(14, 26, 42, 0.08);
+				--text-strong: #0e1a2a;
+				--text-body: #506176;
+				--text-soft: #72839b;
+				--accent: #147dff;
+				--accent-strong: #0b5fcc;
+				--accent-soft: rgba(20, 125, 255, 0.12);
+				--accent-alt: #10b981;
+				--warm: #ff9b53;
+				--shadow-lg: 0 32px 80px rgba(13, 23, 38, 0.14);
+				--shadow-md: 0 18px 46px rgba(13, 23, 38, 0.08);
 				--radius-xl: 32px;
-				--radius-lg: 26px;
-				--radius-md: 20px;
+				--radius-lg: 24px;
+				--radius-md: 18px;
 			}
 
 			body {
 				background: var(--landing-bg);
 				color: var(--text-body);
+				font-family: "Manrope", sans-serif;
 			}
 
 			body.lights-off {
-				--landing-bg: linear-gradient(180deg, #0f1724 0%, #142033 42%, #101927 100%);
-				--surface: rgba(22, 34, 51, 0.86);
-				--surface-strong: #182538;
+				--landing-bg:
+					radial-gradient(circle at top left, rgba(20, 125, 255, 0.18), transparent 24%),
+					radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 24%),
+					linear-gradient(180deg, #0b1320 0%, #111c2d 46%, #09111c 100%);
+				--surface: rgba(16, 26, 41, 0.86);
+				--surface-strong: #111d2d;
 				--surface-muted: rgba(255, 255, 255, 0.04);
 				--surface-border: rgba(255, 255, 255, 0.08);
-				--text-strong: #f4f8ff;
-				--text-body: #a3b1c5;
-				--text-soft: #8c9ab0;
-				--accent: #68b3ff;
-				--accent-strong: #8bc5ff;
-				--accent-soft: rgba(104, 179, 255, 0.14);
-				--accent-alt: #4ce2a5;
-				--shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.28);
-				--shadow-md: 0 16px 40px rgba(0, 0, 0, 0.22);
+				--text-strong: #eff6ff;
+				--text-body: #b0bfd4;
+				--text-soft: #91a2b8;
+				--accent: #68b4ff;
+				--accent-strong: #8ec7ff;
+				--accent-soft: rgba(104, 180, 255, 0.14);
+				--accent-alt: #4ce2b1;
+				--warm: #ffc077;
+				--shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.28);
+				--shadow-md: 0 18px 42px rgba(0, 0, 0, 0.22);
 			}
 
 			html {
@@ -68,25 +78,41 @@
 				background: var(--landing-bg);
 			}
 
+			.body-wrap {
+				overflow: hidden;
+			}
+
 			.boxed-container {
 				max-width: 1720px;
 				box-shadow: none;
 			}
 
 			.container {
-				max-width: 1368px;
+				max-width: 1300px;
 				padding-left: 28px;
 				padding-right: 28px;
 			}
 
 			.container-sm {
-				max-width: 1160px;
+				max-width: 1040px;
 				padding-left: 28px;
 				padding-right: 28px;
 			}
 
-			a {
-				color: var(--accent);
+			h1,
+			h2,
+			h3,
+			h4,
+			h5,
+			h6,
+			.h1,
+			.h2,
+			.h3,
+			.h4,
+			.h5,
+			.h6 {
+				font-family: "Space Grotesk", sans-serif;
+				color: var(--text-strong);
 			}
 
 			p,
@@ -94,313 +120,58 @@
 				color: var(--text-body);
 			}
 
-			.site-header {
-				padding: 28px 0 12px;
+			a {
+				color: var(--accent);
 			}
 
+			.site-header,
 			.site-header::before,
-			.cta::before,
-			.features::before {
-				display: none;
+			.features::before,
+			.cta::before {
+				background: none;
+			}
+
+			.site-header {
+				padding: 26px 0 10px;
 			}
 
 			.site-header-inner {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
 				gap: 24px;
 			}
 
 			.header-nav {
 				display: none;
 				align-items: center;
-				gap: 28px;
+				gap: 26px;
 			}
 
 			.header-nav a {
 				color: var(--text-soft);
-				font-size: 16px;
-				font-weight: 600;
+				font-size: 15px;
+				font-weight: 700;
 				text-decoration: none;
 			}
 
-			.header-nav a:hover {
+			.header-nav a:hover,
+			.header-nav a:focus {
 				color: var(--text-strong);
 			}
 
 			.header-actions {
 				display: flex;
 				align-items: center;
-				gap: 18px;
-			}
-
-			.hero {
-				padding: 34px 0 76px;
-				text-align: left;
-			}
-
-			.hero-inner {
-				display: grid;
-				gap: 56px;
-				align-items: center;
-			}
-
-			.hero-copy {
-				max-width: 620px;
-				padding-right: 0;
-			}
-
-			.hero-badge {
-				display: inline-flex;
-				align-items: center;
-				gap: 10px;
-				padding: 10px 16px;
-				border-radius: 999px;
-				background: var(--accent-soft);
-				color: var(--accent);
-				font-size: 14px;
-				font-weight: 700;
-				letter-spacing: 0.08em;
-				text-transform: uppercase;
-			}
-
-			.hero-title {
-				margin-top: 20px;
-				margin-bottom: 22px;
-				font-size: clamp(48px, 7vw, 84px);
-				line-height: 0.92;
-				letter-spacing: -0.04em;
-				color: var(--text-strong);
-			}
-
-			.hero-paragraph {
-				max-width: 56ch;
-				margin-bottom: 16px;
-				font-size: 22px;
-				line-height: 1.7;
-				color: var(--text-body);
-			}
-
-			.hero-summary {
-				margin-bottom: 34px;
-				font-size: 18px;
-				line-height: 1.7;
-				color: var(--text-soft);
-			}
-
-			.ecosystem-strip {
-				display: grid;
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-				gap: 12px;
-				margin: 0 0 30px;
-			}
-
-			.ecosystem-chip {
-				display: flex;
-				align-items: center;
-				gap: 10px;
-				padding: 12px 14px;
-				border-radius: 18px;
-				border: 1px solid var(--surface-border);
-				background: var(--surface);
-				box-shadow: var(--shadow-md);
-				font-size: 14px;
-				font-weight: 700;
-				color: var(--text-strong);
-			}
-
-			.ecosystem-chip svg {
-				width: 20px;
-				height: 20px;
-				color: var(--accent);
-				flex-shrink: 0;
-			}
-
-			.hero-cta {
-				display: flex;
-				flex-wrap: wrap;
-				align-items: center;
 				gap: 16px;
-				max-width: none;
-				margin: 0 0 36px;
-			}
-
-			.button.button-primary {
-				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
-				border-radius: 14px;
-				box-shadow: 0 12px 24px rgba(31, 122, 224, 0.2);
-			}
-
-			.button.button-secondary {
-				background: transparent;
-				color: var(--text-strong) !important;
-				border: 1px solid var(--surface-border);
-				border-radius: 14px;
-			}
-
-			.button.button-secondary:hover {
-				background: var(--surface-muted);
-			}
-
-			.hero-meta {
-				display: grid;
-				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 18px;
-			}
-
-			.hero-stat {
-				padding: 18px 20px;
-				border: 1px solid var(--surface-border);
-				border-radius: var(--radius-md);
-				background: var(--surface);
-				backdrop-filter: blur(16px);
-				box-shadow: var(--shadow-md);
-			}
-
-			.hero-stat strong {
-				display: block;
-				margin-bottom: 6px;
-				font-family: "IBM Plex Sans", sans-serif;
-				font-size: 30px;
-				line-height: 1;
-				color: var(--text-strong);
-			}
-
-			.hero-stat span {
-				font-size: 16px;
-				color: var(--text-soft);
-			}
-
-			.hero-visual {
-				position: relative;
-			}
-
-			.hero-panel {
-				position: relative;
-				overflow: hidden;
-				padding: 26px;
-				border: 1px solid var(--surface-border);
-				border-radius: var(--radius-xxl);
-				background:
-					radial-gradient(circle at top right, rgba(25, 182, 124, 0.16), transparent 28%),
-					radial-gradient(circle at top left, rgba(31, 122, 224, 0.18), transparent 24%),
-					var(--surface);
-				box-shadow: var(--shadow-lg);
-				backdrop-filter: blur(18px);
-			}
-
-			.hero-panel::after {
-				content: "";
-				position: absolute;
-				inset: auto -10% -28% auto;
-				width: 280px;
-				height: 280px;
-				border-radius: 999px;
-				background: radial-gradient(circle, rgba(22, 119, 230, 0.18), transparent 68%);
-				pointer-events: none;
-			}
-
-			.hero-media {
-				padding: 0;
-			}
-
-			.hero-media-gallery {
-				display: grid;
-				grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-				gap: 18px;
-				align-items: stretch;
-			}
-
-			.hero-media-illustration,
-			.header-illustration {
-				display: none !important;
-			}
-
-			.hero-media-container {
-				border-radius: 30px;
-				overflow: hidden;
-				border: 1px solid var(--surface-border);
-				background: var(--surface-strong);
-			}
-
-			.hero-media-image {
-				display: block;
-				width: calc(100% + 140px);
-				max-width: none;
-				margin-top: 10px;
-				margin-left: -70px;
-				transform: none;
-				box-shadow: none;
-			}
-
-			.hero-shot {
-				display: flex;
-				flex-direction: column;
-				overflow: hidden;
-				border-radius: 28px;
-				border: 1px solid var(--surface-border);
-				background: var(--surface-strong);
-				box-shadow: 0 18px 44px rgba(15, 23, 40, 0.14);
-			}
-
-			.hero-shot img {
-				display: block;
-				width: 100%;
-				height: 100%;
-				object-fit: cover;
-			}
-
-			.hero-shot figcaption {
-				padding: 14px 16px 16px;
-				font-size: 14px;
-				font-weight: 700;
-				letter-spacing: 0.02em;
-				color: var(--text-strong);
-				background: rgba(255, 255, 255, 0.82);
-			}
-
-			.lights-off .hero-shot figcaption {
-				background: rgba(15, 23, 40, 0.78);
-			}
-
-			.hero-shot-stack {
-				display: grid;
-				gap: 18px;
-			}
-
-			.hero-shot--primary {
-				min-height: 100%;
-			}
-
-			.hero-highlights {
-				display: grid;
-				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 16px;
-				margin-top: 18px;
-				position: relative;
-				z-index: 2;
-			}
-
-			.highlight-card {
-				padding: 18px 20px;
-				border-radius: 22px;
-				background: rgba(255, 255, 255, 0.82);
-				border: 1px solid var(--surface-border);
-				backdrop-filter: blur(18px);
-				box-shadow: 0 14px 32px rgba(15, 23, 40, 0.08);
-			}
-
-			.highlight-card strong {
-				display: block;
-				margin-bottom: 6px;
-				font-size: 15px;
-				color: var(--text-strong);
-			}
-
-			.highlight-card span {
-				font-size: 14px;
-				color: var(--text-soft);
 			}
 
 			.lights-toggle {
 				color: var(--text-soft);
+			}
+
+			.section {
+				padding: 0 0 24px;
 			}
 
 			.section-shell {
@@ -413,371 +184,501 @@
 
 			.section-heading {
 				max-width: 760px;
-				margin: 0 auto 30px;
+				margin: 0 auto 26px;
 				text-align: center;
 			}
 
 			.section-kicker {
-				display: inline-block;
-				margin-bottom: 10px;
-				font-size: 14px;
-				font-weight: 700;
+				display: inline-flex;
+				align-items: center;
+				gap: 10px;
+				margin-bottom: 12px;
+				padding: 8px 14px;
+				border-radius: 999px;
+				background: var(--accent-soft);
+				color: var(--accent);
+				font-size: 13px;
+				font-weight: 800;
 				letter-spacing: 0.08em;
 				text-transform: uppercase;
-				color: var(--accent);
 			}
 
 			.section-title {
-				color: var(--text-strong);
+				margin-top: 0;
+				margin-bottom: 14px;
+				font-size: clamp(34px, 4vw, 52px);
+				line-height: 1.02;
 			}
 
 			.section-paragraph {
-				color: var(--text-body);
+				margin-bottom: 0;
+				font-size: 18px;
+				line-height: 1.72;
 			}
 
-			.value-grid,
-			.capability-grid,
+			.hero {
+				padding: 22px 0 48px;
+			}
+
+			.hero-inner {
+				display: grid;
+				gap: 34px;
+				align-items: center;
+			}
+
+			.hero-copy {
+				position: relative;
+				z-index: 1;
+			}
+
+			.hero-badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 10px;
+				padding: 10px 16px;
+				border-radius: 999px;
+				background: rgba(14, 26, 42, 0.05);
+				color: var(--text-strong);
+				font-size: 13px;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+
+			.hero-title {
+				margin-top: 22px;
+				margin-bottom: 18px;
+				font-size: clamp(48px, 7vw, 86px);
+				line-height: 0.94;
+				letter-spacing: -0.05em;
+			}
+
+			.hero-paragraph {
+				max-width: 58ch;
+				margin-bottom: 18px;
+				font-size: 21px;
+				line-height: 1.68;
+			}
+
+			.hero-summary {
+				max-width: 56ch;
+				margin-bottom: 22px;
+				font-size: 17px;
+				line-height: 1.7;
+				color: var(--text-soft);
+			}
+
+			.hero-points {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 12px;
+				margin: 0 0 28px;
+				padding: 0;
+				list-style: none;
+			}
+
+			.hero-points li {
+				display: flex;
+				align-items: flex-start;
+				gap: 12px;
+				padding: 14px 16px;
+				border-radius: 18px;
+				background: rgba(255, 255, 255, 0.68);
+				border: 1px solid var(--surface-border);
+				box-shadow: 0 10px 28px rgba(14, 26, 42, 0.06);
+				font-size: 15px;
+				font-weight: 700;
+				color: var(--text-strong);
+			}
+
+			.hero-points li::before {
+				content: "";
+				flex: 0 0 auto;
+				width: 11px;
+				height: 11px;
+				margin-top: 6px;
+				border-radius: 999px;
+				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
+			}
+
+			.hero-cta {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 14px;
+				margin: 0 0 26px;
+			}
+
+			.button {
+				border-radius: 14px;
+				font-family: "Space Grotesk", sans-serif;
+				font-size: 13px;
+				font-weight: 700;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+			}
+
+			.button.button-primary {
+				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+				box-shadow: 0 14px 28px rgba(20, 125, 255, 0.22);
+			}
+
+			.button.button-secondary {
+				border: 1px solid var(--surface-border);
+				background: rgba(255, 255, 255, 0.3);
+				color: var(--text-strong) !important;
+			}
+
+			.button.button-secondary:hover {
+				background: var(--surface-muted);
+			}
+
+			.hero-meta {
+				display: grid;
+				grid-template-columns: repeat(4, minmax(0, 1fr));
+				gap: 16px;
+			}
+
+			.hero-stat {
+				padding: 18px 18px 16px;
+				border-radius: 20px;
+				border: 1px solid var(--surface-border);
+				background: rgba(255, 255, 255, 0.7);
+				box-shadow: 0 10px 24px rgba(14, 26, 42, 0.06);
+			}
+
+			.hero-stat strong {
+				display: block;
+				margin-bottom: 8px;
+				font-family: "Space Grotesk", sans-serif;
+				font-size: 30px;
+				line-height: 1;
+				color: var(--text-strong);
+			}
+
+			.hero-stat span {
+				font-size: 14px;
+				line-height: 1.5;
+				color: var(--text-soft);
+			}
+
+			.hero-visual {
+				position: relative;
+			}
+
+			.hero-panel {
+				position: relative;
+				padding: 24px;
+				border-radius: 34px;
+				border: 1px solid var(--surface-border);
+				background:
+					radial-gradient(circle at top left, rgba(20, 125, 255, 0.14), transparent 34%),
+					radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.14), transparent 26%),
+					var(--surface);
+				box-shadow: var(--shadow-lg);
+				overflow: hidden;
+			}
+
+			.hero-frame {
+				overflow: hidden;
+				border-radius: 28px;
+				border: 1px solid var(--surface-border);
+				background: var(--surface-strong);
+			}
+
+			.hero-frame img {
+				display: block;
+				width: 100%;
+			}
+
+			.hero-float-grid {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 16px;
+				margin-top: 18px;
+			}
+
+			.hero-float-card {
+				padding: 18px;
+				border-radius: 22px;
+				border: 1px solid var(--surface-border);
+				background: rgba(255, 255, 255, 0.78);
+				backdrop-filter: blur(16px);
+				box-shadow: 0 12px 28px rgba(14, 26, 42, 0.08);
+			}
+
+			.hero-float-card strong {
+				display: block;
+				margin-bottom: 8px;
+				color: var(--text-strong);
+				font-size: 15px;
+			}
+
+			.hero-float-card span {
+				font-size: 14px;
+				line-height: 1.55;
+				color: var(--text-soft);
+			}
+
+			.screenshots-shell,
+			.features-shell,
+			.workflow-shell,
+			.downloads-shell,
+			.community-shell,
+			.faq-shell,
+			.roadmap-shell {
+				padding: 54px;
+			}
+
+			.screenshot-grid,
+			.feature-grid,
+			.roadmap-grid,
+			.workflow-grid,
 			.download-grid,
 			.faq-grid {
 				display: grid;
 				gap: 22px;
 			}
 
-			.value-grid {
+			.screenshot-grid {
 				grid-template-columns: repeat(3, minmax(0, 1fr));
 			}
 
-			.value-card,
-			.capability-card,
-			.download-card,
-			.faq-card {
-				padding: 26px;
-				border-radius: var(--radius-lg);
-				background: var(--surface-strong);
+			.screenshot-card {
+				padding: 18px;
+				border-radius: 26px;
 				border: 1px solid var(--surface-border);
+				background: var(--surface-strong);
+				box-shadow: 0 16px 36px rgba(14, 26, 42, 0.08);
 			}
 
-			.value-card h3,
-			.capability-card h3,
-			.download-card h3,
-			.faq-card h3 {
-				margin-top: 0;
-				margin-bottom: 12px;
-				color: var(--text-strong);
+			.screenshot-frame {
+				overflow: hidden;
+				border-radius: 20px;
+				border: 1px solid var(--surface-border);
+				background: #f6f9fc;
+				margin-bottom: 18px;
 			}
 
-			.value-card p,
-			.capability-card p,
-			.download-card p,
-			.faq-card p {
-				margin-bottom: 0;
+			.screenshot-frame img {
+				display: block;
+				width: 100%;
 			}
 
-			.value-card .value-index {
+			.screenshot-card h3 {
+				margin: 0 0 10px;
+				font-size: 24px;
+			}
+
+			.screenshot-card p {
+				margin: 0;
+				font-size: 15px;
+				line-height: 1.66;
+			}
+
+			.feature-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+
+			.feature-card {
+				padding: 28px;
+				border-radius: 28px;
+				border: 1px solid var(--surface-border);
+				background:
+					linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 252, 0.98));
+				box-shadow: 0 14px 32px rgba(14, 26, 42, 0.08);
+			}
+
+			.lights-off .feature-card,
+			.lights-off .screenshot-card {
+				background:
+					linear-gradient(180deg, rgba(18, 29, 44, 0.98), rgba(13, 22, 35, 0.98));
+			}
+
+			.feature-icon {
 				display: inline-flex;
 				align-items: center;
 				justify-content: center;
-				width: 42px;
-				height: 42px;
-				margin-bottom: 16px;
-				border-radius: 14px;
+				width: 48px;
+				height: 48px;
+				margin-bottom: 18px;
+				border-radius: 16px;
 				background: var(--accent-soft);
 				color: var(--accent);
-				font-family: "IBM Plex Sans", sans-serif;
+				font-family: "Space Grotesk", sans-serif;
+				font-size: 18px;
 				font-weight: 700;
 			}
 
-			.features {
-				padding-top: 4px;
+			.feature-card h3 {
+				margin: 0 0 12px;
+				font-size: 26px;
+				line-height: 1.12;
 			}
 
-			.features-inner {
-				padding: 58px 58px 64px;
+			.feature-card p {
+				margin: 0 0 16px;
+				font-size: 15px;
+				line-height: 1.68;
 			}
 
-			.product-grid {
-				display: grid;
-				grid-template-columns: repeat(12, minmax(0, 1fr));
-				gap: 22px;
-				margin-top: 22px;
+			.feature-list {
+				margin: 0;
+				padding-left: 18px;
+			}
+
+			.feature-list li {
+				margin-bottom: 10px;
+				font-size: 14px;
+				line-height: 1.56;
+			}
+
+			.roadmap-grid {
+				grid-template-columns: 1.15fr 0.85fr;
 				align-items: stretch;
 			}
 
-			.product-card {
-				position: relative;
-				overflow: hidden;
-				display: flex;
-				flex-direction: column;
-				min-height: 250px;
-				padding: 30px;
-				border-radius: 30px;
-				background:
-					linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 252, 0.98));
-				border: 1px solid var(--surface-border);
-				box-shadow: var(--shadow-md);
-			}
-
-			.lights-off .product-card {
-				background:
-					linear-gradient(180deg, rgba(24, 37, 56, 0.98), rgba(19, 30, 47, 0.98));
-			}
-
-			.product-card::before {
-				content: "";
-				position: absolute;
-				inset: auto -18% -28% auto;
-				width: 220px;
-				height: 220px;
-				border-radius: 999px;
-				background: radial-gradient(circle, rgba(22, 119, 230, 0.16), transparent 68%);
-				pointer-events: none;
-			}
-
-			.product-card > * {
-				position: relative;
-				z-index: 1;
-			}
-
-			.product-card--hero {
-				grid-column: span 7;
-				min-height: 500px;
-				background:
-					radial-gradient(circle at top left, rgba(22, 119, 230, 0.18), transparent 32%),
-					linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(245, 249, 252, 0.98));
-			}
-
-			.product-card--wide {
-				grid-column: span 5;
-			}
-
-			.product-card--half {
-				grid-column: span 4;
-			}
-
-			.product-card--soft {
-				background:
-					linear-gradient(180deg, rgba(240, 247, 255, 0.98), rgba(248, 250, 252, 0.98));
-			}
-
-			.product-eyebrow {
-				margin-bottom: 12px;
-				font-size: 13px;
-				font-weight: 700;
-				letter-spacing: 0.1em;
-				text-transform: uppercase;
-				color: var(--accent);
-			}
-
-			.product-card h3 {
-				margin-top: 0;
-				margin-bottom: 12px;
-				font-size: clamp(24px, 2.4vw, 40px);
-				line-height: 1.06;
-				color: var(--text-strong);
-			}
-
-			.product-card--half h3,
-			.product-card--wide h3 {
-				font-size: 30px;
-			}
-
-			.product-card p {
-				max-width: 42ch;
-				margin-bottom: 0;
-				font-size: 17px;
-				line-height: 1.72;
-				color: var(--text-body);
-			}
-
-			.product-media {
-				margin-top: auto;
-				display: flex;
-				align-items: flex-end;
-				justify-content: flex-end;
-			}
-
-			.product-media img {
-				display: block;
-				max-width: 100%;
-			}
-
-			.product-screenshot-wrap {
-				margin-top: 28px;
-				padding-top: 4px;
-			}
-
-			.product-screenshot {
-				width: calc(100% + 120px);
-				max-width: none;
-				margin-left: -60px;
-				border-radius: 28px 28px 0 0;
-				filter: drop-shadow(0 20px 42px rgba(15, 23, 40, 0.14));
-			}
-
-			.product-screenshot-grid {
+			.roadmap-stack {
 				display: grid;
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-				gap: 16px;
-				width: 100%;
-			}
-
-			.product-screen {
-				overflow: hidden;
-				border-radius: 24px;
-				border: 1px solid var(--surface-border);
-				background: var(--surface-strong);
-				box-shadow: 0 18px 40px rgba(15, 23, 40, 0.12);
-			}
-
-			.product-screen img {
-				display: block;
-				width: 100%;
-				height: 100%;
-				object-fit: cover;
-			}
-
-			.product-asset {
-				width: min(180px, 58%);
-				margin-top: 26px;
-				align-self: flex-end;
-				opacity: 0.95;
-			}
-
-			.product-foot {
-				display: flex;
-				flex-wrap: wrap;
-				gap: 10px;
-				margin-top: 22px;
-			}
-
-			.product-pill {
-				display: inline-flex;
-				align-items: center;
-				padding: 8px 12px;
-				border-radius: 999px;
-				background: var(--surface-muted);
-				border: 1px solid var(--surface-border);
-				font-size: 13px;
-				font-weight: 600;
-				color: var(--text-soft);
-			}
-
-			.product-mini-list {
-				margin: 18px 0 0;
-				padding-left: 18px;
-			}
-
-			.product-mini-list li {
-				margin-bottom: 8px;
-				font-size: 15px;
-			}
-
-			.product-list {
-				margin: 18px 0 0;
-				padding-left: 18px;
-			}
-
-			.product-list li {
-				margin-bottom: 10px;
-				color: var(--text-body);
-			}
-
-			.capability-grid {
-				grid-template-columns: repeat(2, minmax(0, 1fr));
-			}
-
-			.capability-card {
-				padding: 30px;
-			}
-
-			.capability-list {
-				margin: 16px 0 0;
-				padding-left: 18px;
-			}
-
-			.capability-list li {
-				margin-bottom: 10px;
-			}
-
-			.workflow {
-				padding: 0 0 24px;
-			}
-
-			.workflow-shell {
-				padding: 58px;
-			}
-
-			.workflow-grid {
-				display: grid;
-				grid-template-columns: repeat(3, minmax(0, 1fr));
 				gap: 22px;
 			}
 
-			.workflow-step {
-				position: relative;
-				padding: 28px;
-				border-radius: var(--radius-lg);
-				background: var(--surface-strong);
+			.roadmap-card,
+			.workflow-step,
+			.download-card,
+			.faq-card {
+				padding: 30px;
+				border-radius: 28px;
 				border: 1px solid var(--surface-border);
+				background: var(--surface-strong);
 			}
 
-			.workflow-step strong {
-				display: inline-block;
-				margin-bottom: 16px;
-				color: var(--accent);
-				font-size: 14px;
-				font-weight: 700;
+			.roadmap-card {
+				position: relative;
+				overflow: hidden;
+				box-shadow: 0 16px 38px rgba(14, 26, 42, 0.08);
+			}
+
+			.roadmap-card--pro {
+				background:
+					radial-gradient(circle at top right, rgba(20, 125, 255, 0.2), transparent 32%),
+					radial-gradient(circle at bottom left, rgba(255, 155, 83, 0.2), transparent 28%),
+					linear-gradient(135deg, #0d1b2c 0%, #13253d 100%);
+				color: #eff6ff;
+			}
+
+			.roadmap-card--pro h3,
+			.roadmap-card--pro p,
+			.roadmap-card--pro li,
+			.roadmap-card--pro .roadmap-label {
+				color: #eff6ff;
+			}
+
+			.roadmap-label {
+				display: inline-flex;
+				margin-bottom: 14px;
+				padding: 7px 12px;
+				border-radius: 999px;
+				background: rgba(255, 255, 255, 0.12);
+				font-size: 12px;
+				font-weight: 800;
 				letter-spacing: 0.08em;
 				text-transform: uppercase;
 			}
 
-			.workflow-step h3 {
-				margin-top: 0;
-				color: var(--text-strong);
+			.roadmap-card h3 {
+				margin: 0 0 12px;
+				font-size: clamp(28px, 3vw, 40px);
+				line-height: 1.06;
 			}
 
-			.workflow-step p {
-				margin-bottom: 0;
+			.roadmap-card p {
+				margin: 0 0 18px;
+				font-size: 16px;
+				line-height: 1.7;
 			}
 
-			.downloads-shell {
-				padding: 58px;
-			}
-
-			.download-grid {
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-			}
-
+			.roadmap-list,
 			.download-card ul {
-				margin: 18px 0 0;
+				margin: 0;
 				padding-left: 18px;
 			}
 
+			.roadmap-list li,
 			.download-card li {
 				margin-bottom: 10px;
+				line-height: 1.6;
+			}
+
+			.mini-pills {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				margin-top: 18px;
+			}
+
+			.mini-pill {
+				display: inline-flex;
+				align-items: center;
+				padding: 8px 12px;
+				border-radius: 999px;
+				background: rgba(255, 255, 255, 0.12);
+				border: 1px solid rgba(255, 255, 255, 0.12);
+				font-size: 13px;
+				font-weight: 700;
+			}
+
+			.workflow-grid,
+			.download-grid,
+			.faq-grid {
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+			}
+
+			.workflow-step strong {
+				display: inline-flex;
+				margin-bottom: 16px;
+				padding: 7px 11px;
+				border-radius: 999px;
+				background: var(--accent-soft);
+				color: var(--accent);
+				font-size: 12px;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+
+			.workflow-step h3,
+			.download-card h3,
+			.faq-card h3 {
+				margin-top: 0;
+				margin-bottom: 12px;
+				font-size: 24px;
+			}
+
+			.workflow-step p,
+			.download-card p,
+			.faq-card p {
+				margin-bottom: 0;
+				font-size: 15px;
+				line-height: 1.68;
 			}
 
 			.inline-link {
 				display: inline-flex;
 				margin-top: 18px;
-				font-weight: 700;
+				font-weight: 800;
 				text-decoration: none;
-			}
-
-			.community {
-				padding: 0 0 24px;
 			}
 
 			.community-shell {
 				display: grid;
-				grid-template-columns: 1.2fr 0.8fr;
-				gap: 28px;
-				padding: 58px;
+				grid-template-columns: 1.15fr 0.85fr;
+				gap: 26px;
 			}
 
 			.community-list {
-				margin: 24px 0 0;
-				padding-left: 0;
+				margin: 22px 0 0;
+				padding: 0;
 				list-style: none;
 			}
 
@@ -794,22 +695,25 @@
 				height: 10px;
 				margin-top: 10px;
 				border-radius: 999px;
-				background: var(--accent-alt);
+				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
 			}
 
 			.community-panel {
 				padding: 28px;
-				border-radius: var(--radius-lg);
-				background:
-					linear-gradient(145deg, rgba(31, 122, 224, 0.12), rgba(25, 182, 124, 0.12)),
-					var(--surface-strong);
+				border-radius: 28px;
 				border: 1px solid var(--surface-border);
+				background:
+					radial-gradient(circle at top right, rgba(20, 125, 255, 0.14), transparent 30%),
+					linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 252, 0.98));
 			}
 
-			.community-panel h3,
-			.community-panel p,
-			.community-panel li {
-				color: var(--text-strong);
+			.lights-off .community-panel,
+			.lights-off .download-card,
+			.lights-off .faq-card,
+			.lights-off .workflow-step,
+			.lights-off .roadmap-card:not(.roadmap-card--pro) {
+				background:
+					linear-gradient(180deg, rgba(18, 29, 44, 0.98), rgba(12, 20, 32, 0.98));
 			}
 
 			.community-panel ul {
@@ -817,31 +721,24 @@
 				padding-left: 18px;
 			}
 
-			.faq-shell {
-				padding: 58px;
-			}
-
-			.faq-grid {
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-			}
-
 			.cta .section-inner {
-				padding: 32px 0 96px;
+				padding: 28px 0 94px;
 			}
 
 			.cta-banner {
-				padding: 42px;
-				border-radius: var(--radius-xl);
+				padding: 44px;
+				border-radius: 34px;
 				background:
-					radial-gradient(circle at top right, rgba(31, 122, 224, 0.2), transparent 30%),
-					linear-gradient(135deg, rgba(24, 37, 56, 0.98), rgba(16, 25, 39, 0.98));
+					radial-gradient(circle at top right, rgba(20, 125, 255, 0.22), transparent 30%),
+					radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.18), transparent 26%),
+					linear-gradient(135deg, #0d1a2a 0%, #16263b 100%);
 				box-shadow: var(--shadow-lg);
 				text-align: center;
 			}
 
 			.cta-banner h2,
 			.cta-banner p {
-				color: #f4f8ff !important;
+				color: #eff6ff !important;
 			}
 
 			.cta-banner .hero-cta {
@@ -850,9 +747,9 @@
 			}
 
 			.cta-banner .button-secondary {
-				color: #f4f8ff !important;
-				border-color: rgba(244, 248, 255, 0.24);
-				background: rgba(255, 255, 255, 0.06);
+				color: #eff6ff !important;
+				border-color: rgba(255, 255, 255, 0.18);
+				background: rgba(255, 255, 255, 0.05);
 			}
 
 			.cta-banner .button-secondary:hover {
@@ -864,9 +761,18 @@
 				color: var(--text-soft);
 			}
 
+			.site-footer::before {
+				display: none;
+			}
+
 			.site-footer-inner {
-				padding-top: 12px;
-				padding-bottom: 48px;
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				justify-content: space-between;
+				gap: 24px;
+				padding-top: 10px;
+				padding-bottom: 42px;
 			}
 
 			.site-footer a {
@@ -877,89 +783,96 @@
 				color: var(--text-strong);
 			}
 
-			.site-footer svg {
+			.footer-links,
+			.footer-social-links {
+				display: inline-flex;
+				align-items: center;
+				gap: 16px;
+				margin: 0;
+				padding: 0;
+				list-style: none;
+			}
+
+			.footer-social-links svg {
 				stroke: currentColor;
 			}
 
-			@media (min-width: 900px) {
+			.footer-brand,
+			.footer-copyright {
+				display: inline-flex;
+				align-items: center;
+			}
+
+			.asset-dark {
+				display: none;
+			}
+
+			.lights-off .asset-light {
+				display: none;
+			}
+
+			.lights-off .asset-dark {
+				display: block;
+			}
+
+			@media (min-width: 960px) {
 				.header-nav {
 					display: flex;
 				}
 
 				.hero-inner {
-					grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+					grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
 				}
 			}
 
-			@media (max-width: 1180px) {
-				.product-card--hero,
-				.product-card--wide,
-				.product-card--half {
-					grid-column: span 6;
+			@media (max-width: 1120px) {
+				.feature-grid,
+				.screenshot-grid {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.hero-meta {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+
+				.roadmap-grid,
+				.community-shell {
+					grid-template-columns: 1fr;
 				}
 			}
 
-			@media (max-width: 960px) {
-				.ecosystem-strip,
-				.value-grid,
+			@media (max-width: 920px) {
+				.hero-points,
+				.hero-meta,
+				.hero-float-grid,
+				.feature-grid,
+				.screenshot-grid,
+				.roadmap-grid,
 				.workflow-grid,
 				.download-grid,
 				.faq-grid,
-				.community-shell,
-				.capability-grid {
+				.community-shell {
 					grid-template-columns: 1fr;
 				}
 
-				.product-grid {
-					grid-template-columns: 1fr;
-				}
-
-				.product-card--hero,
-				.product-card--wide,
-				.product-card--half {
-					grid-column: auto;
-				}
-
-				.hero-highlights,
-				.hero-meta {
-					grid-template-columns: 1fr;
-				}
-
-				.features-inner,
+				.screenshots-shell,
+				.features-shell,
 				.workflow-shell,
 				.downloads-shell,
 				.community-shell,
-				.faq-shell {
+				.faq-shell,
+				.roadmap-shell {
 					padding: 36px 24px;
+				}
+			}
+
+			@media (max-width: 720px) {
+				.site-header {
+					padding-top: 18px;
 				}
 
 				.site-header-inner {
 					flex-wrap: wrap;
-				}
-
-				.hero-media-image,
-				.product-screenshot {
-					width: 100%;
-					margin-left: 0;
-				}
-
-				.hero-media-gallery,
-				.product-screenshot-grid {
-					grid-template-columns: 1fr;
-				}
-
-				.hero-highlights {
-					margin-top: 18px;
-				}
-			}
-
-			@media (max-width: 640px) {
-				.ecosystem-strip {
-					grid-template-columns: 1fr;
-				}
-
-				.site-header {
-					padding-top: 18px;
 				}
 
 				.header-actions {
@@ -968,12 +881,12 @@
 				}
 
 				.hero {
-					padding-top: 16px;
-					padding-bottom: 36px;
+					padding-top: 12px;
+					padding-bottom: 32px;
 				}
 
 				.hero-title {
-					font-size: 44px;
+					font-size: 46px;
 				}
 
 				.hero-paragraph {
@@ -988,8 +901,21 @@
 					width: 100%;
 				}
 
+				.hero-panel,
 				.cta-banner {
-					padding: 32px 24px;
+					padding: 24px;
+				}
+
+				.container,
+				.container-sm {
+					padding-left: 18px;
+					padding-right: 18px;
+				}
+
+				.footer-links,
+				.footer-social-links,
+				.site-footer-inner {
+					justify-content: center;
 				}
 			}
 		</style>
@@ -1020,8 +946,9 @@
 							</h1>
 						</div>
 						<nav class="header-nav" aria-label="Primary">
+							<a href="#screenshots">Screenshots</a>
 							<a href="#features">Features</a>
-							<a href="#workflow">Workflow</a>
+							<a href="#roadmap">Coming next</a>
 							<a href="#downloads">Downloads</a>
 							<a href="#faq">FAQ</a>
 						</nav>
@@ -1054,51 +981,26 @@
 					<div class="container">
 						<div class="hero-inner">
 							<div class="hero-copy">
-								<div class="hero-badge">Open source desktop update workspace</div>
+								<div class="hero-badge">Desktop package, app, and AI update workspace</div>
 								<h2 class="hero-title mt-0">
-									Dependencies and installed apps, finally in one desktop workflow.
+									Keep dependencies, installed apps, and upgrade decisions in one sharper flow.
 								</h2>
 								<p class="hero-paragraph">
-									npMax gives your team one focused desktop app to inspect project
-									dependencies, scan the user’s installed applications, and surface
-									update opportunities across <strong>npm</strong>,
-									<strong>Composer</strong>, <strong>SwiftPM</strong>,
-									<strong>CocoaPods</strong>, <strong>Gradle</strong>,
-									<strong>Flutter</strong>, <strong>Go</strong>,
-									<strong>Cargo</strong>, <strong>Bundler</strong>, and system apps
-									like <strong>Steam</strong> and <strong>Android Studio</strong>.
+									npMax brings project dependencies and installed desktop apps into one
+									desktop workspace, then grows into an AI-guided layer for smarter
+									recommendations, alternatives, and update decisions.
 								</p>
 								<p class="hero-summary">
-									Check outdated packages, preserve semver prefixes, monitor lock
-									file status, scan installed apps, and switch between project and
-									system views from one interface on macOS, Windows, and Linux.
+									Today you can inspect packages, review outdated versions, switch between
+									repositories, and scan installed software. Next, we are adding intelligent
+									recommendations for better apps, better packages, and category-based discovery.
 								</p>
-								<div class="ecosystem-strip" aria-label="Supported ecosystems">
-									<div class="ecosystem-chip">
-										<svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 7h24v10H12v2H7v-2H0zm2 2v6h4V9h2v6h2V7zm8 0v8h3V9h3v8h2V7zm8 0v6h2V9h2v6h2V7z"/></svg>
-										<span>Node.js</span>
-									</div>
-									<div class="ecosystem-chip">
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 19 7v10l-7 4-7-4V7l7-4Z"/><path d="M9.6 8.4h4.8v7.2H9.6z"/></svg>
-										<span>PHP / Composer</span>
-									</div>
-									<div class="ecosystem-chip">
-										<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.7 2.8 5.2 12.3l2.9 2.9L20.5 2.8h-5.8ZM8.9 16l3 3 8.6-8.6h-5.8L8.9 16Zm2.5 3.5 2.6 1.7h6.5l-5.6-5.6-3.5 3.9Z"/></svg>
-										<span>Apple / Swift</span>
-									</div>
-									<div class="ecosystem-chip">
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6.4 12 4l4 2.4v4.3L12 13 8 10.7V6.4Z"/><path d="M12 13v6M8.4 16.3 12 18.4l3.6-2.1"/><circle cx="18.1" cy="7.3" r="1.2" fill="currentColor" stroke="none"/></svg>
-										<span>Android / Gradle</span>
-									</div>
-									<div class="ecosystem-chip">
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M6.5 12h11M12 6.5a10.5 10.5 0 0 1 3 5.5 10.5 10.5 0 0 1-3 5.5M12 6.5A10.5 10.5 0 0 0 9 12a10.5 10.5 0 0 0 3 5.5"/></svg>
-										<span>Flutter / pub.dev</span>
-									</div>
-									<div class="ecosystem-chip">
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 13h8.5" stroke-linecap="round"/><path d="M14.5 9.5h5" stroke-linecap="round"/><path d="M16 15.5h3.5" stroke-linecap="round"/><circle cx="10" cy="13" r="4.2"/></svg>
-										<span>Go / Rust / Ruby</span>
-									</div>
-								</div>
+								<ul class="hero-points" aria-label="npMax highlights">
+									<li>Multi-project dependency checks across Node, Apple, Android, Flutter, Go, Rust, Ruby, and PHP.</li>
+									<li>Installed Apps scanning with update visibility for macOS, Windows, and Linux.</li>
+									<li>Roadmap for AI alternatives, new app discovery, and package upgrade suggestions.</li>
+									<li>Future CLI tools, skill store, and automation surfacing inside the app.</li>
+								</ul>
 								<div class="hero-cta">
 									<a
 										class="button button-primary"
@@ -1115,68 +1017,48 @@
 								</div>
 								<div class="hero-meta">
 									<div class="hero-stat">
-										<strong>11</strong>
-										<span>supported package flows across web, backend, mobile, and systems projects</span>
+										<strong>11+</strong>
+										<span>package ecosystems already handled in one desktop workflow</span>
 									</div>
 									<div class="hero-stat">
 										<strong>3</strong>
-										<span>desktop platforms with one shared workflow</span>
+										<span>desktop operating systems supported with one product surface</span>
 									</div>
 									<div class="hero-stat">
-										<strong>1-click</strong>
-										<span>version updates with semver prefix preservation</span>
+										<strong>AI next</strong>
+										<span>planned recommendations for apps, packages, and alternatives</span>
 									</div>
 									<div class="hero-stat">
-										<strong>Live</strong>
-										<span>registry checks across npm, Packagist, GitHub, Maven, CocoaPods, pub.dev, Go proxy, crates.io, and RubyGems</span>
+										<strong>CLI soon</strong>
+										<span>future support for tools like Claude, Codex, Gemini, and related AI workflows</span>
 									</div>
 								</div>
 							</div>
+
 							<div class="hero-visual">
 								<div class="hero-panel">
-									<div class="hero-media">
-										<div class="hero-media-gallery">
-											<figure class="hero-shot hero-shot--primary">
-												<img
-													src="dist/images/screenshots/Apps.jpg"
-													alt="npMax installed apps view"
-												/>
-												<figcaption>Installed Apps overview</figcaption>
-											</figure>
-											<div class="hero-shot-stack">
-												<figure class="hero-shot">
-													<img
-														src="dist/images/screenshots/packages.jpg"
-														alt="npMax package editor view"
-													/>
-													<figcaption>Dependency management</figcaption>
-												</figure>
-												<figure class="hero-shot">
-													<img
-														src="dist/images/screenshots/projects.jpg"
-														alt="npMax project sidebar view"
-													/>
-													<figcaption>Multi-project workspace</figcaption>
-												</figure>
-											</div>
-										</div>
+									<div class="hero-frame">
+										<img
+											src="dist/images/screenshots/Apps.jpg"
+											alt="npMax installed apps view"
+										/>
 									</div>
-									<div class="hero-highlights">
-										<div class="highlight-card">
-											<strong>Project sidebar</strong>
-											<span>Jump between multiple repositories without losing context.</span>
+									<div class="hero-float-grid">
+										<div class="hero-float-card">
+											<strong>Installed apps update view</strong>
+											<span>See desktop software, compare versions, and keep machine-level tools visible beside project work.</span>
 										</div>
-										<div class="highlight-card">
-											<strong>Lock file awareness</strong>
-											<span>Spot stale lock files and trigger install or sync quickly.</span>
+										<div class="hero-float-card">
+											<strong>Package editor view</strong>
+											<span>Review project dependencies with live version context instead of jumping across registries manually.</span>
 										</div>
-										<div class="highlight-card">
-											<strong>Registry-backed details</strong>
-											<span>Review current and latest versions with live package metadata.</span>
+										<div class="hero-float-card">
+											<strong>Multi-project sidebar</strong>
+											<span>Keep several repositories pinned and move between them without losing update context.</span>
 										</div>
-										<div class="highlight-card">
-											<strong>Multi-stack support</strong>
-											<span>Manage backend, frontend, Apple, Android, Flutter, Go, Rust, and Ruby projects from one app.</span>
+										<div class="hero-float-card">
+											<strong>Roadmap-ready foundation</strong>
+											<span>The UI now has room for recommendations, discovery, and AI-powered suggestions without feeling bolted on.</span>
 										</div>
 									</div>
 								</div>
@@ -1185,292 +1067,150 @@
 					</div>
 				</section>
 
-				<section class="features section" id="features">
+				<section class="section" id="screenshots">
 					<div class="container">
-						<div class="features-inner section-inner section-shell has-bottom-divider">
+						<div class="screenshots-shell section-shell">
 							<div class="section-heading">
-								<span class="section-kicker">Product highlights</span>
-								<h2 class="section-title mt-0">A grid of real product features, not generic claims</h2>
+								<span class="section-kicker">Screenshots</span>
+								<h2 class="section-title">A clearer look at the actual desktop product</h2>
 								<p class="section-paragraph">
-									The layout below mirrors product-style launch pages: large showcase
-									cards, smaller capability tiles, and direct explanations of what the
-									app actually does inside a developer workflow.
+									Instead of oversized empty cards, the landing now shows the product screens
+									directly so visitors can understand the app faster.
 								</p>
 							</div>
-
-							<div class="product-grid">
-								<article class="product-card product-card--hero is-revealing">
-									<div class="product-eyebrow">Full application view</div>
-									<h3>One desktop workspace for project maintenance and installed app updates.</h3>
-									<p>
-										Inspect repositories, compare dependency versions, scan the full
-										machine for installed apps, and keep both code and desktop tools
-										current without bouncing between terminal tabs and browser pages.
-									</p>
-									<div class="product-media product-screenshot-wrap">
-										<div class="product-screenshot-grid">
-											<div class="product-screen">
-												<img
-													src="dist/images/screenshots/Apps.jpg"
-													alt="npMax installed apps screenshot"
-												/>
-											</div>
-											<div class="product-screen">
-												<img
-													src="dist/images/screenshots/packages.jpg"
-													alt="npMax packages screenshot"
-												/>
-											</div>
-											<div class="product-screen">
-												<img
-													src="dist/images/screenshots/projects.jpg"
-													alt="npMax projects screenshot"
-												/>
-											</div>
-										</div>
-									</div>
-								</article>
-								<article class="product-card product-card--wide product-card--soft is-revealing">
-									<div class="product-eyebrow">Multi ecosystem support</div>
-									<h3>Node, PHP, Apple, Android, Flutter, Go, Rust, and Ruby in one interface.</h3>
-									<p>
-										npMax detects the active manifest automatically and opens the
-										right editor for <code>package.json</code>, <code>composer.json</code>,
-										<code>Package.swift</code>, <code>Podfile</code>,
-										<code>build.gradle</code>, <code>libs.versions.toml</code>, and
-										<code>pubspec.yaml</code>, <code>go.mod</code>,
-										<code>Cargo.toml</code>, and <code>Gemfile</code>.
-									</p>
-									<div class="product-foot">
-										<span class="product-pill">npm</span>
-										<span class="product-pill">yarn</span>
-										<span class="product-pill">pnpm</span>
-										<span class="product-pill">Composer</span>
-										<span class="product-pill">SwiftPM</span>
-										<span class="product-pill">CocoaPods</span>
-										<span class="product-pill">Gradle</span>
-										<span class="product-pill">Flutter</span>
-										<span class="product-pill">Go</span>
-										<span class="product-pill">Cargo</span>
-										<span class="product-pill">Bundler</span>
-									</div>
-									<div class="product-media">
+							<div class="screenshot-grid">
+								<article class="screenshot-card is-revealing">
+									<div class="screenshot-frame">
 										<img
-											class="product-asset asset-light"
-											src="dist/images/feature-01-light.svg"
-											alt="Package manager illustration"
-										/>
-										<img
-											class="product-asset asset-dark"
-											src="dist/images/feature-01-dark.svg"
-											alt="Package manager illustration"
+											src="dist/images/screenshots/Apps.jpg"
+											alt="npMax installed apps screenshot"
 										/>
 									</div>
-								</article>
-								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Outdated detection</div>
-									<h3>Live version checks across the registries your team already uses.</h3>
+									<h3>Installed Apps</h3>
 									<p>
-										Review installed versions against the latest stable release data
-										before changing anything in your project, whether it lives on npm,
-										Packagist, GitHub, Maven, CocoaPods, pub.dev, the Go proxy,
-										crates.io, or RubyGems.
+										Scan the machine, review installed software, and spot updates without
+										starting from a repository first.
 									</p>
-									<ul class="product-mini-list">
-										<li>npm registry lookups for Node packages</li>
-										<li>Packagist checks for Composer dependencies</li>
-										<li>GitHub releases and tags for Swift packages</li>
-										<li>Google Maven and Maven Central for Android artifacts</li>
-										<li>pub.dev metadata for Flutter and Dart packages</li>
-										<li>Go proxy, crates.io, and RubyGems for backend and systems packages</li>
-									</ul>
-									<div class="product-media">
+								</article>
+								<article class="screenshot-card is-revealing">
+									<div class="screenshot-frame">
 										<img
-											class="product-asset asset-light"
-											src="dist/images/feature-02-light.svg"
-											alt="Version checks illustration"
-										/>
-										<img
-											class="product-asset asset-dark"
-											src="dist/images/feature-02-dark.svg"
-											alt="Version checks illustration"
+											src="dist/images/screenshots/packages.jpg"
+											alt="npMax package editor screenshot"
 										/>
 									</div>
-								</article>
-								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Semver safe updates</div>
-									<h3>Preserve <code>^</code>, <code>~</code>, and existing constraints automatically.</h3>
+									<h3>Package Management</h3>
 									<p>
-										Quick updates remain aligned with the versioning style already used
-										in the repository.
+										Check current versions, latest releases, and dependency status across the
+										ecosystems your team already uses.
 									</p>
-									<div class="product-foot">
-										<span class="product-pill">Preserves ^</span>
-										<span class="product-pill">Preserves ~</span>
-										<span class="product-pill">Safer quick edits</span>
-									</div>
 								</article>
-								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Lock file status</div>
-									<h3>Know when install or sync is required.</h3>
-									<p>
-										npMax indicates whether your lock file is stale and surfaces the
-										right next step for the selected project.
-									</p>
-									<div class="product-foot">
-										<span class="product-pill">package-lock.json</span>
-										<span class="product-pill">yarn.lock</span>
-										<span class="product-pill">pnpm-lock.yaml</span>
-									</div>
-								</article>
-								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Installed apps</div>
-									<h3>See system apps and available updates without adding a project first.</h3>
-									<p>
-										npMax v3 introduces a dedicated Installed Apps view that scans the
-										current machine, highlights update opportunities, and pulls from
-										package-manager data plus a broader app catalog for popular tools.
-									</p>
-									<ul class="product-list">
-										<li>Cross-platform scanning for macOS, Windows, and Linux</li>
-										<li>Works with Homebrew Casks, winget, Flatpak, and Snap where available</li>
-										<li>Broader coverage for apps like Steam, Android Studio, Docker, and VS Code</li>
-									</ul>
-								</article>
-								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Project sidebar</div>
-									<h3>Switch between repositories without losing context.</h3>
-									<p>
-										Keep multiple projects available in one sidebar instead of opening
-										separate terminal sessions for each repo.
-									</p>
-									<ul class="product-list">
-										<li>Useful for agencies and maintainers with many repos</li>
-										<li>Fast project-to-project dependency review</li>
-									</ul>
-								</article>
-								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Mobile project aware</div>
-									<h3>Mobile and systems projects fit in the same workflow.</h3>
-									<p>
-										Swift Package Manager, CocoaPods, Gradle, Android Version
-										Catalogs, Flutter pubspec files, Go modules, Cargo manifests, and
-										Gemfiles are detected automatically so mobile and systems teams get
-										the same review, update, and sync loop.
-									</p>
-									<div class="product-foot">
-										<span class="product-pill">Package.swift</span>
-										<span class="product-pill">Podfile</span>
-										<span class="product-pill">build.gradle</span>
-										<span class="product-pill">libs.versions.toml</span>
-										<span class="product-pill">pubspec.yaml</span>
-										<span class="product-pill">go.mod</span>
-										<span class="product-pill">Cargo.toml</span>
-										<span class="product-pill">Gemfile</span>
-									</div>
-								</article>
-								<article class="product-card product-card--half is-revealing">
-									<div class="product-eyebrow">Cross platform</div>
-									<h3>Built for macOS, Windows, and Linux releases.</h3>
-									<p>
-										One interface and one product story across the desktop platforms
-										most development teams already use.
-									</p>
-									<div class="product-foot">
-										<span class="product-pill">macOS</span>
-										<span class="product-pill">Windows</span>
-										<span class="product-pill">Linux</span>
-									</div>
-									<div class="product-media">
+								<article class="screenshot-card is-revealing">
+									<div class="screenshot-frame">
 										<img
-											class="product-asset asset-light"
-											src="dist/images/feature-03-light.svg"
-											alt="Cross platform illustration"
-										/>
-										<img
-											class="product-asset asset-dark"
-											src="dist/images/feature-03-dark.svg"
-											alt="Cross platform illustration"
+											src="dist/images/screenshots/projects.jpg"
+											alt="npMax project workspace screenshot"
 										/>
 									</div>
+									<h3>Project Workspace</h3>
+									<p>
+										Switch between multiple repos, keep the sidebar active, and maintain a
+										repeatable audit-to-update loop.
+									</p>
 								</article>
 							</div>
+						</div>
+					</div>
+				</section>
 
-							<div class="section-heading" style="margin-top: 56px;">
-								<span class="section-kicker">Detailed capabilities</span>
-								<h2 class="section-title mt-0">Each core workflow is called out explicitly</h2>
+				<section class="section" id="features">
+					<div class="container">
+						<div class="features-shell section-shell">
+							<div class="section-heading">
+								<span class="section-kicker">Core Features</span>
+								<h2 class="section-title">What npMax already does well, without the filler</h2>
 								<p class="section-paragraph">
-									These cards collect the app features in a more literal format so
-									visitors can scan and understand the exact scope quickly.
+									These cards focus on concrete product behavior so the middle of the landing
+									page feels tighter, more useful, and easier to scan.
 								</p>
 							</div>
-
-							<div class="capability-grid">
-								<article class="capability-card feature is-revealing">
-									<h3>Manage backend, frontend, and mobile dependencies</h3>
+							<div class="feature-grid">
+								<article class="feature-card is-revealing">
+									<div class="feature-icon">01</div>
+									<h3>Project dependency control</h3>
 									<p>
-										View package lists from <code>package.json</code>,
-										<code>composer.json</code>, <code>Package.swift</code>,
-										<code>Podfile</code>, <code>build.gradle</code>,
-										<code>libs.versions.toml</code>, <code>pubspec.yaml</code>,
-										<code>go.mod</code>, <code>Cargo.toml</code>, and
-										<code>Gemfile</code>, then inspect and update them from one
-										desktop app.
+										Inspect manifests, compare installed and latest versions, and edit packages
+										from one desktop UI instead of bouncing between editor, registry, and terminal.
 									</p>
-									<ul class="capability-list">
-										<li>Supports Node, PHP, Apple, Android, Flutter, Go, Rust, and Ruby projects</li>
-										<li>Handles regular and dev dependency sections where available</li>
-										<li>Useful when teams maintain full-stack, mobile, and systems repos</li>
+									<ul class="feature-list">
+										<li>npm, yarn, pnpm, Composer, SwiftPM, CocoaPods, Gradle, Flutter, Go, Cargo, and Bundler support</li>
+										<li>Semver-aware updates that preserve existing version style</li>
+										<li>Lock file awareness when sync or install is required</li>
 									</ul>
 								</article>
-								<article class="capability-card feature is-revealing">
-									<h3>Spot outdated packages with live version checks</h3>
+								<article class="feature-card is-revealing">
+									<div class="feature-icon">02</div>
+									<h3>Installed app visibility</h3>
 									<p>
-										npMax queries the appropriate registry source for each ecosystem
-										to compare installed versions with the latest available stable
-										releases.
+										npMax is not limited to code dependencies. It can also scan installed apps
+										and surface update opportunities across desktop software.
 									</p>
-									<ul class="capability-list">
-										<li>Surface outdated packages without manual registry lookups</li>
-										<li>Review version changes before editing constraints</li>
-										<li>Keep package decisions grounded in current registry data</li>
+									<ul class="feature-list">
+										<li>Useful for tools like Docker, Steam, Android Studio, and VS Code</li>
+										<li>Cross-platform story for macOS, Windows, and Linux</li>
+										<li>Brings system maintenance into the same product as project maintenance</li>
 									</ul>
 								</article>
-								<article class="capability-card feature is-revealing">
-									<h3>Keep lock files honest</h3>
+								<article class="feature-card is-revealing">
+									<div class="feature-icon">03</div>
+									<h3>Multi-repo workflow</h3>
 									<p>
-										The app indicates lock file status and offers a clear install or
-										sync path when project manifests and lock files drift apart.
+										Keep several repositories in one sidebar, jump between them quickly, and
+										reuse the same update workflow without losing context.
 									</p>
-									<ul class="capability-list">
-										<li>Detect stale lock files quickly</li>
-										<li>Choose the right install command for your project</li>
-										<li>Reduce avoidable release friction</li>
+									<ul class="feature-list">
+										<li>Great for maintainers, agencies, and teams with many projects</li>
+										<li>Less context switching than terminal-heavy update sessions</li>
+										<li>Designed for repeat weekly maintenance work</li>
 									</ul>
 								</article>
-								<article class="capability-card feature is-revealing">
-									<h3>Track installed apps across the whole machine</h3>
+								<article class="feature-card is-revealing">
+									<div class="feature-icon">04</div>
+									<h3>Registry-backed version checks</h3>
 									<p>
-										Use the Installed Apps view to scan desktop software, review the
-										current version, and surface newer releases from native package
-										managers and curated source mappings.
+										Review live package information before you commit to an update so the
+										decision is grounded in current package data.
 									</p>
-									<ul class="capability-list">
-										<li>Built for users who want app updates, not just project updates</li>
-										<li>Shows installed version, latest version, and update source when available</li>
-										<li>Keeps project-based workflows and system-wide workflows in one UI</li>
+									<ul class="feature-list">
+										<li>Checks registries your ecosystems already rely on</li>
+										<li>Lets you compare current and latest versions with less guesswork</li>
+										<li>Keeps update choices visible inside the app</li>
 									</ul>
 								</article>
-								<article class="capability-card feature is-revealing">
-									<h3>Work across many projects</h3>
+								<article class="feature-card is-revealing">
+									<div class="feature-icon">05</div>
+									<h3>Mobile and systems support</h3>
 									<p>
-										Keep a list of repositories in the sidebar, switch instantly, and
-										use the same dependency workflow without reopening terminal tabs.
+										Apple, Android, Flutter, Go, Rust, and Ruby projects fit into the same UI,
+										so product teams are not forced back to fragmented tooling.
 									</p>
-									<ul class="capability-list">
-										<li>Built for freelancers, agency teams, and maintainers</li>
-										<li>Good fit for multi-repo and client-heavy environments</li>
-										<li>Lower context switching while reviewing dependencies</li>
+									<ul class="feature-list">
+										<li>Supports Package.swift, Podfile, build.gradle, libs.versions.toml, pubspec.yaml, go.mod, Cargo.toml, and Gemfile</li>
+										<li>Useful for cross-functional teams with mixed stacks</li>
+										<li>One mental model across app, backend, and tooling repos</li>
+									</ul>
+								</article>
+								<article class="feature-card is-revealing">
+									<div class="feature-icon">06</div>
+									<h3>Foundation for smarter suggestions</h3>
+									<p>
+										The next version extends the current data model into an AI-aware layer for
+										recommendations, discovery, and better upgrade choices.
+									</p>
+									<ul class="feature-list">
+										<li>Alternative app suggestions by category</li>
+										<li>Better package and library recommendations for projects</li>
+										<li>New tools surfaced when they match the user’s stack</li>
 									</ul>
 								</article>
 							</div>
@@ -1478,40 +1218,128 @@
 					</div>
 				</section>
 
-				<section class="workflow section" id="workflow">
+				<section class="section" id="roadmap">
+					<div class="container">
+						<div class="roadmap-shell section-shell">
+							<div class="section-heading">
+								<span class="section-kicker">Pro + Roadmap</span>
+								<h2 class="section-title">Pro coming soon, with AI recommendations built into the product</h2>
+								<p class="section-paragraph">
+									The next major step is not just more update data. It is smarter guidance about
+									which app, package, CLI tool, skill, or automation a user should adopt next.
+								</p>
+							</div>
+
+							<div class="roadmap-grid">
+								<div class="roadmap-stack">
+									<article class="roadmap-card is-revealing">
+										<div class="roadmap-label">App intelligence</div>
+										<h3>Recommend better desktop apps for every category and surface new arrivals.</h3>
+										<p>
+											npMax will suggest alternative applications for categories like browsers,
+											design tools, terminals, note apps, database clients, and developer utilities.
+											It will also highlight newly released apps that fit the user’s current setup.
+										</p>
+										<ul class="roadmap-list">
+											<li>Suggest alternatives when an installed app is outdated, weak, or no longer the best choice</li>
+											<li>Recommend fresh apps the user has not installed yet</li>
+											<li>Organize app discovery by category so recommendations feel intentional, not random</li>
+										</ul>
+									</article>
+
+									<article class="roadmap-card is-revealing">
+										<div class="roadmap-label">Project intelligence</div>
+										<h3>Suggest stronger packages and better replacements inside code projects too.</h3>
+										<p>
+											The same idea applies to repositories: npMax will analyze dependencies and
+											suggest better-maintained, more popular, or more capable alternatives where
+											that makes sense for the team.
+										</p>
+										<ul class="roadmap-list">
+											<li>Alternative package recommendations for frontend, backend, mobile, and tooling stacks</li>
+											<li>Upgrade guidance when a library is stale, abandoned, or no longer the best option</li>
+											<li>New package discovery based on project category and existing dependency graph</li>
+										</ul>
+									</article>
+
+									<article class="roadmap-card is-revealing">
+										<div class="roadmap-label">CLI + skills + automation</div>
+										<h3>Upcoming support for AI CLI apps, update tracking, skill store, and automations.</h3>
+										<p>
+											A later version will extend beyond GUI apps and project manifests to cover AI
+											tooling itself, including CLI apps, stored skills, and useful automation flows.
+										</p>
+										<ul class="roadmap-list">
+											<li>Support for CLI tools like Claude, Codex, Gemini, and similar AI-first utilities</li>
+											<li>Visibility into updates for those tools, not just installation status</li>
+											<li>Skill store and automation sections that help users unlock more value inside the app</li>
+											<li>More AI-powered workflows so npMax becomes an active assistant, not just a passive dashboard</li>
+										</ul>
+									</article>
+								</div>
+
+								<article class="roadmap-card roadmap-card--pro is-revealing">
+									<div class="roadmap-label">Pro version coming soon</div>
+									<h3>A premium layer for tailored recommendations, faster discovery, and more useful actions.</h3>
+									<p>
+										npMax Pro is planned as the intelligent layer on top of the existing desktop
+										product. It will help users decide what to update, what to replace, what to try,
+										and which workflows are worth adopting next.
+									</p>
+									<ul class="roadmap-list">
+										<li>AI recommendations for desktop apps and project dependencies</li>
+										<li>Context-aware alternative suggestions instead of generic lists</li>
+										<li>Category-based app discovery and curated new-tool highlights</li>
+										<li>Smarter recommendations around CLI apps, skills, automations, and AI productivity tooling</li>
+									</ul>
+									<div class="mini-pills" aria-label="Planned areas">
+										<span class="mini-pill">Apps</span>
+										<span class="mini-pill">Packages</span>
+										<span class="mini-pill">CLI tools</span>
+										<span class="mini-pill">Skill store</span>
+										<span class="mini-pill">Automations</span>
+										<span class="mini-pill">AI workflows</span>
+									</div>
+								</article>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<section class="section" id="workflow">
 					<div class="container">
 						<div class="workflow-shell section-shell">
 							<div class="section-heading">
 								<span class="section-kicker">Workflow</span>
-								<h2 class="section-title mt-0">A short path from audit to update</h2>
+								<h2 class="section-title">A short path from visibility to action</h2>
 								<p class="section-paragraph">
-									The app is optimized for the recurring loop teams repeat every
-									week across both repositories and installed desktop software.
+									The product is still centered on a clear maintenance loop, now with a roadmap
+									that makes the workflow feel expandable instead of crowded.
 								</p>
 							</div>
 							<div class="workflow-grid">
 								<article class="workflow-step is-revealing">
 									<strong>Step 1</strong>
-									<h3>Choose a workspace view</h3>
+									<h3>Open apps or projects</h3>
 									<p>
-										Start from Installed Apps to scan the machine, or add a project
-										and let npMax detect the supported manifest automatically.
+										Start from Installed Apps for machine-wide checks, or select a project and let
+										npMax detect the right manifest automatically.
 									</p>
 								</article>
 								<article class="workflow-step is-revealing">
 									<strong>Step 2</strong>
-									<h3>Review version health</h3>
+									<h3>Review health and updates</h3>
 									<p>
-										Inspect outdated status, compare installed and latest versions,
-										and decide which dependencies are ready to move.
+										Compare installed and latest versions, inspect outdated packages, and identify
+										which software or libraries deserve attention first.
 									</p>
 								</article>
 								<article class="workflow-step is-revealing">
 									<strong>Step 3</strong>
-									<h3>Update and sync</h3>
+									<h3>Act now, recommend next</h3>
 									<p>
-										Apply updates, preserve your version prefix, and run the correct
-										install flow to bring lock files back in line.
+										Apply updates today, then move into upcoming recommendation flows for better
+										alternatives, smarter tools, and stronger maintenance decisions.
 									</p>
 								</article>
 							</div>
@@ -1524,18 +1352,18 @@
 						<div class="downloads-shell section-shell">
 							<div class="section-heading">
 								<span class="section-kicker">Downloads</span>
-								<h2 class="section-title mt-0">Available for all major desktop platforms</h2>
+								<h2 class="section-title">Available for all major desktop platforms</h2>
 								<p class="section-paragraph">
-									Download the latest build from GitHub Releases and use the package
-									format that matches your environment.
+									Download the latest build from GitHub Releases and use the package format that
+									matches your environment.
 								</p>
 							</div>
 							<div class="download-grid">
-								<article class="download-card">
+								<article class="download-card is-revealing">
 									<h3>macOS</h3>
 									<p>
-										Native builds for both Apple Silicon and Intel Macs, suitable for
-										developers who want a desktop GUI beside their existing toolchain.
+										Native builds for Apple Silicon and Intel Macs, designed for developers who
+										want a GUI companion to their existing toolchain.
 									</p>
 									<ul>
 										<li>Apple Silicon (arm64) DMG</li>
@@ -1548,11 +1376,11 @@
 										View macOS downloads
 									</a>
 								</article>
-								<article class="download-card">
+								<article class="download-card is-revealing">
 									<h3>Windows</h3>
 									<p>
-										Choose between the installer and portable build depending on how
-										you roll out tools inside your workflow or team environment.
+										Choose between installer and portable builds depending on how your team rolls
+										out tools across workstations.
 									</p>
 									<ul>
 										<li>Windows installer</li>
@@ -1565,11 +1393,11 @@
 										View Windows downloads
 									</a>
 								</article>
-								<article class="download-card">
+								<article class="download-card is-revealing">
 									<h3>Linux</h3>
 									<p>
 										Use AppImage for flexible distribution or install the packaged
-										<code>.deb</code> release for Debian-based environments.
+										<code>.deb</code> release for Debian-based systems.
 									</p>
 									<ul>
 										<li>AppImage for x64 and arm64</li>
@@ -1587,39 +1415,39 @@
 					</div>
 				</section>
 
-				<section class="community section">
+				<section class="section">
 					<div class="container">
 						<div class="community-shell section-shell">
 							<div>
-								<span class="section-kicker">Community</span>
-								<h2 class="section-title mt-0">Open source, practical, and easy to contribute to</h2>
+								<span class="section-kicker">Open source</span>
+								<h2 class="section-title">Practical today, extensible tomorrow</h2>
 								<p class="section-paragraph">
-									npMax is free to use and lives in the open. The project already
-									provides a straightforward local development flow for contributors.
+									npMax is open source right now, but the product direction clearly expands toward
+									skills, automation, AI tooling, and recommendation-driven workflows.
 								</p>
 								<ul class="community-list">
 									<li>
 										<span class="community-bullet"></span>
 										<div>
-											<strong>Built for real maintenance work.</strong>
-											The product direction is centered on everyday dependency tasks,
-											not on generic shell abstraction.
+											<strong>Built for actual maintenance work.</strong>
+											The current product already solves repetitive dependency and app update
+											tasks in a more visual workflow.
 										</div>
 									</li>
 									<li>
 										<span class="community-bullet"></span>
 										<div>
-											<strong>Simple contributor setup.</strong>
-											Clone the repo, run <code>npm install</code>, then
-											<code>npm run dev</code> to get started.
+											<strong>Ready for broader AI utility.</strong>
+											The roadmap adds recommendations, discovery, and action layers rather than
+											turning the app into vague AI marketing.
 										</div>
 									</li>
 									<li>
 										<span class="community-bullet"></span>
 										<div>
-											<strong>Public roadmap and releases.</strong>
-											Users can follow changes through GitHub issues, pull requests,
-											and release artifacts.
+											<strong>Easy to contribute to.</strong>
+											Clone the repo, run <code>npm install</code>, then <code>npm run dev</code>
+											to start iterating.
 										</div>
 									</li>
 								</ul>
@@ -1627,8 +1455,8 @@
 							<aside class="community-panel">
 								<h3 class="mt-0">Useful links</h3>
 								<p class="mb-16">
-									Start with the release page if you want the app now, or use the repo
-									if you want to contribute and inspect the codebase.
+									Start with the release page if you want the app now, or jump into the repo if
+									you want to contribute to the next version.
 								</p>
 								<ul class="mb-0">
 									<li>
@@ -1644,12 +1472,8 @@
 											Contributing guide
 										</a>
 									</li>
-									<li>
-										<a href="https://t.me/npmax_app">Telegram community</a>
-									</li>
-									<li>
-										<a href="https://twitter.com/npMax_app">Project updates</a>
-									</li>
+									<li><a href="https://t.me/npmax_app">Telegram community</a></li>
+									<li><a href="https://twitter.com/npMax_app">Project updates</a></li>
 								</ul>
 							</aside>
 						</div>
@@ -1661,31 +1485,28 @@
 						<div class="faq-shell section-shell">
 							<div class="section-heading">
 								<span class="section-kicker">FAQ</span>
-								<h2 class="section-title mt-0">Questions people usually ask first</h2>
+								<h2 class="section-title">Questions people usually ask first</h2>
 							</div>
 							<div class="faq-grid">
-								<article class="faq-card">
-									<h3>Is npMax free to use?</h3>
+								<article class="faq-card is-revealing">
+									<h3>Is npMax free to use today?</h3>
 									<p>
-										Yes. npMax is an open source desktop application and the public
-										releases are available from GitHub.
+										Yes. npMax is open source and the public builds are available from GitHub
+										Releases.
 									</p>
 								</article>
-								<article class="faq-card">
-									<h3>Which package managers and project types are supported?</h3>
+								<article class="faq-card is-revealing">
+									<h3>What is already supported right now?</h3>
 									<p>
-										The app supports npm, yarn, pnpm, Composer, Swift Package
-										Manager, CocoaPods, Gradle, Android Version Catalogs, Flutter
-										pubspec projects, Go modules, Cargo manifests, and Gemfiles. It
-										detects the project manifest and switches to the correct editor
-										automatically.
+										Today the app covers multi-ecosystem project dependencies, installed apps, and
+										cross-platform desktop releases for macOS, Windows, and Linux.
 									</p>
 								</article>
-								<article class="faq-card">
-									<h3>Can I use it across multiple repos?</h3>
+								<article class="faq-card is-revealing">
+									<h3>What is coming in the next version?</h3>
 									<p>
-										Yes. npMax includes a project sidebar so you can keep several
-										repositories available and move between them quickly.
+										AI-powered recommendations for apps and packages, category-based discovery,
+										CLI tool support, and sections for skills and automations are all planned.
 									</p>
 								</article>
 							</div>
@@ -1697,10 +1518,10 @@
 					<div class="container-sm">
 						<div class="section-inner">
 							<div class="cta-banner">
-								<h2 class="section-title mt-0">Ship updates with less friction</h2>
+								<h2 class="section-title mt-0">Start with updates now, grow into recommendations next</h2>
 								<p class="section-paragraph">
-									Download npMax, connect your projects, scan installed apps, and
-									replace repetitive update work with one faster desktop workflow.
+									Download npMax today for project and app update visibility, then follow the
+									roadmap as the product expands into AI-guided recommendations and broader desktop tooling.
 								</p>
 								<div class="hero-cta">
 									<a
@@ -1731,13 +1552,13 @@
 								<img class="asset-dark" width="64" src="dist/images/logo.png" alt="npMax logo" />
 							</a>
 						</div>
-						<ul class="footer-links list-reset">
+						<ul class="footer-links">
+							<li><a href="#screenshots">Screenshots</a></li>
 							<li><a href="#features">Features</a></li>
+							<li><a href="#roadmap">Coming next</a></li>
 							<li><a href="#downloads">Downloads</a></li>
-							<li><a href="https://github.com/mehdiraized/npmax/releases/">Releases</a></li>
-							<li><a href="https://github.com/mehdiraized/npmax">Contribute</a></li>
 						</ul>
-						<ul class="footer-social-links list-reset">
+						<ul class="footer-social-links">
 							<li>
 								<a href="https://github.com/mehdiraized/npmax" aria-label="GitHub">
 									<span class="screen-reader-text">GitHub</span>
@@ -1760,7 +1581,7 @@
 							</li>
 						</ul>
 						<div class="footer-copyright">
-							npMax is open source and available for macOS, Windows, and Linux.
+							npMax is open source today and expanding toward smarter desktop recommendations.
 						</div>
 					</div>
 				</div>
