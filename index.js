@@ -61,6 +61,7 @@ const createWindow = () => {
 	const baseConfig = {
 		title: "npMax",
 		frame: false,
+		show: false,
 		width: Math.round(width / 1.25),
 		height: Math.round(height / 1.25),
 		minWidth: 800,
@@ -100,6 +101,10 @@ const createWindow = () => {
 
 	window = new BrowserWindow(baseConfig);
 	window.setMenuBarVisibility(true);
+	window.once("ready-to-show", () => {
+		if (!window || window.isDestroyed()) return;
+		window.show();
+	});
 
 	window.on("minimize", (e) => {
 		if (isQuitting) return;
@@ -317,6 +322,15 @@ const buildAppMenu = () => {
 
 	return Menu.buildFromTemplate(template);
 };
+
+ipcMain.handle("get-file-icon", async (_event, filePath) => {
+	try {
+		const icon = await app.getFileIcon(filePath, { size: "normal" });
+		return icon.toDataURL();
+	} catch {
+		return null;
+	}
+});
 
 ipcMain.handle("show-open-dialog", async () => {
 	const result = await dialog.showOpenDialog(window, {

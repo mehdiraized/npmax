@@ -21,6 +21,7 @@ const brewClient = axios.create({
 const cleanVersion = (value) =>
 	String(value || "")
 		.trim()
+		.split(",")[0] // strip brew build tokens like "2.6.19,224838f96..."
 		.replace(/^v/i, "")
 		.replace(/^release[-_\s]*/i, "");
 

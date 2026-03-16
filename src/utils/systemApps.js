@@ -77,7 +77,7 @@ const tryExec = async (command, options = {}) => {
 const parseTable = (raw) =>
 	raw
 		.split(/\r?\n/)
-		map((line) => line.trimEnd())
+		.map((line) => line.trimEnd())
 		.filter(Boolean)
 		.filter((line) => !/^[-\s]+$/.test(line))
 		.slice(2)
@@ -119,7 +119,7 @@ const getMacApps = async () => {
 		const parsed = JSON.parse(raw);
 		return uniqueBy(
 			(parsed.SPApplicationsDataType || [])
-				.filter((item) => item._name)
+				.filter((item) => item._name && item.obtained_from !== "apple")
 				.map((item) =>
 					buildAppRecord({
 						name: item._name,

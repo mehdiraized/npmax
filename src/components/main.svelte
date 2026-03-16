@@ -41,12 +41,42 @@
 	let loading = $state(false);
 
 	const supportedProjects = [
-		{ label: "Node.js", manifest: "package.json", accent: "node", icon: NpmIcon },
-		{ label: "Composer", manifest: "composer.json", accent: "composer", icon: ComposerIcon },
-		{ label: "SwiftPM", manifest: "Package.swift", accent: "swift", icon: SwiftIcon },
-		{ label: "CocoaPods", manifest: "Podfile", accent: "pods", icon: CocoaPodsIcon },
-		{ label: "Android", manifest: "build.gradle / libs.versions.toml", accent: "gradle", icon: GradleIcon },
-		{ label: "Flutter", manifest: "pubspec.yaml", accent: "flutter", icon: FlutterIcon },
+		{
+			label: "Node.js",
+			manifest: "package.json",
+			accent: "node",
+			icon: NpmIcon,
+		},
+		{
+			label: "Composer",
+			manifest: "composer.json",
+			accent: "composer",
+			icon: ComposerIcon,
+		},
+		{
+			label: "SwiftPM",
+			manifest: "Package.swift",
+			accent: "swift",
+			icon: SwiftIcon,
+		},
+		{
+			label: "CocoaPods",
+			manifest: "Podfile",
+			accent: "pods",
+			icon: CocoaPodsIcon,
+		},
+		{
+			label: "Android",
+			manifest: "build.gradle / libs.versions.toml",
+			accent: "gradle",
+			icon: GradleIcon,
+		},
+		{
+			label: "Flutter",
+			manifest: "pubspec.yaml",
+			accent: "flutter",
+			icon: FlutterIcon,
+		},
 		{ label: "Go", manifest: "go.mod", accent: "go", icon: GoIcon },
 		{ label: "Rust", manifest: "Cargo.toml", accent: "rust", icon: RustIcon },
 		{ label: "Ruby", manifest: "Gemfile", accent: "ruby", icon: RubyIcon },
@@ -54,13 +84,22 @@
 
 	const showingInstalledApps = $derived.by(() => {
 		const value = $menuActive;
-		return !value || value === "installed-apps" || !String(value).startsWith("project_");
+		return (
+			!value ||
+			value === "installed-apps" ||
+			!String(value).startsWith("project_")
+		);
 	});
 
 	$effect(() => {
 		const value = $menuActive;
-		currentProjectID = value && String(value).startsWith("project_") ? value.split("_")[1] : false;
-		const found = $projects.find((item) => item.id === parseInt(currentProjectID));
+		currentProjectID =
+			value && String(value).startsWith("project_")
+				? value.split("_")[1]
+				: false;
+		const found = $projects.find(
+			(item) => item.id === parseInt(currentProjectID),
+		);
 		currentProject = found;
 
 		if (found) {
@@ -106,7 +145,8 @@
 									manifestPath = `${projectPath}/Gemfile`;
 								} catch {
 									try {
-										const androidManifest = await getProjectAndroidManifest(projectPath);
+										const androidManifest =
+											await getProjectAndroidManifest(projectPath);
 										rawJson = androidManifest.raw;
 										projectType = androidManifest.projectType;
 										manifestPath = androidManifest.manifestPath;
@@ -170,11 +210,17 @@
 	}
 
 	onMount(() => {
-		window.addEventListener("npmax:reload-current-project", reloadCurrentProject);
+		window.addEventListener(
+			"npmax:reload-current-project",
+			reloadCurrentProject,
+		);
 	});
 
 	onDestroy(() => {
-		window.removeEventListener("npmax:reload-current-project", reloadCurrentProject);
+		window.removeEventListener(
+			"npmax:reload-current-project",
+			reloadCurrentProject,
+		);
 	});
 </script>
 
@@ -182,85 +228,119 @@
 	{#if showingInstalledApps}
 		<InstalledAppsView />
 	{:else}
-		<SimpleBar maxHeight={"calc(100vh)"}>
-			{#if !currentProject}
-				<section transition:blur={{ duration: 200 }} class="empty">
-					<div class="empty__card">
-						<div class="empty__content">
-							<div class="empty__copy">
-								<div class="empty__eyebrow">Dependency command center</div>
-								<h1 class="empty__title">Drop in any supported repo and start managing versions fast.</h1>
-								<p class="empty__sub">
-									Add a project folder to inspect dependencies, compare live registry
-									versions, update manifests, and sync lock files from one polished
-									desktop workflow.
-								</p>
-								<div class="empty__actions">
-									<button class="empty__btn" onclick={addProject}>
-										<svg
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-											xmlns="http://www.w3.org/2000/svg"
-										>
-											<line x1="12" y1="5" x2="12" y2="19" />
-											<line x1="5" y1="12" x2="19" y2="12" />
-										</svg>
-										Add Your First Project
-									</button>
-									<div class="empty__hint">Supports web, backend, mobile, and systems projects.</div>
-								</div>
-							</div>
-
-							<div class="empty__visual">
-								<div class="empty__halo empty__halo--one"></div>
-								<div class="empty__halo empty__halo--two"></div>
-								<div class="empty__preview">
-									<div class="empty__previewHeader">
-										<span class="empty__previewDot"></span>
-										<span class="empty__previewDot"></span>
-										<span class="empty__previewDot"></span>
-										<strong>Supported Project Types</strong>
+		<div class="project-shell">
+			<SimpleBar maxHeight={"calc(100vh)"}>
+				{#if !currentProject}
+					<section class="empty">
+						<div class="empty__card">
+							<div class="empty__content">
+								<div class="empty__copy">
+									<div class="empty__eyebrow">Dependency command center</div>
+									<h1 class="empty__title">
+										Drop in any supported repo and start managing versions fast.
+									</h1>
+									<p class="empty__sub">
+										Add a project folder to inspect dependencies, compare live
+										registry versions, update manifests, and sync lock files
+										from one polished desktop workflow.
+									</p>
+									<div class="empty__actions">
+										<button class="empty__btn" onclick={addProject}>
+											<svg
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												xmlns="http://www.w3.org/2000/svg"
+											>
+												<line x1="12" y1="5" x2="12" y2="19" />
+												<line x1="5" y1="12" x2="19" y2="12" />
+											</svg>
+											Add Your First Project
+										</button>
+										<div class="empty__hint">
+											Supports web, backend, mobile, and systems projects.
+										</div>
 									</div>
-									<div class="empty__grid">
-										{#each supportedProjects as item}
-											<div class={`ecosystemCard ecosystemCard--${item.accent}`}>
-												<div class="ecosystemCard__icon">
-													<item.icon />
+								</div>
+
+								<div class="empty__visual">
+									<div class="empty__halo empty__halo--one"></div>
+									<div class="empty__halo empty__halo--two"></div>
+									<div class="empty__preview">
+										<div class="empty__previewHeader">
+											<span class="empty__previewDot"></span>
+											<span class="empty__previewDot"></span>
+											<span class="empty__previewDot"></span>
+											<strong>Supported Project Types</strong>
+										</div>
+										<div class="empty__grid">
+											{#each supportedProjects as item}
+												<div
+													class={`ecosystemCard ecosystemCard--${item.accent}`}
+												>
+													<div class="ecosystemCard__icon">
+														<item.icon />
+													</div>
+													<div class="ecosystemCard__body">
+														<strong>{item.label}</strong>
+														<span>{item.manifest}</span>
+													</div>
 												</div>
-												<div class="ecosystemCard__body">
-													<strong>{item.label}</strong>
-													<span>{item.manifest}</span>
-												</div>
-											</div>
-										{/each}
+											{/each}
+										</div>
 									</div>
 								</div>
 							</div>
 						</div>
+					</section>
+				{:else if loading}
+					<div class="empty">
+						<div class="empty__card">Loading project…</div>
 					</div>
-				</section>
-			{:else if loading}
-				<div class="empty">
-					<div class="empty__card">Loading project…</div>
-				</div>
-			{:else}
-				{#if projectType === "composer"}
-					<ComposerEditor project={currentProject} rawJson={rawJson} onRefresh={handleRefresh} />
+				{:else if projectType === "composer"}
+					<ComposerEditor
+						project={currentProject}
+						{rawJson}
+						onRefresh={handleRefresh}
+					/>
 				{:else if projectType === "swift" || projectType === "cocoapods"}
-					<AppleEditor project={currentProject} rawJson={rawJson} projectType={projectType} onRefresh={handleRefresh} />
+					<AppleEditor
+						project={currentProject}
+						{rawJson}
+						{projectType}
+						onRefresh={handleRefresh}
+					/>
 				{:else if projectType === "android-gradle" || projectType === "android-version-catalog"}
-					<AndroidEditor project={currentProject} rawJson={rawJson} projectType={projectType} manifestPath={manifestPath} onRefresh={handleRefresh} />
+					<AndroidEditor
+						project={currentProject}
+						{rawJson}
+						{projectType}
+						{manifestPath}
+						onRefresh={handleRefresh}
+					/>
 				{:else if projectType === "flutter"}
-					<FlutterEditor project={currentProject} rawJson={rawJson} onRefresh={handleRefresh} />
+					<FlutterEditor
+						project={currentProject}
+						{rawJson}
+						onRefresh={handleRefresh}
+					/>
 				{:else if projectType === "go" || projectType === "rust" || projectType === "ruby"}
-					<PolyglotEditor project={currentProject} rawJson={rawJson} projectType={projectType} onRefresh={handleRefresh} />
+					<PolyglotEditor
+						project={currentProject}
+						{rawJson}
+						{projectType}
+						onRefresh={handleRefresh}
+					/>
 				{:else}
-					<PackageEditor project={currentProject} rawJson={rawJson} onRefresh={handleRefresh} />
+					<PackageEditor
+						project={currentProject}
+						{rawJson}
+						onRefresh={handleRefresh}
+					/>
 				{/if}
-			{/if}
-		</SimpleBar>
+			</SimpleBar>
+		</div>
 	{/if}
 	<Toaster richColors closeButton />
 </div>
@@ -271,7 +351,19 @@
 		min-width: 0;
 		height: 100vh;
 		display: flex;
-		background: rgba(0, 0, 0, 0.14);
+		border-radius: 20px;
+		background: #181818;
+		margin-left: -10px;
+	}
+
+	.project-shell {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+
+		:global([data-simplebar]) {
+			width: 100%;
+		}
 	}
 
 	.empty {
@@ -285,9 +377,16 @@
 		width: min(1120px, 100%);
 		padding: 28px;
 		border-radius: 30px;
-		background:
-			radial-gradient(circle at top right, rgba(120, 180, 255, 0.18), transparent 26%),
-			radial-gradient(circle at left bottom, rgba(88, 216, 194, 0.12), transparent 22%),
+		background: radial-gradient(
+				circle at top right,
+				rgba(120, 180, 255, 0.18),
+				transparent 26%
+			),
+			radial-gradient(
+				circle at left bottom,
+				rgba(88, 216, 194, 0.12),
+				transparent 22%
+			),
 			rgba(255, 255, 255, 0.05);
 		backdrop-filter: var(--blur-amount, blur(18px));
 		-webkit-backdrop-filter: var(--blur-amount, blur(18px));

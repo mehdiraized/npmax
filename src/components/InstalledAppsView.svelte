@@ -1,32 +1,44 @@
 <script>
 	import { onDestroy, onMount } from "svelte";
 	import { shell } from "electron";
-	import SimpleBar from "./SimpleBar.svelte";
+	import axios from "axios";
 	import { enrichAppsWithRemoteVersions } from "../api/systemApps.js";
 	import { getInstalledAppsInventory } from "../utils/systemApps.js";
+
+	const { ipcRenderer } = require("electron");
 
 	let apps = $state([]);
 	let loading = $state(true);
 	let refreshing = $state(false);
 	let error = $state("");
 	let query = $state("");
-	let filter = $state("all");
+	let filter = $state("updates");
 	let sortMode = $state("updates");
 	let remoteChecksPending = $state(0);
 	let lastScannedAt = $state(null);
 
-	const triggerRefresh = () => {
-		void loadApps({ silent: false });
-	};
+	// App icons
+	let icons = $state({});
+	let iconQueue = [];
+	let iconProcessing = false;
+
+	// GitHub issues
+	let githubToken = $state(localStorage.getItem("npmax-gh-token") || "");
+	let showTokenInput = $state(false);
+	let tokenDraft = $state("");
+	let creatingIssues = $state(false);
+	let issuesDone = $state(null); // { created, skipped, failed }
+
+	const triggerRefresh = () => void loadApps({ silent: false });
 
 	const filteredApps = $derived.by(() => {
-		const normalizedQuery = query.trim().toLowerCase();
+		const q = query.trim().toLowerCase();
 		return apps
 			.filter((app) => {
 				if (filter === "updates" && !app.updateAvailable) return false;
 				if (filter === "supported" && !app.catalogId) return false;
 				if (filter === "unsupported" && app.catalogId) return false;
-				if (!normalizedQuery) return true;
+				if (!q) return true;
 				return [
 					app.name,
 					app.version,
@@ -35,68 +47,57 @@
 					app.publisher,
 				]
 					.filter(Boolean)
-					.some((value) => String(value).toLowerCase().includes(normalizedQuery));
+					.some((v) => String(v).toLowerCase().includes(q));
 			})
-			.sort((left, right) => {
-				if (sortMode === "name") return left.name.localeCompare(right.name);
-				if (sortMode === "installed") {
-					return (right.version ? 1 : 0) - (left.version ? 1 : 0);
-				}
-				if (left.updateAvailable !== right.updateAvailable) {
-					return left.updateAvailable ? -1 : 1;
-				}
-				return left.name.localeCompare(right.name);
+			.sort((a, b) => {
+				if (sortMode === "name") return a.name.localeCompare(b.name);
+				if (sortMode === "installed")
+					return (b.version ? 1 : 0) - (a.version ? 1 : 0);
+				if (a.updateAvailable !== b.updateAvailable)
+					return a.updateAvailable ? -1 : 1;
+				return a.name.localeCompare(b.name);
 			});
 	});
 
-	const summary = $derived.by(() => {
-		const total = apps.length;
-		const updates = apps.filter((app) => app.updateAvailable).length;
-		const supported = apps.filter((app) => app.catalogId).length;
-		const verified = apps.filter((app) => app.updateConfidence === "verified").length;
-		return { total, updates, supported, verified };
-	});
+	const summary = $derived.by(() => ({
+		total: apps.length,
+		updates: apps.filter((a) => a.updateAvailable).length,
+		supported: apps.filter((a) => a.catalogId).length,
+		unmatched: apps.filter((a) => !a.catalogId).length,
+	}));
 
 	async function loadApps({ silent = true } = {}) {
 		error = "";
 		remoteChecksPending = 0;
-
-		if (silent) {
-			refreshing = true;
-		} else {
-			loading = true;
-		}
+		if (silent) refreshing = true;
+		else loading = true;
 
 		try {
 			const inventory = await getInstalledAppsInventory();
 			apps = inventory;
 			lastScannedAt = new Date().toISOString();
+			enqueueIcons(inventory);
 
 			const candidates = inventory.filter(
-				(item) => !item.updateAvailable && item.catalogId && item.version,
+				(a) => !a.updateAvailable && a.catalogId && a.version,
 			);
 			remoteChecksPending = candidates.length;
 
 			await enrichAppsWithRemoteVersions(inventory, (id, payload) => {
-				if (!payload) {
-					remoteChecksPending = Math.max(0, remoteChecksPending - 1);
-					return;
-				}
-
+				remoteChecksPending = Math.max(0, remoteChecksPending - 1);
+				if (!payload) return;
 				apps = apps.map((app) => {
 					if (app.id !== id) return app;
-					const updateAvailable = payload.status === "outdated";
 					return {
 						...app,
 						latestVersion: payload.latestVersion || app.latestVersion,
 						updateUrl: payload.updateUrl || app.updateUrl,
 						updateSource: payload.updateSource || app.updateSource,
 						updateConfidence: payload.updateConfidence || app.updateConfidence,
-						updateAvailable,
+						updateAvailable: payload.status === "outdated",
 						status: payload.status || app.status,
 					};
 				});
-				remoteChecksPending = Math.max(0, remoteChecksPending - 1);
 			});
 		} catch (err) {
 			error = err.message || "Failed to scan installed apps.";
@@ -107,6 +108,109 @@
 		}
 	}
 
+	// ── Icon loading ─────────────────────────
+	function enqueueIcons(inventory) {
+		for (const app of inventory) {
+			if (app.path && !(app.id in icons)) {
+				iconQueue.push(app);
+			}
+		}
+		if (!iconProcessing) processIconBatch();
+	}
+
+	async function processIconBatch() {
+		iconProcessing = true;
+		const BATCH = 20;
+		while (iconQueue.length > 0) {
+			const batch = iconQueue.splice(0, BATCH);
+			const results = await Promise.all(
+				batch.map((app) =>
+					ipcRenderer.invoke("get-file-icon", app.path).catch(() => null),
+				),
+			);
+			const updates = {};
+			batch.forEach((app, i) => {
+				updates[app.id] = results[i] || null;
+			});
+			icons = { ...icons, ...updates };
+			await new Promise((r) => setTimeout(r, 16));
+		}
+		iconProcessing = false;
+	}
+
+	// ── GitHub issues ─────────────────────────
+	function saveToken() {
+		githubToken = tokenDraft.trim();
+		localStorage.setItem("npmax-gh-token", githubToken);
+		showTokenInput = false;
+		tokenDraft = "";
+	}
+
+	function clearToken() {
+		githubToken = "";
+		localStorage.removeItem("npmax-gh-token");
+	}
+
+	async function createCatalogIssues() {
+		if (!githubToken) {
+			tokenDraft = "";
+			showTokenInput = true;
+			return;
+		}
+
+		const unmatched = apps.filter((a) => !a.catalogId);
+		if (unmatched.length === 0) return;
+
+		creatingIssues = true;
+		issuesDone = null;
+
+		let created = 0;
+		let skipped = 0;
+		let failed = 0;
+
+		for (const app of unmatched) {
+			try {
+				const body = [
+					"## App Details",
+					`- **Name:** ${app.name}`,
+					`- **Installed version:** ${app.version || "Unknown"}`,
+					`- **Path:** ${app.path || "Unknown"}`,
+					`- **Source:** ${app.source || "system"}`,
+					`- **Publisher:** ${app.publisher || "Unknown"}`,
+					"",
+					"## Task",
+					"Add this app to `src/data/appCatalog.js` to enable automatic version checking.",
+					"",
+					"---",
+					"*Auto-generated by npMax installed apps scanner*",
+				].join("\n");
+
+				await axios.post(
+					"https://api.github.com/repos/mehdiraized/npmax/issues",
+					{
+						title: `[App Catalog] Add support for "${app.name}"`,
+						body,
+						labels: ["app-catalog"],
+					},
+					{
+						headers: {
+							Authorization: `Bearer ${githubToken}`,
+							Accept: "application/vnd.github+json",
+						},
+					},
+				);
+				created++;
+			} catch (e) {
+				if (e?.response?.status === 422) skipped++;
+				else failed++;
+			}
+		}
+
+		creatingIssues = false;
+		issuesDone = { created, skipped, failed };
+	}
+
+	// ── Helpers ───────────────────────────────
 	function formatTime(value) {
 		if (!value) return "Not scanned yet";
 		return new Intl.DateTimeFormat(undefined, {
@@ -115,32 +219,23 @@
 		}).format(new Date(value));
 	}
 
-	function statusLabel(app) {
-		if (app.updateAvailable) return "Update available";
-		if (app.status === "current") return "Current";
-		if (app.status === "ahead") return "Ahead";
-		return "Monitoring";
-	}
-
 	function sourceLabel(app) {
-		const labels = {
-			"brew-cask": "Homebrew Cask",
+		const map = {
+			"brew-cask": "Homebrew",
 			winget: "winget",
 			flatpak: "Flatpak",
 			snap: "Snap",
-			registry: "Windows Registry",
+			registry: "Registry",
 			"desktop-entry": ".desktop",
-			system: "System",
 			apple: "Apple",
 			identified_developer: "Developer",
 		};
-		return labels[app.source] || app.source || "System";
+		return map[app.source] || app.source || "System";
 	}
 
 	function openAppLink(app) {
 		const target = app.updateUrl || app.website;
-		if (!target) return;
-		void shell.openExternal(target);
+		if (target) void shell.openExternal(target);
 	}
 
 	onMount(() => {
@@ -153,481 +248,827 @@
 	});
 </script>
 
-<section class="apps">
-	<div class="apps__hero glass-card">
-		<div class="apps__heroCopy">
-			<div class="apps__eyebrow">Installed Apps</div>
-			<h1>One place for every desktop app on the machine.</h1>
-			<p>
-				npMax v3 now scans the user’s system apps, highlights available updates,
-				and keeps project dependency workflows intact in the same interface.
-			</p>
+<div class="view">
+	<!-- Header -->
+	<header class="hdr">
+		<div>
+			<h1 class="hdr__title">Installed Apps</h1>
 		</div>
-		<div class="apps__heroActions">
-			<button class="apps__primaryBtn" onclick={() => loadApps({ silent: true })} disabled={loading || refreshing}>
+		<div class="hdr__right">
+			{#if lastScannedAt}
+				<span class="hdr__time">Scanned {formatTime(lastScannedAt)}</span>
+			{/if}
+			<button
+				class="btn btn--ghost"
+				onclick={() => loadApps({ silent: true })}
+				disabled={loading || refreshing}
+			>
 				{#if loading || refreshing}
-					<span class="spin"></span>
-					Scanning…
+					<span class="spin"></span> Scanning…
 				{:else}
-					Refresh Scan
+					<svg
+						width="12"
+						height="12"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.2"
+					>
+						<polyline points="23 4 23 10 17 10" /><path
+							d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
+						/>
+					</svg>
+					Refresh
 				{/if}
 			</button>
-			<div class="apps__timestamp">Last scan: {formatTime(lastScannedAt)}</div>
 		</div>
-	</div>
-
-	<div class="apps__stats">
-		<div class="statCard glass-card">
-			<span>Total Apps</span>
-			<strong>{summary.total}</strong>
+	</header>
+	<!-- Toolbar -->
+	<div class="toolbar">
+		<div class="search-wrap">
+			<svg
+				width="12"
+				height="12"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<circle cx="11" cy="11" r="8" /><line
+					x1="21"
+					y1="21"
+					x2="16.65"
+					y2="16.65"
+				/>
+			</svg>
+			<input
+				class="search-wrap__input"
+				bind:value={query}
+				placeholder="Search app, version, source…"
+			/>
 		</div>
-		<div class="statCard glass-card statCard--warm">
-			<span>Updates Found</span>
-			<strong>{summary.updates}</strong>
-		</div>
-		<div class="statCard glass-card">
-			<span>Catalog Coverage</span>
-			<strong>{summary.supported}</strong>
-		</div>
-		<div class="statCard glass-card">
-			<span>Verified Sources</span>
-			<strong>{summary.verified}</strong>
-		</div>
-	</div>
-
-	<div class="apps__toolbar glass-card">
-		<div class="apps__filters">
-			<button class:chip--active={filter === "all"} class="chip" onclick={() => (filter = "all")}>All</button>
-			<button class:chip--active={filter === "updates"} class="chip" onclick={() => (filter = "updates")}>Needs update</button>
-			<button class:chip--active={filter === "supported"} class="chip" onclick={() => (filter = "supported")}>Catalog matched</button>
-			<button class:chip--active={filter === "unsupported"} class="chip" onclick={() => (filter = "unsupported")}>Unmatched</button>
-		</div>
-
-		<div class="apps__controls">
-			<input class="apps__search" bind:value={query} placeholder="Search app, version, source…" />
-			<select bind:value={sortMode} class="apps__sort">
-				<option value="updates">Sort by updates</option>
-				<option value="name">Sort by name</option>
-				<option value="installed">Sort by installed version</option>
+		<div class="toolbar__right">
+			<select bind:value={sortMode} class="select">
+				<option value="updates">Updates first</option>
+				<option value="name">A → Z</option>
+				<option value="installed">Installed version</option>
 			</select>
+			{#if filter === "unsupported" && summary.unmatched > 0}
+				<button
+					class="btn btn--accent"
+					onclick={createCatalogIssues}
+					disabled={creatingIssues}
+				>
+					{#if creatingIssues}
+						<span class="spin"></span> Creating issues…
+					{:else}
+						<svg
+							width="12"
+							height="12"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<circle cx="12" cy="12" r="10" /><line
+								x1="12"
+								y1="8"
+								x2="12"
+								y2="12"
+							/><line x1="12" y1="16" x2="12.01" y2="16" />
+						</svg>
+						Report {summary.unmatched} to GitHub
+					{/if}
+				</button>
+			{/if}
 		</div>
 	</div>
 
-	{#if error}
-		<div class="apps__message glass-card apps__message--error">{error}</div>
-	{:else if loading}
-		<div class="apps__message glass-card">Scanning installed apps across this machine…</div>
-	{:else}
-		<div class="apps__results glass-card">
-			<div class="apps__resultsHeader">
-				<div>
-					<strong>{filteredApps.length} apps</strong>
-					<span>shown from {summary.total}</span>
-				</div>
+	<!-- Tabs -->
+	<div class="tabs">
+		<button
+			class="tab"
+			class:tab--active={filter === "all"}
+			onclick={() => (filter = "all")}
+		>
+			All
+			<span class="tab__badge">{summary.total}</span>
+		</button>
+		<button
+			class="tab"
+			class:tab--active={filter === "updates"}
+			onclick={() => (filter = "updates")}
+		>
+			Updates
+			{#if summary.updates > 0}<span class="tab__badge tab__badge--blue"
+					>{summary.updates}</span
+				>{/if}
+		</button>
+		<button
+			class="tab"
+			class:tab--active={filter === "supported"}
+			onclick={() => (filter = "supported")}
+		>
+			In Catalog
+			<span class="tab__badge">{summary.supported}</span>
+		</button>
+		<button
+			class="tab"
+			class:tab--active={filter === "unsupported"}
+			onclick={() => (filter = "unsupported")}
+		>
+			Unmatched
+			<span class="tab__badge">{summary.unmatched}</span>
+		</button>
+	</div>
+
+	<!-- Token input banner -->
+	{#if showTokenInput}
+		<div class="token-banner">
+			<span class="token-banner__label"
+				>Enter a GitHub personal access token to create issues:</span
+			>
+			<input
+				class="token-banner__input"
+				type="password"
+				bind:value={tokenDraft}
+				placeholder="ghp_…"
+				onkeydown={(e) => e.key === "Enter" && saveToken()}
+			/>
+			<button
+				class="btn btn--accent"
+				onclick={saveToken}
+				disabled={!tokenDraft.trim()}>Save</button
+			>
+			<button class="btn btn--ghost" onclick={() => (showTokenInput = false)}
+				>Cancel</button
+			>
+		</div>
+	{/if}
+
+	<!-- Issue results banner -->
+	{#if issuesDone}
+		<div class="result-banner">
+			<span>
+				{issuesDone.created} issues created
+				{#if issuesDone.skipped > 0}, {issuesDone.skipped} already existed{/if}
+				{#if issuesDone.failed > 0}, {issuesDone.failed} failed{/if}
+			</span>
+			<button class="btn btn--ghost" onclick={() => (issuesDone = null)}
+				>Dismiss</button
+			>
+			{#if githubToken}
+				<button class="btn btn--ghost" onclick={clearToken}>Clear token</button>
+			{/if}
+		</div>
+	{/if}
+
+	<!-- Body -->
+	<div class="body">
+		{#if error}
+			<div class="notice notice--error">{error}</div>
+		{:else if loading}
+			<div class="notice">
+				<span class="spin spin--lg"></span>
+				Scanning installed apps across this machine…
+			</div>
+		{:else}
+			<div class="body__bar">
 				{#if remoteChecksPending > 0}
-					<div class="apps__pending">
+					<span class="body__pending">
 						<span class="spin"></span>
 						Checking {remoteChecksPending} catalog sources…
-					</div>
+					</span>
 				{/if}
 			</div>
 
-			<SimpleBar maxHeight={"calc(100vh - 330px)"}>
-				<div class="apps__grid">
-					{#if filteredApps.length === 0}
-						<div class="apps__empty">
-							<h3>No apps matched this view</h3>
-							<p>Try another filter or broader search term.</p>
-						</div>
-					{:else}
-						{#each filteredApps as app}
-							<article class:appCard--outdated={app.updateAvailable} class="appCard">
-								<div class="appCard__top">
-									<div>
-										<h3>{app.name}</h3>
-										<p>{sourceLabel(app)}</p>
-									</div>
-									<span class:statusBadge--outdated={app.updateAvailable} class="statusBadge">
-										{statusLabel(app)}
-									</span>
+			<div class="grid">
+				{#if filteredApps.length === 0}
+					<div class="grid__empty">
+						{#if filter === "updates"}
+							<svg
+								width="32"
+								height="32"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.4"
+							>
+								<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline
+									points="22 4 12 14.01 9 11.01"
+								/>
+							</svg>
+							<p>All apps are up to date</p>
+						{:else}
+							<p>No apps matched this filter</p>
+						{/if}
+					</div>
+				{:else}
+					{#each filteredApps as app}
+						<article class="card" class:card--outdated={app.updateAvailable}>
+							<div class="card__head">
+								<div class="card__icon">
+									{#if icons[app.id]}
+										<img src={icons[app.id]} alt="" width="32" height="32" />
+									{:else}
+										<svg
+											width="18"
+											height="18"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.4"
+										>
+											<rect x="3" y="3" width="18" height="18" rx="4" />
+											<circle cx="12" cy="10" r="3" />
+											<path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+										</svg>
+									{/if}
 								</div>
-
-								<div class="appCard__versions">
-									<div>
-										<span>Installed</span>
-										<strong>{app.version || "Unknown"}</strong>
-									</div>
-									<div>
-										<span>Latest</span>
-										<strong>{app.latestVersion || "Pending / unavailable"}</strong>
-									</div>
+								<div class="card__meta">
+									<h3 class="card__name">{app.name}</h3>
+									<span class="card__source">{sourceLabel(app)}</span>
 								</div>
-
-								<div class="appCard__meta">
-									{#if app.publisher}<span>{app.publisher}</span>{/if}
-									{#if app.catalogId}<span>catalog</span>{/if}
-									{#if app.updateSource}<span>{app.updateSource}</span>{/if}
-								</div>
-
-								{#if app.path}
-									<div class="appCard__path" title={app.path}>{app.path}</div>
+								{#if app.updateAvailable}
+									<span class="badge badge--blue">Update</span>
+								{:else if app.status === "current"}
+									<span class="badge badge--dim">Current</span>
 								{/if}
+							</div>
 
-								<div class="appCard__actions">
-									{#if app.updateCommand}
-										<code>{app.updateCommand}</code>
-									{/if}
+							<div class="card__vers">
+								<div class="card__ver">
+									<span>Installed</span>
+									<strong>{app.version || "—"}</strong>
+								</div>
+								<div class="card__verSep"></div>
+								<div class="card__ver card__ver--r">
+									<span>Latest</span>
+									<strong class:card__ver__new={app.updateAvailable}>
+										{app.latestVersion ||
+											(remoteChecksPending > 0 && app.catalogId ? "…" : "—")}
+									</strong>
+								</div>
+							</div>
+
+							<div class="card__foot">
+								<div class="card__footRow">
+									<div class="card__tags">
+										{#if app.catalogId}<span class="tag tag--blue">catalog</span
+											>{/if}
+										{#if app.publisher}<span class="tag">{app.publisher}</span
+											>{/if}
+									</div>
 									{#if app.updateUrl || app.website}
-										<button class="appCard__link" onclick={() => openAppLink(app)}>
-											Open source
-										</button>
+										<button class="card__link" onclick={() => openAppLink(app)}
+											>↗</button
+										>
 									{/if}
 								</div>
-							</article>
-						{/each}
-					{/if}
-				</div>
-			</SimpleBar>
-		</div>
-	{/if}
-</section>
+								{#if app.updateCommand}
+									<code class="card__cmd">{app.updateCommand}</code>
+								{/if}
+							</div>
+						</article>
+					{/each}
+				{/if}
+			</div>
+		{/if}
+	</div>
+</div>
 
 <style lang="scss">
-	.apps {
+	.view {
 		flex: 1;
 		min-width: 0;
-		padding: 22px;
-		display: grid;
-		grid-template-rows: auto auto auto minmax(0, 1fr);
-		gap: 16px;
-		background:
-			radial-gradient(circle at top right, rgba(73, 131, 224, 0.22), transparent 28%),
-			radial-gradient(circle at left bottom, rgba(50, 208, 158, 0.16), transparent 24%),
-			linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-	}
-
-	.apps__hero,
-	.apps__toolbar,
-	.apps__results,
-	.statCard,
-	.apps__message {
-		border-radius: 22px;
-	}
-
-	.apps__hero {
-		padding: 24px;
-		display: flex;
-		align-items: end;
-		justify-content: space-between;
-		gap: 24px;
-	}
-
-	.apps__eyebrow {
-		font-size: 11px;
-		letter-spacing: 0.18em;
-		text-transform: uppercase;
-		color: var(--text-secondary);
-		margin-bottom: 10px;
-	}
-
-	.apps__hero h1 {
-		font-size: 30px;
-		line-height: 1.05;
-		max-width: 660px;
-		margin-bottom: 10px;
-	}
-
-	.apps__hero p {
-		max-width: 700px;
-		color: var(--text-secondary);
-		line-height: 1.6;
-	}
-
-	.apps__heroActions {
+		height: 100vh;
+		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		align-items: flex-end;
-		gap: 10px;
-		min-width: 180px;
-	}
-
-	.apps__primaryBtn,
-	.appCard__link,
-	.chip {
-		border: 0;
-	}
-
-	.apps__primaryBtn {
-		padding: 12px 18px;
-		border-radius: 14px;
-		background: linear-gradient(135deg, #78b4ff, #58d8c2);
-		color: #07131f;
-		font-weight: 700;
-		box-shadow: 0 12px 30px rgba(88, 216, 194, 0.22);
-	}
-
-	.apps__timestamp {
-		font-size: 12px;
-		color: var(--text-secondary);
-	}
-
-	.apps__stats {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		padding: 0 24px;
 		gap: 12px;
 	}
 
-	.statCard {
-		padding: 18px;
+	/* ── Header ─────────────────────────────── */
+	.hdr {
+		flex-shrink: 0;
 		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.statCard span {
-		color: var(--text-secondary);
-	}
-
-	.statCard strong {
-		font-size: 28px;
-	}
-
-	.statCard--warm {
-		background: linear-gradient(180deg, rgba(255, 165, 0, 0.12), rgba(255, 255, 255, 0.08));
-	}
-
-	.apps__toolbar {
-		padding: 16px;
-		display: flex;
-		align-items: center;
+		align-items: flex-end;
 		justify-content: space-between;
 		gap: 16px;
+		padding-top: 15px; // macOS titlebar offset
 	}
 
-	.apps__filters,
-	.apps__controls {
+	.hdr__title {
+		font-size: 24px;
+		font-weight: 700;
+		line-height: 1;
+	}
+
+	.hdr__right {
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		flex-wrap: wrap;
+		padding-bottom: 2px;
 	}
 
-	.chip {
-		padding: 10px 14px;
-		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.06);
-		color: var(--text-secondary);
+	.hdr__time {
+		font-size: 11px;
+		color: var(--text-muted);
 	}
 
-	.chip--active {
-		background: rgba(120, 180, 255, 0.18);
-		color: var(--text-primary);
+	/* ── Buttons ─────────────────────────────── */
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 7px 12px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--border-subtle);
+		font-size: 12px;
+		font-weight: 500;
+		transition:
+			background var(--transition-fast),
+			border-color var(--transition-fast);
+
+		&--ghost {
+			background: var(--glass-light);
+			color: var(--text-secondary);
+			&:hover:not(:disabled) {
+				background: var(--glass-medium);
+				color: var(--text-primary);
+			}
+		}
+
+		&--accent {
+			background: var(--accent-subtle);
+			border-color: rgba(91, 156, 246, 0.3);
+			color: var(--accent-hover);
+			&:hover:not(:disabled) {
+				background: rgba(91, 156, 246, 0.2);
+			}
+		}
+
+		&:disabled {
+			opacity: 0.5;
+			cursor: default;
+		}
 	}
 
-	.apps__search,
-	.apps__sort {
-		border-radius: 12px;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		background: rgba(8, 11, 20, 0.22);
-		color: var(--text-primary);
-		padding: 11px 13px;
-		min-width: 220px;
-	}
-
-	.apps__results {
-		padding: 14px;
-		min-height: 0;
+	/* ── Stats ───────────────────────────────── */
+	/* ── Tabs ────────────────────────────────── */
+	.tabs {
+		flex-shrink: 0;
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+		padding: 4px;
+		border-radius: var(--radius-lg);
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid var(--border-subtle);
 	}
 
-	.apps__resultsHeader {
+	.tab {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		padding: 7px 14px;
+		border-radius: var(--radius-md);
+		border: 0;
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 13px;
+		font-weight: 500;
+		flex: 1;
+		justify-content: center;
+		transition:
+			background var(--transition-fast),
+			color var(--transition-fast);
+
+		&:hover {
+			color: var(--text-secondary);
+			background: rgba(255, 255, 255, 0.04);
+		}
+
+		&--active {
+			background: rgba(255, 255, 255, 0.1);
+			color: var(--text-primary);
+			box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+		}
+	}
+
+	.tab__badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 20px;
+		height: 18px;
+		padding: 0 5px;
+		border-radius: 999px;
+		font-size: 11px;
+		font-weight: 600;
+		background: rgba(255, 255, 255, 0.08);
+		color: var(--text-muted);
+
+		&--blue {
+			background: rgba(91, 156, 246, 0.2);
+			color: var(--accent-hover);
+		}
+	}
+
+	/* ── Toolbar ─────────────────────────────── */
+	.toolbar {
+		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 6px 6px 14px;
-		color: var(--text-secondary);
+		gap: 10px;
 	}
 
-	.apps__resultsHeader strong {
-		color: var(--text-primary);
-		margin-right: 8px;
+	.search-wrap {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--border-subtle);
+		background: var(--glass-ultra);
+		color: var(--text-muted);
+		flex: 1;
+		max-width: 320px;
+
+		&__input {
+			flex: 1;
+			background: transparent;
+			border: 0;
+			color: var(--text-primary);
+			font-size: 12px;
+			&::placeholder {
+				color: var(--text-muted);
+			}
+		}
 	}
 
-	.apps__pending {
+	.toolbar__right {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 	}
 
-	.apps__grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-		gap: 12px;
-		padding: 6px;
+	.select {
+		padding: 7px 10px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--border-subtle);
+		background: var(--glass-ultra);
+		color: var(--text-primary);
+		font-size: 12px;
+		appearance: auto;
 	}
 
-	.appCard {
-		padding: 16px;
-		border-radius: 18px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
+	/* ── Token / Result banners ──────────────── */
+	.token-banner,
+	.result-banner {
+		flex-shrink: 0;
 		display: flex;
-		flex-direction: column;
-		gap: 14px;
-		min-height: 210px;
-	}
-
-	.appCard--outdated {
-		background: linear-gradient(180deg, rgba(255, 170, 0, 0.12), rgba(255, 255, 255, 0.05));
-		border-color: rgba(255, 184, 77, 0.36);
-	}
-
-	.appCard__top,
-	.appCard__versions,
-	.appCard__actions {
-		display: flex;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.appCard__top h3 {
-		font-size: 18px;
-		margin-bottom: 5px;
-	}
-
-	.appCard__top p,
-	.appCard__versions span,
-	.appCard__meta,
-	.appCard__path {
+		align-items: center;
+		gap: 10px;
+		padding: 10px 14px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--border-light);
+		background: var(--glass-medium);
+		font-size: 12px;
 		color: var(--text-secondary);
 	}
 
-	.appCard__versions {
-		padding: 12px;
-		border-radius: 14px;
-		background: rgba(0, 0, 0, 0.14);
+	.token-banner__label {
+		flex: 1;
+		min-width: 0;
 	}
 
-	.appCard__versions div {
+	.token-banner__input {
+		padding: 6px 10px;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--border-subtle);
+		background: rgba(0, 0, 0, 0.25);
+		color: var(--text-primary);
+		font-size: 12px;
+		width: 220px;
+	}
+
+	/* ── Body / scroll ───────────────────────── */
+	.body {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		padding-bottom: 24px;
+	}
+
+	.notice {
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		height: 140px;
+		border-radius: var(--radius-lg);
+		border: 1px solid var(--border-subtle);
+		background: var(--glass-ultra);
+		color: var(--text-secondary);
+		font-size: 13px;
+
+		&--error {
+			border-color: rgba(255, 80, 80, 0.25);
+			color: rgba(255, 160, 160, 0.9);
+		}
+	}
+
+	.body__bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 2px 10px;
+		font-size: 12px;
+		color: var(--text-muted);
+	}
+
+	.body__pending {
+		display: flex;
+		align-items: center;
 		gap: 6px;
 	}
 
-	.appCard__versions strong {
-		font-size: 16px;
-	}
-
-	.appCard__meta {
-		display: flex;
+	/* ── Grid ────────────────────────────────── */
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 		gap: 8px;
-		flex-wrap: wrap;
-		font-size: 12px;
 	}
 
-	.appCard__meta span {
-		padding: 4px 8px;
-		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.06);
-	}
-
-	.appCard__path {
-		font-size: 12px;
-		line-height: 1.5;
-		word-break: break-all;
-	}
-
-	.appCard__actions {
-		margin-top: auto;
+	.grid__empty {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-direction: column;
 		align-items: center;
-		flex-wrap: wrap;
+		justify-content: center;
+		gap: 12px;
+		padding: 60px;
+		color: var(--text-muted);
+		font-size: 13px;
 	}
 
-	.appCard__actions code {
-		font-size: 11px;
-		padding: 8px 10px;
-		border-radius: 10px;
-		background: rgba(0, 0, 0, 0.22);
+	/* ── Card ────────────────────────────────── */
+	.card {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 12px;
+		border-radius: var(--radius-lg);
+		border: 1px solid var(--border-subtle);
+		background: var(--glass-ultra);
+		transition:
+			background var(--transition-fast),
+			border-color var(--transition-fast);
+
+		&:hover {
+			background: var(--glass-light);
+		}
+
+		&--outdated {
+			border-color: rgba(91, 156, 246, 0.3);
+			background: linear-gradient(
+				150deg,
+				rgba(91, 156, 246, 0.07),
+				transparent
+			);
+			&:hover {
+				background: linear-gradient(
+					150deg,
+					rgba(91, 156, 246, 0.12),
+					var(--glass-light)
+				);
+			}
+		}
 	}
 
-	.appCard__link {
-		padding: 9px 12px;
-		border-radius: 10px;
-		background: rgba(120, 180, 255, 0.18);
+	.card__head {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+	}
+
+	.card__icon {
+		width: 36px;
+		height: 36px;
+		border-radius: var(--radius-md);
+		background: var(--glass-medium);
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		overflow: hidden;
+
+		img {
+			width: 32px;
+			height: 32px;
+			border-radius: 6px;
+		}
+		svg {
+			color: var(--text-muted);
+		}
+	}
+
+	.card__meta {
+		flex: 1;
+		min-width: 0;
+		padding-top: 2px;
+	}
+
+	.card__name {
+		font-size: 13px;
+		font-weight: 600;
 		color: var(--text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		margin-bottom: 2px;
 	}
 
-	.statusBadge {
-		height: fit-content;
-		padding: 7px 10px;
+	.card__source {
+		font-size: 11px;
+		color: var(--text-muted);
+	}
+
+	.card__vers {
+		display: flex;
+		align-items: center;
+		padding: 8px 10px;
+		border-radius: var(--radius-md);
+		background: rgba(0, 0, 0, 0.15);
+		border: 1px solid var(--border-subtle);
+		gap: 0;
+	}
+
+	.card__ver {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+
+		span {
+			font-size: 9px;
+			text-transform: uppercase;
+			letter-spacing: 0.1em;
+			color: var(--text-muted);
+		}
+
+		strong {
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--text-primary);
+			word-break: break-all;
+		}
+
+		&__new {
+			color: var(--accent-hover) !important;
+		}
+		&--r {
+			text-align: right;
+			align-items: flex-end;
+		}
+	}
+
+	.card__verSep {
+		width: 1px;
+		height: 28px;
+		background: var(--border-subtle);
+		margin: 0 10px;
+		flex-shrink: 0;
+	}
+
+	.card__foot {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin-top: auto;
+	}
+
+	.card__footRow {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	.card__tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.card__cmd {
+		display: block;
+		font-size: 10px;
+		padding: 5px 8px;
+		border-radius: var(--radius-sm);
+		background: rgba(0, 0, 0, 0.25);
+		color: var(--text-secondary);
+		width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.card__link {
+		border: 0;
+		background: transparent;
+		color: var(--accent);
+		font-size: 14px;
+		padding: 0 2px;
+		line-height: 1;
+		&:hover {
+			color: var(--accent-hover);
+		}
+	}
+
+	/* ── Badge ───────────────────────────────── */
+	.badge {
+		flex-shrink: 0;
+		padding: 3px 7px;
 		border-radius: 999px;
-		font-size: 12px;
-		background: rgba(255, 255, 255, 0.08);
-		color: var(--text-secondary);
+		font-size: 10px;
+		font-weight: 600;
+		background: var(--glass-medium);
+		color: var(--text-muted);
+		white-space: nowrap;
+
+		&--blue {
+			background: rgba(91, 156, 246, 0.15);
+			color: var(--accent-hover);
+		}
+		&--dim {
+			background: rgba(255, 255, 255, 0.06);
+			color: var(--text-muted);
+		}
 	}
 
-	.statusBadge--outdated {
-		background: rgba(255, 184, 77, 0.18);
-		color: #ffd38a;
+	/* ── Tag ─────────────────────────────────── */
+	.tag {
+		padding: 2px 6px;
+		border-radius: 999px;
+		font-size: 10px;
+		background: var(--glass-medium);
+		color: var(--text-muted);
+		&--blue {
+			background: var(--accent-subtle);
+			color: var(--accent);
+		}
 	}
 
-	.apps__message,
-	.apps__empty {
-		padding: 26px;
-		text-align: center;
-		color: var(--text-secondary);
-	}
-
-	.apps__message--error {
-		border-color: rgba(255, 102, 102, 0.35);
-		color: #ffc7c7;
-	}
-
+	/* ── Spinner ─────────────────────────────── */
 	.spin {
-		width: 12px;
-		height: 12px;
-		border-radius: 999px;
-		border: 2px solid rgba(255, 255, 255, 0.25);
-		border-top-color: rgba(255, 255, 255, 0.95);
 		display: inline-block;
-		animation: spin 1s linear infinite;
-	}
+		width: 11px;
+		height: 11px;
+		border-radius: 999px;
+		border: 1.5px solid rgba(255, 255, 255, 0.2);
+		border-top-color: rgba(255, 255, 255, 0.8);
+		animation: spin 0.8s linear infinite;
+		flex-shrink: 0;
 
-	@media (max-width: 1100px) {
-		.apps__stats {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		.apps__hero,
-		.apps__toolbar {
-			flex-direction: column;
-			align-items: flex-start;
-		}
-
-		.apps__heroActions {
-			align-items: flex-start;
-		}
-	}
-
-	@media (max-width: 720px) {
-		.apps {
-			padding: 14px;
-		}
-
-		.apps__stats {
-			grid-template-columns: 1fr;
-		}
-
-		.apps__search,
-		.apps__sort {
-			min-width: 100%;
+		&--lg {
+			width: 18px;
+			height: 18px;
+			border-width: 2px;
 		}
 	}
 
 	@keyframes spin {
 		to {
 			transform: rotate(360deg);
+		}
+	}
+
+	@media (max-width: 1100px) {
+		.tabs {
+			flex-wrap: wrap;
+		}
+		.toolbar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+		.search-wrap {
+			max-width: none;
+		}
+	}
+
+	@media (max-width: 720px) {
+		.view {
+			padding: 0 14px;
+		}
+		.tab {
+			font-size: 12px;
+			padding: 6px 10px;
 		}
 	}
 </style>

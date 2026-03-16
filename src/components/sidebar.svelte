@@ -18,18 +18,39 @@
 
 	let packages = $state({});
 
+	const pkgDefs = [
+		{ key: "npm", label: "npm", Icon: NpmIcon },
+		{ key: "yarn", label: "yarn", Icon: YarnIcon },
+		{ key: "pnpm", label: "pnpm", Icon: PnpmIcon },
+		{ key: "composer", label: "composer", Icon: ComposerIcon },
+		{ key: "swift", label: "swift", Icon: SwiftIcon },
+		{ key: "cocoapods", label: "cocoapods", Icon: CocoaPodsIcon },
+		{ key: "gradle", label: "gradle", Icon: GradleIcon },
+		{ key: "flutter", label: "flutter", Icon: FlutterIcon },
+		{ key: "go", label: "go", Icon: GoIcon },
+		{ key: "cargo", label: "cargo", Icon: RustIcon },
+		{ key: "bundler", label: "bundler", Icon: RubyIcon },
+	];
+
+	const activePkgs = $derived(pkgDefs.filter((p) => !!packages[p.key]));
+
 	onMount(async () => {
 		packages = isJson(localStorage.getItem("packages"))
 			? JSON.parse(localStorage.getItem("packages"))
 			: {};
-		projects.set(
+		const storedProjects =
 			localStorage.getItem("projects") !== "null"
 				? JSON.parse(localStorage.getItem("projects") || "[]")
-				: [],
-		);
+				: [];
+		projects.set(storedProjects);
+		if (
+			$menuActive !== "installed-apps" &&
+			!storedProjects.some(({ id }) => `project_${id}` === $menuActive)
+		) {
+			menuActive.set("installed-apps");
+		}
 		packages = await globalPackages();
 		localStorage.setItem("packages", JSON.stringify(packages));
-
 		window.addEventListener("npmax:add-project", addProject);
 	});
 
@@ -42,13 +63,14 @@
 			const result = await openDirectory();
 			if (result.length > 0) {
 				const projectPath = result[0];
-				const projectPathArray = result[0].split("/");
-				const projectName = projectPathArray[projectPathArray.length - 1];
+				const parts = result[0].split("/");
+				const projectName = parts[parts.length - 1];
 				const newId =
 					$projects.length > 0 ? $projects[$projects.length - 1].id + 1 : 0;
-				projects.update((list) => {
-					return [...list, { id: newId, name: projectName, path: projectPath }];
-				});
+				projects.update((list) => [
+					...list,
+					{ id: newId, name: projectName, path: projectPath },
+				]);
 				const nextProjects = [
 					...$projects,
 					{ id: newId, name: projectName, path: projectPath },
@@ -61,12 +83,6 @@
 		}
 	}
 
-	function closeProject(id) {
-		if ($menuActive === `project_${id}`) {
-			menuActive.set("installed-apps");
-		}
-	}
-
 	function removeProject(id) {
 		const filtered = $projects.filter((item) => item.id !== id);
 		projects.set(filtered);
@@ -75,423 +91,404 @@
 	}
 </script>
 
-<aside class="sidebar">
-	<div class="sidebar__pane">
-		<div class="sidebar__titlebar"></div>
+<aside class="nav">
+	<div class="nav__drag"></div>
 
-		<div class="sidebar__header">
-			<div class="sidebar__brand">
-				<div class="sidebar__brandMark">n</div>
-				<div>
-					<strong>npMax v3</strong>
-					<span>Projects + installed apps</span>
+	<SimpleBar maxHeight={"calc(100vh - 100px)"}>
+		<div class="nav__scroll">
+			<section class="nav__section">
+				<button
+					class="nav__item"
+					class:nav__item--active={$menuActive === "installed-apps"}
+					onclick={() => menuActive.set("installed-apps")}
+				>
+					<svg
+						class="nav__itemIcon"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.6"
+					>
+						<rect x="2" y="3" width="20" height="14" rx="2" />
+						<line x1="8" y1="21" x2="16" y2="21" />
+						<line x1="12" y1="17" x2="12" y2="21" />
+					</svg>
+					<span>Installed Apps</span>
+					<span class="nav__itemBadge">System</span>
+				</button>
+			</section>
+
+			<section class="nav__section">
+				<div class="nav__secHeader">
+					<span class="nav__secLabel">Projects</span>
+					<button class="nav__secAdd" onclick={addProject} title="Add project">
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2.2"
+						>
+							<line x1="12" y1="5" x2="12" y2="19" />
+							<line x1="5" y1="12" x2="19" y2="12" />
+						</svg>
+					</button>
 				</div>
+
+				{#if $projects.length === 0}
+					<button class="nav__emptyAdd" onclick={addProject}>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+						>
+							<path
+								d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+							/>
+							<line x1="12" y1="11" x2="12" y2="17" />
+							<line x1="9" y1="14" x2="15" y2="14" />
+						</svg>
+						Add your first project
+					</button>
+				{:else}
+					{#each $projects as { id, name }}
+						<div
+							class="nav__project"
+							class:nav__project--active={$menuActive === `project_${id}`}
+						>
+							<button
+								class="nav__projectBtn"
+								onclick={() => menuActive.set(`project_${id}`)}
+							>
+								<svg
+									class="nav__projectIcon"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.6"
+								>
+									<path
+										d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+									/>
+								</svg>
+								<span class="nav__projectName">{name}</span>
+							</button>
+							<button
+								class="nav__projectAction"
+								aria-label="Remove project"
+								onclick={() => removeProject(id)}
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.8"
+								>
+									<line x1="18" x2="6" y1="6" y2="18" />
+									<line x1="6" x2="18" y1="6" y2="18" />
+								</svg>
+							</button>
+						</div>
+					{/each}
+				{/if}
+			</section>
+		</div>
+	</SimpleBar>
+
+	{#if activePkgs.length > 0}
+		<div class="nav__pkgs">
+			<span class="nav__secLabel">Package Managers</span>
+			<div class="nav__pkgList">
+				{#each activePkgs as { key, label, Icon }}
+					<div class="nav__pkgRow">
+						<figure class="nav__pkgIcon"><Icon /></figure>
+						<span class="nav__pkgName">{label}</span>
+						<span class="nav__pkgVer">{packages[key]?.trim()}</span>
+					</div>
+				{/each}
 			</div>
 		</div>
-
-		<SimpleBar maxHeight={"calc(100vh - 168px)"}>
-			<div class="sidebar__scroll-content">
-				<section class="sidebarSection">
-					<h2 class="sidebarSection__label">Overview</h2>
-					<button
-						class:navCard--active={$menuActive === "installed-apps"}
-						class="navCard"
-						onclick={() => menuActive.set("installed-apps")}
-					>
-						<div>
-							<strong>Installed Apps</strong>
-							<span>Scan the full machine and watch for new releases.</span>
-						</div>
-						<small>System</small>
-					</button>
-				</section>
-
-				<section class="sidebarSection">
-					<div class="sidebarSection__heading">
-						<h2 class="sidebarSection__label">Projects</h2>
-						<button class="sidebarSection__link" onclick={addProject}>Add</button>
-					</div>
-
-					{#if $projects && $projects.length > 0}
-						{#each $projects as { id, name }}
-							<div
-								class="projectItem"
-								class:projectItem--active={$menuActive === `project_${id}`}
-							>
-								<button
-									class="projectItem__btn"
-									onclick={() => menuActive.set(`project_${id}`)}
-								>
-									<svg
-										class="projectItem__icon"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="1.5"
-										xmlns="http://www.w3.org/2000/svg"
-									>
-										<path
-											d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
-										/>
-									</svg>
-									<span class="projectItem__name">{name}</span>
-								</button>
-								<button
-									class="projectItem__remove"
-									aria-label="Remove project"
-									onclick={() => removeProject(id)}
-								>
-									<svg
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="1.8"
-										xmlns="http://www.w3.org/2000/svg"
-									>
-										<polyline points="3 6 5 6 21 6" />
-										<path
-											d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-										/>
-										<line x1="10" y1="11" x2="10" y2="17" />
-										<line x1="14" y1="11" x2="14" y2="17" />
-									</svg>
-								</button>
-								<button
-									class="projectItem__close"
-									aria-label="Close project"
-									onclick={() => closeProject(id)}
-								>
-									<svg
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										xmlns="http://www.w3.org/2000/svg"
-									>
-										<line x1="18" x2="6" y1="6" y2="18" />
-										<line x1="6" x2="18" y1="6" y2="18" />
-									</svg>
-								</button>
-							</div>
-						{/each}
-					{:else}
-						<p class="sidebarSection__empty">No projects yet</p>
-					{/if}
-				</section>
-			</div>
-		</SimpleBar>
-
-		<button class="sidebar__addBtn" onclick={addProject}>
-			<svg
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				xmlns="http://www.w3.org/2000/svg"
-			>
-				<line x1="12" y1="5" x2="12" y2="19" />
-				<line x1="5" y1="12" x2="19" y2="12" />
-			</svg>
-			Add Project
-		</button>
-	</div>
-
-	{#if packages.npm || packages.yarn || packages.pnpm || packages.composer || packages.swift || packages.cocoapods || packages.gradle || packages.flutter || packages.go || packages.cargo || packages.bundler}
-		<section class="sidebarSection sidebarSection--pkg">
-			<h2 class="sidebarSection__label">Package Managers</h2>
-			{#if packages.npm}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><NpmIcon /></figure>
-					<span class="pkgItem__name">npm</span>
-					<span class="pkgItem__badge">{packages.npm.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.yarn}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><YarnIcon /></figure>
-					<span class="pkgItem__name">yarn</span>
-					<span class="pkgItem__badge">{packages.yarn.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.pnpm}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><PnpmIcon /></figure>
-					<span class="pkgItem__name">pnpm</span>
-					<span class="pkgItem__badge">{packages.pnpm.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.composer}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><ComposerIcon /></figure>
-					<span class="pkgItem__name">composer</span>
-					<span class="pkgItem__badge">{packages.composer.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.swift}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><SwiftIcon /></figure>
-					<span class="pkgItem__name">swift</span>
-					<span class="pkgItem__badge">{packages.swift.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.cocoapods}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><CocoaPodsIcon /></figure>
-					<span class="pkgItem__name">cocoapods</span>
-					<span class="pkgItem__badge">{packages.cocoapods.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.gradle}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><GradleIcon /></figure>
-					<span class="pkgItem__name">gradle</span>
-					<span class="pkgItem__badge">{packages.gradle.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.flutter}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><FlutterIcon /></figure>
-					<span class="pkgItem__name">flutter</span>
-					<span class="pkgItem__badge">{packages.flutter.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.go}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><GoIcon /></figure>
-					<span class="pkgItem__name">go</span>
-					<span class="pkgItem__badge">{packages.go.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.cargo}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><RustIcon /></figure>
-					<span class="pkgItem__name">cargo</span>
-					<span class="pkgItem__badge">{packages.cargo.trim()}</span>
-				</div>
-			{/if}
-			{#if packages.bundler}
-				<div class="pkgItem">
-					<figure class="pkgItem__icon"><RubyIcon /></figure>
-					<span class="pkgItem__name">bundler</span>
-					<span class="pkgItem__badge">{packages.bundler.trim()}</span>
-				</div>
-			{/if}
-		</section>
 	{/if}
 </aside>
 
 <style lang="scss">
-	.sidebar {
-		width: 288px;
-		min-width: 288px;
+	.nav {
+		width: 232px;
+		min-width: 232px;
 		height: 100vh;
-		padding: 14px;
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		background:
-			linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04)),
-			radial-gradient(circle at top, rgba(120, 180, 255, 0.18), transparent 30%);
-		border-right: 1px solid rgba(255, 255, 255, 0.08);
+		// border-right: 1px solid var(--border-subtle);
+		background: rgba(0, 0, 0, 0.12);
+		overflow: hidden;
+		padding-right: 10px;
 	}
 
-	.sidebar__pane,
-	.sidebarSection--pkg {
-		background: rgba(255, 255, 255, 0.05);
-		backdrop-filter: var(--blur-amount, blur(18px));
-		-webkit-backdrop-filter: var(--blur-amount, blur(18px));
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 24px;
-	}
-
-	.sidebar__pane {
-		flex: 1;
-		min-height: 0;
-		padding: 8px;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.sidebar__titlebar {
-		height: 26px;
+	/* ── Drag area (macOS titlebar) ─────────── */
+	.nav__drag {
+		height: 44px;
+		flex-shrink: 0;
 		-webkit-app-region: drag;
 	}
 
-	.sidebar__header {
-		padding: 6px 10px 10px;
-	}
-
-	.sidebar__brand {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.sidebar__brandMark {
-		width: 38px;
-		height: 38px;
-		border-radius: 14px;
-		display: grid;
-		place-items: center;
-		font-size: 20px;
-		font-weight: 800;
-		background: linear-gradient(135deg, rgba(120, 180, 255, 0.9), rgba(88, 216, 194, 0.85));
-		color: #07131f;
-	}
-
-	.sidebar__brand span,
-	.sidebarSection__empty {
-		color: var(--text-secondary);
-	}
-
-	.sidebar__scroll-content {
-		padding: 6px;
+	/* ── Scrollable body ────────────────────── */
+	.nav__scroll {
 		display: flex;
 		flex-direction: column;
-		gap: 18px;
+		gap: 20px;
+		padding: 2px 10px 10px;
 	}
 
-	.sidebarSection__heading {
+	/* ── Section ────────────────────────────── */
+	.nav__section {
 		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 10px;
+		flex-direction: column;
+		gap: 2px;
 	}
 
-	.sidebarSection__label {
-		font-size: 11px;
+	.nav__secHeader {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 6px 6px;
+	}
+
+	.nav__secLabel {
+		font-size: 10px;
+		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.18em;
-		color: var(--text-secondary);
-		margin-bottom: 10px;
+		letter-spacing: 0.12em;
+		color: var(--text-muted);
 	}
 
-	.sidebarSection__link {
-		background: transparent;
-		border: 0;
-		color: #8fc4ff;
-		font-size: 12px;
-	}
-
-	.navCard,
-	.projectItem,
-	.pkgItem,
-	.sidebar__addBtn {
-		border-radius: 16px;
-	}
-
-	.navCard {
-		width: 100%;
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		background: rgba(255, 255, 255, 0.04);
-		padding: 14px;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		text-align: left;
-		color: var(--text-primary);
-	}
-
-	.navCard span,
-	.navCard small {
-		color: var(--text-secondary);
-	}
-
-	.navCard--active {
-		background: linear-gradient(180deg, rgba(120, 180, 255, 0.16), rgba(88, 216, 194, 0.12));
-		border-color: rgba(120, 180, 255, 0.26);
-	}
-
-	.projectItem {
+	.nav__secAdd {
+		width: 22px;
+		height: 22px;
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto auto;
-		align-items: center;
-		gap: 6px;
-		padding: 4px;
-		border: 1px solid transparent;
-	}
-
-	.projectItem--active {
-		background: rgba(120, 180, 255, 0.1);
-		border-color: rgba(120, 180, 255, 0.2);
-	}
-
-	.projectItem__btn,
-	.projectItem__remove,
-	.projectItem__close,
-	.sidebar__addBtn {
+		place-items: center;
+		border-radius: 6px;
 		border: 0;
 		background: transparent;
-		color: var(--text-primary);
+		color: var(--text-muted);
+		transition:
+			background var(--transition-fast),
+			color var(--transition-fast);
+
+		svg {
+			width: 12px;
+			height: 12px;
+		}
+
+		&:hover {
+			background: var(--glass-medium);
+			color: var(--text-primary);
+		}
 	}
 
-	.projectItem__btn {
-		padding: 10px 12px;
+	/* ── Nav item (Installed Apps) ──────────── */
+	.nav__item {
+		width: 100%;
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 9px;
+		padding: 8px 10px;
+		border-radius: var(--radius-md);
+		border: 1px solid transparent;
+		background: transparent;
+		color: var(--text-secondary);
+		font-size: 13px;
+		text-align: left;
+		transition:
+			background var(--transition-fast),
+			color var(--transition-fast),
+			border-color var(--transition-fast);
+
+		&:hover {
+			background: var(--glass-light);
+			color: var(--text-primary);
+		}
+
+		&--active {
+			background: var(--glass-medium);
+			border-color: var(--border-subtle);
+			color: var(--text-primary);
+		}
+	}
+
+	.nav__itemIcon {
+		width: 15px;
+		height: 15px;
+		flex-shrink: 0;
+		color: inherit;
+	}
+
+	.nav__itemBadge {
+		margin-left: auto;
+		font-size: 10px;
+		color: var(--text-muted);
+	}
+
+	/* ── Empty add ──────────────────────────── */
+	.nav__emptyAdd {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		padding: 10px;
+		border-radius: var(--radius-md);
+		border: 1px dashed var(--border-subtle);
+		background: transparent;
+		color: var(--text-muted);
+		font-size: 12px;
+		transition:
+			border-color var(--transition-fast),
+			color var(--transition-fast),
+			background var(--transition-fast);
+
+		svg {
+			width: 14px;
+			height: 14px;
+			flex-shrink: 0;
+		}
+
+		&:hover {
+			border-color: var(--border-light);
+			color: var(--text-secondary);
+			background: var(--glass-ultra);
+		}
+	}
+
+	/* ── Project row ────────────────────────── */
+	.nav__project {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		border-radius: var(--radius-md);
+		border: 1px solid transparent;
+		transition:
+			background var(--transition-fast),
+			border-color var(--transition-fast);
+
+		&:hover {
+			background: var(--glass-ultra);
+			.nav__projectAction {
+				opacity: 1;
+			}
+		}
+
+		&--active {
+			background: var(--glass-light);
+			border-color: var(--border-subtle);
+		}
+	}
+
+	.nav__projectBtn {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 7px 8px 7px 10px;
+		border: 0;
+		background: transparent;
+		color: var(--text-secondary);
+		font-size: 12px;
 		min-width: 0;
+		text-align: left;
+
+		.nav__project--active & {
+			color: var(--text-primary);
+		}
+		.nav__project:hover & {
+			color: var(--text-primary);
+		}
 	}
 
-	.projectItem__icon {
-		width: 16px;
-		height: 16px;
-		color: #9bd0ff;
-		flex: 0 0 auto;
+	.nav__projectIcon {
+		width: 13px;
+		height: 13px;
+		flex-shrink: 0;
+		color: var(--accent);
+		opacity: 0.7;
 	}
 
-	.projectItem__name {
+	.nav__projectName {
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.projectItem__remove,
-	.projectItem__close {
+	.nav__projectAction {
 		width: 28px;
 		height: 28px;
 		display: grid;
 		place-items: center;
-		color: var(--text-secondary);
+		border: 0;
+		background: transparent;
+		color: var(--text-muted);
+		opacity: 0;
+		transition:
+			opacity var(--transition-fast),
+			color var(--transition-fast);
+		flex-shrink: 0;
+
+		svg {
+			width: 12px;
+			height: 12px;
+		}
+
+		&:hover {
+			color: rgba(255, 100, 100, 0.85);
+			opacity: 1;
+		}
 	}
 
-	.sidebar__addBtn {
-		margin-top: 12px;
-		padding: 13px 16px;
-		background: rgba(255, 255, 255, 0.06);
+	/* ── Package Managers ───────────────────── */
+	.nav__pkgs {
+		flex-shrink: 0;
+		margin-top: auto;
+		padding: 12px 14px 16px;
+		border-top: 1px solid var(--border-subtle);
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 10px;
+		flex-direction: column;
+		gap: 8px;
 	}
 
-	.sidebarSection--pkg {
-		padding: 14px 12px;
+	.nav__pkgList {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
 	}
 
-	.pkgItem {
+	.nav__pkgRow {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 8px 10px;
-		background: rgba(255, 255, 255, 0.03);
-		margin-bottom: 6px;
+		padding: 5px 6px;
+		border-radius: var(--radius-sm);
+		transition: background var(--transition-fast);
+
+		&:hover {
+			background: var(--glass-ultra);
+		}
 	}
 
-	.pkgItem__icon {
-		width: 18px;
-		height: 18px;
+	.nav__pkgIcon {
+		width: 16px;
+		height: 16px;
 		display: grid;
 		place-items: center;
+		flex-shrink: 0;
 	}
 
-	.pkgItem__name {
+	.nav__pkgName {
 		flex: 1;
+		font-size: 12px;
+		color: var(--text-secondary);
 		min-width: 0;
 	}
 
-	.pkgItem__badge {
+	.nav__pkgVer {
 		font-size: 11px;
-		color: var(--text-secondary);
+		color: var(--text-muted);
+		font-variant-numeric: tabular-nums;
 	}
 </style>
