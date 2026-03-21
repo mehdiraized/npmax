@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.13.0] - 2026-03-21
+
+### ✨ Features
+
+- add macOS .app icon extraction and improve UI/UX ([acea36c](https://github.com/mehdiraized/npmax/commit/acea36c))
+- revamp landing page layout and roadmap ([6d9c557](https://github.com/mehdiraized/npmax/commit/6d9c557))
+
+### 📦 Other Changes
+
+- docs: replace landing cover with app screenshots ([d3738dc](https://github.com/mehdiraized/npmax/commit/d3738dc))
+
+---
+
 ## [2.12.1] - 2026-03-16
 
 ### 🐛 Bug Fixes
