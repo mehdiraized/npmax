@@ -268,6 +268,36 @@
   gap: 2px;
 }
 
+.nav__topActions.svelte-1gr7gr8 {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 6px 8px;
+}
+
+.nav__iconBtn.svelte-1gr7gr8 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--glass-ultra);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.nav__iconBtn.svelte-1gr7gr8 svg:where(.svelte-1gr7gr8) {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.nav__iconBtn.svelte-1gr7gr8:hover {
+  background: var(--glass-medium);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
 .nav__secHeader.svelte-1gr7gr8 {
   display: flex;
   align-items: center;
@@ -3379,7 +3409,6 @@
 }
 
 /* ── Token / Result banners ──────────────── */
-.token-banner.svelte-udvet3,
 .result-banner.svelte-udvet3 {
   flex-shrink: 0;
   display: flex;
@@ -3391,21 +3420,6 @@
   background: var(--glass-medium);
   font-size: 12px;
   color: var(--text-secondary);
-}
-
-.token-banner__label.svelte-udvet3 {
-  flex: 1;
-  min-width: 0;
-}
-
-.token-banner__input.svelte-udvet3 {
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: rgba(0, 0, 0, 0.25);
-  color: var(--text-primary);
-  font-size: 12px;
-  width: 220px;
 }
 
 /* ── Body / scroll ───────────────────────── */
@@ -3613,6 +3627,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tag--action.svelte-udvet3 {
+  border: 1px solid rgba(91, 156, 246, 0.28);
+  background: rgba(91, 156, 246, 0.16);
+  color: var(--accent-hover);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.tag--action.svelte-udvet3:hover {
+  background: rgba(91, 156, 246, 0.24);
+  border-color: rgba(91, 156, 246, 0.4);
 }
 
 .card__link.svelte-udvet3 {

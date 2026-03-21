@@ -7,8 +7,11 @@ const {
 	dialog,
 	ipcMain,
 	shell,
+	nativeImage,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const path = require("path");
+const fs = require("fs");
 const pkg = require("./package.json");
 
 let appIcon = null;
@@ -325,6 +328,23 @@ const buildAppMenu = () => {
 
 ipcMain.handle("get-file-icon", async (_event, filePath) => {
 	try {
+		if (process.platform === "darwin" && filePath?.endsWith(".app")) {
+			try {
+				const plistPath = path.join(filePath, "Contents", "Info.plist");
+				const raw = fs.readFileSync(plistPath, "utf-8");
+				// Extract CFBundleIconFile from XML plist
+				const match = raw.match(/<key>CFBundleIconFile<\/key>\s*<string>([^<]+)<\/string>/);
+				let iconName = (match?.[1] || "AppIcon").trim();
+				if (!iconName.endsWith(".icns")) iconName += ".icns";
+				const icnsPath = path.join(filePath, "Contents", "Resources", iconName);
+				const img = nativeImage.createFromPath(icnsPath);
+				if (!img.isEmpty()) {
+					return img.resize({ width: 32, height: 32 }).toDataURL();
+				}
+			} catch {
+				// fall through to default
+			}
+		}
 		const icon = await app.getFileIcon(filePath, { size: "normal" });
 		return icon.toDataURL();
 	} catch {

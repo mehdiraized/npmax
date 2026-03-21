@@ -1,6 +1,7 @@
-<script>
-	import { onDestroy, onMount } from "svelte";
-	import SimpleBar from "../components/SimpleBar.svelte";
+	<script>
+		import { onDestroy, onMount } from "svelte";
+		import { shell } from "electron";
+		import SimpleBar from "../components/SimpleBar.svelte";
 	import { projects, menuActive } from "../store";
 	import { globalPackages, openDirectory } from "../utils/shell.js";
 	import { isJson } from "../utils/index.js";
@@ -89,6 +90,39 @@
 		menuActive.set("installed-apps");
 		localStorage.setItem("projects", JSON.stringify(filtered));
 	}
+
+	function openBugReport() {
+		const params = new URLSearchParams({
+			title: "[Bug Report] ",
+			body: [
+				"## Summary",
+				"Describe the problem clearly.",
+				"",
+				"## Steps to reproduce",
+				"1.",
+				"2.",
+				"3.",
+				"",
+				"## Expected result",
+				"",
+				"## Actual result",
+				"",
+				"## Environment",
+				`- Platform: ${navigator.platform || "Unknown"}`,
+				`- User agent: ${navigator.userAgent || "Unknown"}`,
+				"",
+				"## Additional context",
+				"",
+				"---",
+				"*Opened from npMax sidebar report shortcut*",
+			].join("\n"),
+			labels: "bug",
+		});
+
+		void shell.openExternal(
+			`https://github.com/mehdiraized/npmax/issues/new?${params.toString()}`,
+		);
+	}
 </script>
 
 <aside class="nav">
@@ -96,6 +130,31 @@
 
 	<SimpleBar maxHeight={"calc(100vh - 100px)"}>
 		<div class="nav__scroll">
+			<section class="nav__section">
+				<div class="nav__topActions">
+					<button
+						class="nav__iconBtn"
+						onclick={openBugReport}
+						title="Report an issue on GitHub"
+						aria-label="Report an issue on GitHub"
+					>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+						>
+							<path d="M12 9v4" />
+							<path d="M12 17h.01" />
+							<path
+								d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+							/>
+						</svg>
+						<span>Report</span>
+					</button>
+				</div>
+			</section>
+
 			<section class="nav__section">
 				<button
 					class="nav__item"
@@ -244,6 +303,41 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
+	}
+
+	.nav__topActions {
+		display: flex;
+		justify-content: flex-end;
+		padding: 0 6px 8px;
+	}
+
+	.nav__iconBtn {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		padding: 6px 9px;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--border-subtle);
+		background: var(--glass-ultra);
+		color: var(--text-muted);
+		font-size: 11px;
+		font-weight: 600;
+		transition:
+			background var(--transition-fast),
+			color var(--transition-fast),
+			border-color var(--transition-fast);
+
+		svg {
+			width: 13px;
+			height: 13px;
+			flex-shrink: 0;
+		}
+
+		&:hover {
+			background: var(--glass-medium);
+			border-color: var(--border-light);
+			color: var(--text-primary);
+		}
 	}
 
 	.nav__secHeader {

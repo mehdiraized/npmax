@@ -438,6 +438,7 @@
 			.faq-grid {
 				display: grid;
 				gap: 22px;
+				align-items: start;
 			}
 
 			.screenshot-grid {
@@ -445,6 +446,9 @@
 			}
 
 			.screenshot-card {
+				display: flex;
+				flex-direction: column;
+				height: 100%;
 				padding: 18px;
 				border-radius: 26px;
 				border: 1px solid var(--surface-border);
@@ -481,6 +485,9 @@
 			}
 
 			.feature-card {
+				display: flex;
+				flex-direction: column;
+				height: 100%;
 				padding: 28px;
 				border-radius: 28px;
 				border: 1px solid var(--surface-border);
@@ -547,6 +554,9 @@
 			.workflow-step,
 			.download-card,
 			.faq-card {
+				display: flex;
+				flex-direction: column;
+				height: 100%;
 				padding: 30px;
 				border-radius: 28px;
 				border: 1px solid var(--surface-border);
@@ -807,6 +817,10 @@
 				display: none;
 			}
 
+			html.sr body.has-animations .is-revealing {
+				visibility: visible;
+			}
+
 			.lights-off .asset-light {
 				display: none;
 			}
@@ -843,7 +857,6 @@
 
 			@media (max-width: 920px) {
 				.hero-points,
-				.hero-meta,
 				.hero-float-grid,
 				.feature-grid,
 				.screenshot-grid,
@@ -853,6 +866,10 @@
 				.faq-grid,
 				.community-shell {
 					grid-template-columns: 1fr;
+				}
+
+				.hero-meta {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
 				}
 
 				.screenshots-shell,
@@ -918,11 +935,77 @@
 					justify-content: center;
 				}
 			}
+
+			@media (max-width: 560px) {
+				.section {
+					padding-bottom: 18px;
+				}
+
+				.section-heading {
+					margin-bottom: 20px;
+				}
+
+				.section-title {
+					font-size: 34px;
+				}
+
+				.section-paragraph {
+					font-size: 16px;
+					line-height: 1.62;
+				}
+
+				.hero-title {
+					font-size: 42px;
+					line-height: 0.96;
+				}
+
+				.hero-points,
+				.hero-float-grid,
+				.hero-meta {
+					grid-template-columns: 1fr;
+				}
+
+				.hero-points li,
+				.hero-stat,
+				.hero-float-card,
+				.screenshot-card,
+				.feature-card,
+				.roadmap-card,
+				.workflow-step,
+				.download-card,
+				.faq-card,
+				.community-panel {
+					padding: 22px;
+				}
+
+				.screenshots-shell,
+				.features-shell,
+				.workflow-shell,
+				.downloads-shell,
+				.community-shell,
+				.faq-shell,
+				.roadmap-shell {
+					padding: 28px 18px;
+					border-radius: 24px;
+				}
+
+				.screenshot-card h3,
+				.workflow-step h3,
+				.download-card h3,
+				.faq-card h3,
+				.feature-card h3 {
+					font-size: 22px;
+				}
+
+				.site-footer-inner {
+					padding-bottom: 28px;
+				}
+			}
 		</style>
 		<script src="https://unpkg.com/scrollreveal@4.0.0/dist/scrollreveal.min.js"></script>
 	</head>
 
-	<body class="is-boxed has-animations">
+	<body class="is-boxed">
 		<div class="body-wrap boxed-container">
 			<header class="site-header">
 				<div class="container">
