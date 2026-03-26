@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.14.0] - 2026-03-26
+
+### ✨ Features
+
+- replace inline SVG icons with external files and improve project detection ([20ebad3](https://github.com/mehdiraized/npmax/commit/20ebad3))
+
+---
+
 ## [2.13.0] - 2026-03-21
 
 ### ✨ Features
