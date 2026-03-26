@@ -826,22 +826,30 @@
 	}
 
 	.card__icon {
-		width: 36px;
-		height: 36px;
-		border-radius: var(--radius-md);
-		background: var(--glass-medium);
+		width: 48px;
+		height: 48px;
+		border-radius: 14px;
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 247, 252, 0.92));
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.68),
+			0 10px 20px rgba(0, 0, 0, 0.14);
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
 		overflow: hidden;
 
 		img {
-			width: 32px;
-			height: 32px;
-			border-radius: 6px;
+			width: 100%;
+			height: 100%;
+			object-fit: contain;
+			padding: 3px;
 		}
 		svg {
-			color: var(--text-muted);
+			width: 22px;
+			height: 22px;
+			color: rgba(34, 40, 48, 0.55);
 		}
 	}
 

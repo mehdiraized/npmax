@@ -167,6 +167,10 @@
 			`https://github.com/mehdiraized/npmax/issues/new?${params.toString()}`,
 		);
 	}
+
+	function openSettings() {
+		window.dispatchEvent(new CustomEvent("npmax:open-settings"));
+	}
 </script>
 
 <aside class="nav">
@@ -179,6 +183,25 @@
 						onclick={openBugReport}
 						title="Report an issue on GitHub"
 						aria-label="Report an issue on GitHub"
+						>
+							<svg
+								viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+						>
+							<path d="M12 9v4" />
+							<path d="M12 17h.01" />
+								<path
+									d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+								/>
+							</svg>
+						</button>
+						<button
+							class="nav__iconBtn"
+						onclick={openSettings}
+						title="Open application settings"
+						aria-label="Open application settings"
 					>
 						<svg
 							viewBox="0 0 24 24"
@@ -186,16 +209,14 @@
 							stroke="currentColor"
 							stroke-width="1.8"
 						>
-							<path d="M12 9v4" />
-							<path d="M12 17h.01" />
-							<path
-								d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
-							/>
-						</svg>
-						<span>Report</span>
-					</button>
-				</div>
-			</section>
+							<circle cx="12" cy="12" r="3.2" />
+								<path
+									d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01A1.65 1.65 0 0 0 20.91 10H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+								/>
+							</svg>
+						</button>
+					</div>
+				</section>
 
 			<section class="nav__section">
 				<button
@@ -351,35 +372,37 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-start;
+		gap: 6px;
 		min-height: 32px;
-		padding: 2px 6px 4px 72px;
+		padding: 2px 6px 4px 74px;
 		-webkit-app-region: drag;
 	}
 
 	.nav__iconBtn {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		padding: 6px 9px;
-		border-radius: var(--radius-md);
+		width: 28px;
+		height: 28px;
+		display: inline-grid;
+		place-items: center;
+		padding: 0;
+		border-radius: 999px;
 		border: 1px solid var(--border-subtle);
 		background: var(--glass-ultra);
 		color: var(--text-muted);
-		font-size: 11px;
-		font-weight: 600;
 		-webkit-app-region: no-drag;
 		transition:
+			transform var(--transition-fast),
 			background var(--transition-fast),
 			color var(--transition-fast),
 			border-color var(--transition-fast);
 
 		svg {
-			width: 13px;
-			height: 13px;
+			width: 14px;
+			height: 14px;
 			flex-shrink: 0;
 		}
 
 		&:hover {
+			transform: translateY(-1px);
 			background: var(--glass-medium);
 			border-color: var(--border-light);
 			color: var(--text-primary);
@@ -604,40 +627,50 @@
 	.nav__pkgList {
 		display: flex;
 		flex-direction: column;
-		gap: 1px;
+		gap: 3px;
 	}
 
 	.nav__pkgRow {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 5px 6px;
-		border-radius: var(--radius-sm);
-		transition: background var(--transition-fast);
+		gap: 10px;
+		padding: 6px 8px;
+		border-radius: 12px;
+		transition:
+			background var(--transition-fast),
+			border-color var(--transition-fast);
+		border: 1px solid transparent;
 
 		&:hover {
-			background: var(--glass-ultra);
+			background: rgba(255, 255, 255, 0.04);
+			border-color: rgba(255, 255, 255, 0.05);
 		}
 	}
 
 	.nav__pkgIcon {
-		width: 16px;
-		height: 16px;
+		width: 24px;
+		height: 24px;
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
+		padding: 3px;
+		border-radius: 8px;
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 	}
 
 	.nav__pkgName {
 		flex: 1;
-		font-size: 12px;
-		color: var(--text-secondary);
+		font-size: 12.5px;
+		color: rgba(255, 255, 255, 0.82);
 		min-width: 0;
 	}
 
 	.nav__pkgVer {
-		font-size: 11px;
-		color: var(--text-muted);
+		font-size: 11.5px;
+		color: rgba(255, 255, 255, 0.54);
 		font-variant-numeric: tabular-nums;
 	}
 </style>

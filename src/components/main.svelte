@@ -262,11 +262,16 @@
 		settingsOpen = false;
 	}
 
+	function handleOpenSettings() {
+		openSettings();
+	}
+
 	onMount(() => {
 		window.addEventListener(
 			"npmax:reload-current-project",
 			reloadCurrentProject,
 		);
+		window.addEventListener("npmax:open-settings", handleOpenSettings);
 	});
 
 	onDestroy(() => {
@@ -274,25 +279,11 @@
 			"npmax:reload-current-project",
 			reloadCurrentProject,
 		);
+		window.removeEventListener("npmax:open-settings", handleOpenSettings);
 	});
 </script>
 
 <div class="content">
-	<button class="content__settingsBtn" onclick={openSettings} aria-label="Open settings">
-		<svg
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.7"
-		>
-			<circle cx="12" cy="12" r="3.2" />
-			<path
-				d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01A1.65 1.65 0 0 0 20.91 10H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
-			/>
-		</svg>
-		<span>Settings</span>
-	</button>
-
 	{#if showingInstalledApps}
 		<InstalledAppsView />
 	{:else}
@@ -462,42 +453,6 @@
 		border-radius: 20px;
 		background: #181818;
 		margin-left: -10px;
-	}
-
-	.content__settingsBtn {
-		position: absolute;
-		top: 18px;
-		right: 20px;
-		z-index: 20;
-		display: inline-flex;
-		align-items: center;
-		gap: 10px;
-		padding: 11px 14px;
-		border-radius: 15px;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		background:
-			linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
-		backdrop-filter: blur(14px);
-		-webkit-backdrop-filter: blur(14px);
-		color: var(--text-primary);
-		font-weight: 700;
-		box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
-		transition:
-			transform 160ms ease,
-			background 160ms ease,
-			border-color 160ms ease;
-
-		svg {
-			width: 16px;
-			height: 16px;
-		}
-
-		&:hover {
-			transform: translateY(-1px);
-			background:
-				linear-gradient(180deg, rgba(120, 180, 255, 0.18), rgba(88, 216, 194, 0.08));
-			border-color: rgba(120, 180, 255, 0.22);
-		}
 	}
 
 	.project-shell {
@@ -724,25 +679,12 @@
 	}
 
 	@media (max-width: 1100px) {
-		.content__settingsBtn {
-			top: 14px;
-			right: 14px;
-		}
-
 		.empty__content {
 			grid-template-columns: 1fr;
 		}
 	}
 
 	@media (max-width: 700px) {
-		.content__settingsBtn {
-			padding: 10px 12px;
-
-			span {
-				display: none;
-			}
-		}
-
 		.empty {
 			padding: 14px;
 		}

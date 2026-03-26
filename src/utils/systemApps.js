@@ -111,6 +111,9 @@ const buildAppRecord = (data) => {
 	};
 };
 
+const shouldMarkAsOutdated = (installedVersion, latestVersion) =>
+	resolveVersionStatus(installedVersion, latestVersion) === "outdated";
+
 const getMacApps = async () => {
 	const raw = await tryExec("system_profiler SPApplicationsDataType -json");
 	if (!raw) return [];
@@ -363,11 +366,13 @@ const enrichMacApps = async (apps) => {
 		}
 		if (brewOutdated?.latestVersion) {
 			app.latestVersion = brewOutdated.latestVersion;
-			app.updateAvailable = true;
-			app.updateSource = "brew";
-			app.updateConfidence = "verified";
-			app.status = "outdated";
-			app.updateCommand = `brew upgrade --cask ${token}`;
+			if (shouldMarkAsOutdated(app.version || brewOutdated.installedVersion, brewOutdated.latestVersion)) {
+				app.updateAvailable = true;
+				app.updateSource = "brew";
+				app.updateConfidence = "verified";
+				app.status = "outdated";
+				app.updateCommand = `brew upgrade --cask ${token}`;
+			}
 		}
 		return app;
 	});
@@ -396,11 +401,13 @@ const enrichWindowsApps = async (apps) => {
 		}
 		if (match?.latestVersion) {
 			app.latestVersion = match.latestVersion;
-			app.updateAvailable = true;
-			app.updateSource = "winget";
-			app.updateConfidence = "verified";
-			app.status = "outdated";
-			app.updateCommand = `winget upgrade --id "${match.sourceId || app.name}"`;
+			if (shouldMarkAsOutdated(app.version || match.version, match.latestVersion)) {
+				app.updateAvailable = true;
+				app.updateSource = "winget";
+				app.updateConfidence = "verified";
+				app.status = "outdated";
+				app.updateCommand = `winget upgrade --id "${match.sourceId || app.name}"`;
+			}
 		}
 		return app;
 	});
@@ -424,21 +431,25 @@ const enrichLinuxApps = async (apps) => {
 
 		if (flatpakMatch?.latestVersion) {
 			app.latestVersion = flatpakMatch.latestVersion;
-			app.updateAvailable = true;
-			app.updateSource = "flatpak";
-			app.updateConfidence = "verified";
-			app.status = "outdated";
-			app.updateCommand = `flatpak update ${flatpakMatch.sourceId || ""}`.trim();
+			if (shouldMarkAsOutdated(app.version, flatpakMatch.latestVersion)) {
+				app.updateAvailable = true;
+				app.updateSource = "flatpak";
+				app.updateConfidence = "verified";
+				app.status = "outdated";
+				app.updateCommand = `flatpak update ${flatpakMatch.sourceId || ""}`.trim();
+			}
 			return app;
 		}
 
 		if (snapMatch?.latestVersion) {
 			app.latestVersion = snapMatch.latestVersion;
-			app.updateAvailable = true;
-			app.updateSource = "snap";
-			app.updateConfidence = "verified";
-			app.status = "outdated";
-			app.updateCommand = `snap refresh ${platformInfo.snapName || app.sourceId || app.name}`;
+			if (shouldMarkAsOutdated(app.version, snapMatch.latestVersion)) {
+				app.updateAvailable = true;
+				app.updateSource = "snap";
+				app.updateConfidence = "verified";
+				app.status = "outdated";
+				app.updateCommand = `snap refresh ${platformInfo.snapName || app.sourceId || app.name}`;
+			}
 		}
 
 		return app;
