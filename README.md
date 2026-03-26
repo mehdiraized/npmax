@@ -14,26 +14,26 @@ Support the project and help fund `npMax Pro`:
 
 **[Donate via Buy Me a Coffee](https://buymeacoffee.com/farobox)**
 
-## Download npMax v2.14.0
+## Download npMax v2.15.0
 
 ### macOS
-**[Download for macOS Apple Silicon (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npMax-2.14.0-arm64.dmg)**
+**[Download for macOS Apple Silicon (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npMax-2.15.0-arm64.dmg)**
 
-**[Download for macOS Intel (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npMax-2.14.0.dmg)**
+**[Download for macOS Intel (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npMax-2.15.0.dmg)**
 
 ### Windows
-**[Download Installer for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npMax.Setup.2.14.0.exe)**
+**[Download Installer for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npMax.Setup.2.15.0.exe)**
 
-**[Download Portable for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npMax.2.14.0.exe)**
+**[Download Portable for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npMax.2.15.0.exe)**
 
 ### Linux
-**[Download AppImage (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npMax-2.14.0.AppImage)**
+**[Download AppImage (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npMax-2.15.0.AppImage)**
 
-**[Download AppImage (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npMax-2.14.0-arm64.AppImage)**
+**[Download AppImage (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npMax-2.15.0-arm64.AppImage)**
 
-**[Download .deb (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npmax_2.14.0_amd64.deb)**
+**[Download .deb (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npmax_2.15.0_amd64.deb)**
 
-**[Download .deb (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.14.0/npmax_2.14.0_arm64.deb)**
+**[Download .deb (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.15.0/npmax_2.15.0_arm64.deb)**
 
 [All Releases](https://github.com/mehdiraized/npmax/releases/)
 

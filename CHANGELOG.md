@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.15.0] - 2026-03-26
+
+### ✨ Features
+
+- add settings button and functionality to main component ([b9e8fdd](https://github.com/mehdiraized/npmax/commit/b9e8fdd))
+
+### 📦 Other Changes
+
+- Merge pull request #82 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-66413a1f6e ([1770e11](https://github.com/mehdiraized/npmax/commit/1770e11))
+- build(deps-dev): bump picomatch ([9a7a522](https://github.com/mehdiraized/npmax/commit/9a7a522))
+
+---
+
 ## [2.14.0] - 2026-03-26
 
 ### ✨ Features
