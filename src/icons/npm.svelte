@@ -1,4 +1,4 @@
-<img class="icon" src="/package-manager-icons/npm.svg" alt="" aria-hidden="true" />
+<img class="icon" src="./package-manager-icons/npm.svg" alt="" aria-hidden="true" />
 
 <style>
 	.icon {

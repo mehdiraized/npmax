@@ -79,7 +79,6 @@
 		}
 		if (
 			$menuActive !== "installed-apps" &&
-			$menuActive !== "settings" &&
 			!storedProjects.some(({ id }) => `project_${id}` === $menuActive)
 		) {
 			menuActive.set("installed-apps");
@@ -171,8 +170,6 @@
 </script>
 
 <aside class="nav">
-	<div class="nav__drag"></div>
-
 	<SimpleBar maxHeight={"calc(100vh - 100px)"}>
 		<div class="nav__scroll">
 			<section class="nav__section">
@@ -221,26 +218,6 @@
 					<span class="nav__itemBadge">System</span>
 				</button>
 
-				<button
-					class="nav__item"
-					class:nav__item--active={$menuActive === "settings"}
-					onclick={() => menuActive.set("settings")}
-				>
-					<svg
-						class="nav__itemIcon"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.6"
-					>
-						<circle cx="12" cy="12" r="3" />
-						<path
-							d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01A1.65 1.65 0 0 0 20.91 10H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
-						/>
-					</svg>
-					<span>Settings</span>
-					<span class="nav__itemBadge">App</span>
-				</button>
 			</section>
 
 			<section class="nav__section">
@@ -355,13 +332,6 @@
 		padding-right: 10px;
 	}
 
-	/* ── Drag area (macOS titlebar) ─────────── */
-	.nav__drag {
-		height: 32px;
-		flex-shrink: 0;
-		-webkit-app-region: drag;
-	}
-
 	/* ── Scrollable body ────────────────────── */
 	.nav__scroll {
 		display: flex;
@@ -379,8 +349,11 @@
 
 	.nav__topActions {
 		display: flex;
-		justify-content: flex-end;
-		padding: 0 6px 4px;
+		align-items: center;
+		justify-content: flex-start;
+		min-height: 32px;
+		padding: 2px 6px 4px 72px;
+		-webkit-app-region: drag;
 	}
 
 	.nav__iconBtn {
@@ -394,6 +367,7 @@
 		color: var(--text-muted);
 		font-size: 11px;
 		font-weight: 600;
+		-webkit-app-region: no-drag;
 		transition:
 			background var(--transition-fast),
 			color var(--transition-fast),

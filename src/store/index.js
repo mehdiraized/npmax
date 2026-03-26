@@ -19,6 +19,7 @@ const getStoredProjects = () => {
 const getStoredMenuActive = () => {
 	if (typeof window === "undefined") return "installed-apps";
 	const stored = localStorage.getItem("menuActive");
+	if (stored === "settings") return "installed-apps";
 	return stored && typeof stored === "string" ? stored : "installed-apps";
 };
 
