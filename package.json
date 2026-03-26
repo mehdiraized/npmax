@@ -1,7 +1,7 @@
 {
 	"name": "npmax",
 	"description": "Cross-platform dependency and installed app update manager",
-	"version": "2.15.0",
+	"version": "2.16.0",
 	"main": "index.js",
 	"license": "MIT",
 	"homepage": "https://mehdiraized.github.io/npmax/",

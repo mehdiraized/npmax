@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.16.0] - 2026-03-26
+
+### ✨ Features
+
+- refine desktop UI and fix landing windows icon ([51c4253](https://github.com/mehdiraized/npmax/commit/51c4253))
+- redesign landing page with modern dark theme and animations ([34d54db](https://github.com/mehdiraized/npmax/commit/34d54db))
+
+---
+
 ## [2.15.0] - 2026-03-26
 
 ### ✨ Features
