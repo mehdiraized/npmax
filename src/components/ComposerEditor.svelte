@@ -284,15 +284,6 @@
 							>{#if getStatus(name, ver) === "loading"}<span
 									class="badge badge--loading"
 									><span class="spin-sm"></span></span
-								>{:else if getStatus(name, ver) === "ok"}<span
-									class="badge badge--ok"
-									><svg
-										viewBox="0 0 16 16"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2.2"
-										><polyline points="13 4 6.5 11 3 7.5" /></svg
-									>{getLatest(name)}</span
 								>{:else if getStatus(name, ver) === "update"}<button
 									class="badge badge--update"
 									onclick={() => handleUpdate(name, getLatest(name), false)}
@@ -366,15 +357,6 @@
 							>{#if getStatus(name, ver) === "loading"}<span
 									class="badge badge--loading"
 									><span class="spin-sm"></span></span
-								>{:else if getStatus(name, ver) === "ok"}<span
-									class="badge badge--ok"
-									><svg
-										viewBox="0 0 16 16"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2.2"
-										><polyline points="13 4 6.5 11 3 7.5" /></svg
-									>{getLatest(name)}</span
 								>{:else if getStatus(name, ver) === "update"}<button
 									class="badge badge--update"
 									onclick={() => handleUpdate(name, getLatest(name), true)}
@@ -624,16 +606,6 @@
 		font-size: 11px;
 		font-weight: 500;
 
-		svg {
-			width: 11px;
-			height: 11px;
-		}
-	}
-
-	.badge--ok {
-		color: rgba(52, 199, 89, 0.85);
-		background: rgba(52, 199, 89, 0.1);
-		border: 1px solid rgba(52, 199, 89, 0.18);
 	}
 
 	.badge--update {

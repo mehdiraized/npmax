@@ -1,6 +1,10 @@
-<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-	<path
-		d="M17.8 18.5c1.5-1.1 2.4-2.9 2.4-5 0-4.1-3.5-8.8-8.1-11.5 1.2 1.8 1.9 3.3 2.1 4.5-2.3-1.8-5.2-3.5-8.2-4.7 2.4 2.1 4.5 4.3 6 6.3-1.6-1-3.7-2-5.9-2.7 2.7 2.2 5.3 4.6 7 6.7-1.1.7-2.4 1.1-3.9 1.1-1.3 0-2.5-.3-3.6-.8 1.6 2 4 3.3 6.7 3.3 1.5 0 2.9-.4 4.2-1.1.7.5 1.3 1.3 1.8 2.3l1.5-1.4Z"
-		fill="currentColor"
-	/>
-</svg>
+<img class="icon" src="/package-manager-icons/swift.svg" alt="" aria-hidden="true" />
+
+<style>
+	.icon {
+		width: 100%;
+		height: 100%;
+		display: block;
+		object-fit: contain;
+	}
+</style>

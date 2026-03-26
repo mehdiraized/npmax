@@ -10,6 +10,10 @@ The open source desktop workspace for project dependencies and installed app upd
 
 Runs on Linux, macOS and Windows.
 
+Support the project and help fund `npMax Pro`:
+
+**[Donate via Buy Me a Coffee](https://buymeacoffee.com/farobox)**
+
 ## Download npMax v2.13.0
 
 ### macOS
@@ -137,6 +141,7 @@ Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting a Pull
 For additional help, you can use one of these channels to ask a question:
 
 - [GitHub](https://github.com/mehdiraized/npmax) (Bug reports, Contributions)
+- [Buy Me a Coffee](https://buymeacoffee.com/farobox) (Support development and help fund npMax Pro)
 - [Twitter](https://twitter.com/npMax_app) (Get the news fast)
 - [Telegram](https://t.me/npmax_app)
 

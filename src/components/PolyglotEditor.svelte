@@ -210,8 +210,6 @@
 						<span class="pkg-status">
 							{#if getStatus(dependency) === "loading"}
 								<span class="badge badge--loading"><span class="spin-sm"></span></span>
-							{:else if getStatus(dependency) === "ok"}
-								<span class="badge badge--ok">{getLatest(dependency)}</span>
 							{:else if getStatus(dependency) === "update"}
 								<button class="badge badge--update" onclick={() => handleUpdate(dependency)}>
 									↑ {getLatest(dependency)}
@@ -370,11 +368,6 @@
 		height: 19px;
 		padding: 1px 7px;
 		font-weight: 500;
-	}
-	.badge--ok {
-		color: rgba(52, 199, 89, 0.85);
-		background: rgba(52, 199, 89, 0.1);
-		border: 1px solid rgba(52, 199, 89, 0.18);
 	}
 	.badge--update {
 		color: rgba(41, 182, 246, 0.95);

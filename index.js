@@ -12,6 +12,8 @@ const {
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
+const { execFileSync } = require("child_process");
 const pkg = require("./package.json");
 
 let appIcon = null;
@@ -19,6 +21,7 @@ let window = null;
 let updateDownloadInProgress = false;
 let isQuitting = false;
 let manualUpdateCheckInProgress = false;
+const iconDataUrlCache = new Map();
 
 const APP_NAME = pkg.build?.productName || "npMax";
 const APP_VERSION = app.getVersion();
@@ -54,6 +57,84 @@ const openExternalUrl = async (url) => {
 		await shell.openExternal(url);
 	} catch (err) {
 		console.error(`Failed to open external URL (${url}):`, err);
+	}
+};
+
+const findMacAppIconPath = (appPath) => {
+	try {
+		const resolvedPath = fs.realpathSync(appPath);
+		const infoPlistPath = path.join(resolvedPath, "Contents", "Info.plist");
+		const resourcesPath = path.join(resolvedPath, "Contents", "Resources");
+
+		let iconName = null;
+		try {
+			const raw = execFileSync(
+				"/usr/bin/plutil",
+				["-convert", "json", "-o", "-", infoPlistPath],
+				{ encoding: "utf8" },
+			);
+			const parsed = JSON.parse(raw);
+			iconName =
+				parsed?.CFBundleIconFile ||
+				parsed?.CFBundleIconName ||
+				parsed?.CFBundleIcons?.CFBundlePrimaryIcon?.CFBundleIconFiles?.at?.(-1) ||
+				null;
+		} catch {
+			// Fall back to scanning Resources for .icns files below.
+		}
+
+		const candidates = [];
+		if (iconName) {
+			candidates.push(iconName);
+			if (!iconName.endsWith(".icns")) candidates.push(`${iconName}.icns`);
+		}
+
+		if (fs.existsSync(resourcesPath)) {
+			for (const entry of fs.readdirSync(resourcesPath)) {
+				if (entry.toLowerCase().endsWith(".icns")) {
+					candidates.push(entry);
+				}
+			}
+		}
+
+		for (const candidate of candidates) {
+			const iconPath = path.join(resourcesPath, candidate);
+			if (fs.existsSync(iconPath)) return iconPath;
+		}
+	} catch {
+		// Ignore and let the caller use fallbacks.
+	}
+
+	return null;
+};
+
+const convertMacIcnsToDataUrl = (iconPath) => {
+	if (!iconPath) return null;
+	const cacheKey = `icns:${iconPath}`;
+	if (iconDataUrlCache.has(cacheKey)) return iconDataUrlCache.get(cacheKey);
+
+	let tempDir = null;
+	try {
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "npmax-icon-"));
+		const pngPath = path.join(tempDir, "icon.png");
+		execFileSync("/usr/bin/sips", ["-s", "format", "png", iconPath, "--out", pngPath], {
+			stdio: "ignore",
+		});
+		const image = nativeImage.createFromPath(pngPath);
+		if (image.isEmpty()) return null;
+		const dataUrl = image.resize({ width: 32, height: 32 }).toDataURL();
+		iconDataUrlCache.set(cacheKey, dataUrl);
+		return dataUrl;
+	} catch {
+		return null;
+	} finally {
+		if (tempDir) {
+			try {
+				fs.rmSync(tempDir, { recursive: true, force: true });
+			} catch {
+				// Best-effort cleanup.
+			}
+		}
 	}
 };
 
@@ -327,26 +408,26 @@ const buildAppMenu = () => {
 };
 
 ipcMain.handle("get-file-icon", async (_event, filePath) => {
+	if (!filePath) return null;
+
 	try {
-		if (process.platform === "darwin" && filePath?.endsWith(".app")) {
-			try {
-				const plistPath = path.join(filePath, "Contents", "Info.plist");
-				const raw = fs.readFileSync(plistPath, "utf-8");
-				// Extract CFBundleIconFile from XML plist
-				const match = raw.match(/<key>CFBundleIconFile<\/key>\s*<string>([^<]+)<\/string>/);
-				let iconName = (match?.[1] || "AppIcon").trim();
-				if (!iconName.endsWith(".icns")) iconName += ".icns";
-				const icnsPath = path.join(filePath, "Contents", "Resources", iconName);
-				const img = nativeImage.createFromPath(icnsPath);
-				if (!img.isEmpty()) {
-					return img.resize({ width: 32, height: 32 }).toDataURL();
-				}
-			} catch {
-				// fall through to default
+		const resolvedPath = fs.realpathSync(filePath);
+		const cacheKey = `file:${resolvedPath}`;
+		if (iconDataUrlCache.has(cacheKey)) return iconDataUrlCache.get(cacheKey);
+
+		if (process.platform === "darwin" && resolvedPath.endsWith(".app")) {
+			const iconDataUrl = convertMacIcnsToDataUrl(findMacAppIconPath(resolvedPath));
+			if (iconDataUrl) {
+				iconDataUrlCache.set(cacheKey, iconDataUrl);
+				return iconDataUrl;
 			}
 		}
-		const icon = await app.getFileIcon(filePath, { size: "normal" });
-		return icon.toDataURL();
+
+		const icon = await app.getFileIcon(resolvedPath, { size: "normal" });
+		if (icon.isEmpty()) return null;
+		const dataUrl = icon.toDataURL();
+		iconDataUrlCache.set(cacheKey, dataUrl);
+		return dataUrl;
 	} catch {
 		return null;
 	}
@@ -358,6 +439,19 @@ ipcMain.handle("show-open-dialog", async () => {
 	});
 	return result.filePaths;
 });
+
+ipcMain.handle("get-app-info", () => ({
+	name: APP_NAME,
+	version: APP_VERSION,
+	description: pkg.description || "",
+	homepage: pkg.homepage || "",
+	repositoryUrl: REPOSITORY_URL,
+	releasesUrl: RELEASES_URL,
+	issuesUrl: ISSUES_URL,
+	platform: `${process.platform} ${process.arch}`,
+	electronVersion: process.versions.electron || "",
+	nodeVersion: process.versions.node || "",
+}));
 
 ipcMain.on("download-update", async () => {
 	if (isMacManualUpdateOnly) {

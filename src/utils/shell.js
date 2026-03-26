@@ -116,6 +116,15 @@ const findFileRecursive = (rootPath, targetName, depth = 4) => {
 	return null;
 };
 
+const fileExists = (targetPath) => {
+	try {
+		fs.accessSync(targetPath);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
 /** Returns installed versions of supported package tools (false if not found). */
 export const globalPackages = async () => {
 	const [
@@ -255,6 +264,42 @@ export const getProjectCargoManifest = (projectPath) =>
 export const getProjectGemfile = (projectPath) =>
 	readFile(join(projectPath, "Gemfile"), "utf-8");
 
+export const detectProjectType = (projectPath) => {
+	const directManifests = [
+		{ projectType: "composer", manifestPath: join(projectPath, "composer.json") },
+		{ projectType: "npm", manifestPath: join(projectPath, "package.json") },
+		{ projectType: "flutter", manifestPath: join(projectPath, "pubspec.yaml") },
+		{ projectType: "go", manifestPath: join(projectPath, "go.mod") },
+		{ projectType: "rust", manifestPath: join(projectPath, "Cargo.toml") },
+		{ projectType: "ruby", manifestPath: join(projectPath, "Gemfile") },
+	];
+
+	for (const candidate of directManifests) {
+		if (fileExists(candidate.manifestPath)) return candidate;
+	}
+
+	const androidManifestPath = findAndroidManifest(projectPath);
+	if (androidManifestPath) {
+		return {
+			projectType: androidManifestPath.endsWith("libs.versions.toml")
+				? "android-version-catalog"
+				: "android-gradle",
+			manifestPath: androidManifestPath,
+		};
+	}
+
+	const appleManifests = [
+		{ projectType: "cocoapods", manifestPath: join(projectPath, "Podfile") },
+		{ projectType: "swift", manifestPath: join(projectPath, "Package.swift") },
+	];
+
+	for (const candidate of appleManifests) {
+		if (fileExists(candidate.manifestPath)) return candidate;
+	}
+
+	return null;
+};
+
 const ANDROID_MANIFESTS = [
 	join("gradle", "libs.versions.toml"),
 	join("app", "build.gradle.kts"),
@@ -291,10 +336,12 @@ export const getProjectAndroidManifest = async (projectPath) => {
 	const manifestPath = findAndroidManifest(projectPath);
 	if (!manifestPath) throw new Error("No Android manifest found");
 	const raw = await readFile(manifestPath, "utf-8");
-	const projectType = manifestPath.endsWith("libs.versions.toml")
-		? "android-version-catalog"
-		: "android-gradle";
-	return { manifestPath, raw, projectType };
+	const detected = detectProjectType(projectPath);
+	return {
+		manifestPath,
+		raw,
+		projectType: detected?.projectType || "android-gradle",
+	};
 };
 
 /**

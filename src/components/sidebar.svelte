@@ -1,9 +1,13 @@
 	<script>
 		import { onDestroy, onMount } from "svelte";
-		import { shell } from "electron";
-		import SimpleBar from "../components/SimpleBar.svelte";
+	import { shell } from "electron";
+	import SimpleBar from "../components/SimpleBar.svelte";
 	import { projects, menuActive } from "../store";
-	import { globalPackages, openDirectory } from "../utils/shell.js";
+	import {
+		detectProjectType,
+		globalPackages,
+		openDirectory,
+	} from "../utils/shell.js";
 	import { isJson } from "../utils/index.js";
 	import NpmIcon from "../icons/npm.svelte";
 	import PnpmIcon from "../icons/pnpm.svelte";
@@ -18,6 +22,7 @@
 	import RubyIcon from "../icons/ruby.svelte";
 
 	let packages = $state({});
+	let projectTypes = $state({});
 
 	const pkgDefs = [
 		{ key: "npm", label: "npm", Icon: NpmIcon },
@@ -34,6 +39,31 @@
 	];
 
 	const activePkgs = $derived(pkgDefs.filter((p) => !!packages[p.key]));
+	const projectIconByType = {
+		npm: NpmIcon,
+		composer: ComposerIcon,
+		swift: SwiftIcon,
+		cocoapods: CocoaPodsIcon,
+		"android-gradle": GradleIcon,
+		"android-version-catalog": GradleIcon,
+		flutter: FlutterIcon,
+		go: GoIcon,
+		rust: RustIcon,
+		ruby: RubyIcon,
+	};
+
+	function getProjectIcon(projectType) {
+		return projectType ? projectIconByType[projectType] || null : null;
+	}
+
+	async function resolveProjectType(project) {
+		if (!project?.path || projectTypes[project.id]) return;
+		const detected = detectProjectType(project.path);
+		projectTypes = {
+			...projectTypes,
+			[project.id]: detected?.projectType || "unknown",
+		};
+	}
 
 	onMount(async () => {
 		packages = isJson(localStorage.getItem("packages"))
@@ -44,8 +74,12 @@
 				? JSON.parse(localStorage.getItem("projects") || "[]")
 				: [];
 		projects.set(storedProjects);
+		for (const project of storedProjects) {
+			void resolveProjectType(project);
+		}
 		if (
 			$menuActive !== "installed-apps" &&
+			$menuActive !== "settings" &&
 			!storedProjects.some(({ id }) => `project_${id}` === $menuActive)
 		) {
 			menuActive.set("installed-apps");
@@ -57,6 +91,12 @@
 
 	onDestroy(() => {
 		window.removeEventListener("npmax:add-project", addProject);
+	});
+
+	$effect(() => {
+		for (const project of $projects) {
+			void resolveProjectType(project);
+		}
 	});
 
 	async function addProject() {
@@ -72,6 +112,11 @@
 					...list,
 					{ id: newId, name: projectName, path: projectPath },
 				]);
+				void resolveProjectType({
+					id: newId,
+					name: projectName,
+					path: projectPath,
+				});
 				const nextProjects = [
 					...$projects,
 					{ id: newId, name: projectName, path: projectPath },
@@ -175,6 +220,27 @@
 					<span>Installed Apps</span>
 					<span class="nav__itemBadge">System</span>
 				</button>
+
+				<button
+					class="nav__item"
+					class:nav__item--active={$menuActive === "settings"}
+					onclick={() => menuActive.set("settings")}
+				>
+					<svg
+						class="nav__itemIcon"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.6"
+					>
+						<circle cx="12" cy="12" r="3" />
+						<path
+							d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01A1.65 1.65 0 0 0 20.91 10H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+						/>
+					</svg>
+					<span>Settings</span>
+					<span class="nav__itemBadge">App</span>
+				</button>
 			</section>
 
 			<section class="nav__section">
@@ -211,6 +277,7 @@
 					</button>
 				{:else}
 					{#each $projects as { id, name }}
+						{@const ProjectIcon = getProjectIcon(projectTypes[id])}
 						<div
 							class="nav__project"
 							class:nav__project--active={$menuActive === `project_${id}`}
@@ -219,17 +286,22 @@
 								class="nav__projectBtn"
 								onclick={() => menuActive.set(`project_${id}`)}
 							>
-								<svg
-									class="nav__projectIcon"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.6"
-								>
-									<path
-										d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
-									/>
-								</svg>
+								<span class="nav__projectIcon">
+									{#if ProjectIcon}
+										<ProjectIcon />
+									{:else}
+										<svg
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.6"
+										>
+											<path
+												d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+											/>
+										</svg>
+									{/if}
+								</span>
 								<span class="nav__projectName">{name}</span>
 							</button>
 							<button
@@ -285,7 +357,7 @@
 
 	/* ── Drag area (macOS titlebar) ─────────── */
 	.nav__drag {
-		height: 44px;
+		height: 32px;
 		flex-shrink: 0;
 		-webkit-app-region: drag;
 	}
@@ -294,8 +366,8 @@
 	.nav__scroll {
 		display: flex;
 		flex-direction: column;
-		gap: 20px;
-		padding: 2px 10px 10px;
+		gap: 16px;
+		padding: 0 10px 10px;
 	}
 
 	/* ── Section ────────────────────────────── */
@@ -308,7 +380,7 @@
 	.nav__topActions {
 		display: flex;
 		justify-content: flex-end;
-		padding: 0 6px 8px;
+		padding: 0 6px 4px;
 	}
 
 	.nav__iconBtn {
@@ -499,9 +571,18 @@
 	.nav__projectIcon {
 		width: 13px;
 		height: 13px;
+		display: grid;
+		place-items: center;
 		flex-shrink: 0;
 		color: var(--accent);
 		opacity: 0.7;
+
+		:global(svg) {
+			width: 100%;
+			height: 100%;
+			display: block;
+			fill: currentColor;
+		}
 	}
 
 	.nav__projectName {

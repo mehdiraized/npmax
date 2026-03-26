@@ -10,6 +10,7 @@
 	import FlutterEditor from "../components/FlutterEditor.svelte";
 	import PolyglotEditor from "../components/PolyglotEditor.svelte";
 	import InstalledAppsView from "../components/InstalledAppsView.svelte";
+	import SettingsView from "../components/SettingsView.svelte";
 	import NpmIcon from "../icons/npm.svelte";
 	import ComposerIcon from "../icons/composer.svelte";
 	import SwiftIcon from "../icons/swift.svelte";
@@ -20,7 +21,12 @@
 	import RustIcon from "../icons/rust.svelte";
 	import RubyIcon from "../icons/ruby.svelte";
 	import { projects, menuActive } from "../store";
+	import { parsePodfile, parseSwiftManifest } from "../utils/apple.js";
+	import { parseGradleManifest, parseVersionCatalog } from "../utils/android.js";
+	import { parsePubspec } from "../utils/flutter.js";
+	import { parseCargoToml, parseGemfile, parseGoMod } from "../utils/polyglot.js";
 	import {
+		detectProjectType,
 		openDirectory,
 		getProjectPackages,
 		getProjectComposerPackages,
@@ -39,6 +45,7 @@
 	let projectType = $state("npm");
 	let manifestPath = $state("");
 	let loading = $state(false);
+	let projectIssue = $state("");
 
 	const supportedProjects = [
 		{
@@ -84,12 +91,55 @@
 
 	const showingInstalledApps = $derived.by(() => {
 		const value = $menuActive;
-		return (
-			!value ||
-			value === "installed-apps" ||
-			!String(value).startsWith("project_")
-		);
+		return !value || value === "installed-apps";
 	});
+
+	const showingSettings = $derived($menuActive === "settings");
+
+	const getDetectedPackageCount = (type, raw) => {
+		if (!raw) return 0;
+
+		try {
+			if (type === "npm") {
+				const pkg = JSON.parse(raw);
+				return (
+					Object.keys(pkg.dependencies ?? {}).length +
+					Object.keys(pkg.devDependencies ?? {}).length
+				);
+			}
+
+			if (type === "composer") {
+				const composer = JSON.parse(raw);
+				return (
+					Object.keys(composer.require ?? {}).length +
+					Object.keys(composer["require-dev"] ?? {}).length
+				);
+			}
+
+			if (type === "flutter") return parsePubspec(raw).dependencies.length;
+			if (type === "go") return parseGoMod(raw).dependencies.length;
+			if (type === "rust") return parseCargoToml(raw).dependencies.length;
+			if (type === "ruby") return parseGemfile(raw).dependencies.length;
+			if (type === "swift") return parseSwiftManifest(raw).dependencies.length;
+			if (type === "cocoapods") return parsePodfile(raw).dependencies.length;
+			if (type === "android-gradle") {
+				return parseGradleManifest(raw).dependencies.length;
+			}
+			if (type === "android-version-catalog") {
+				return parseVersionCatalog(raw).dependencies.length;
+			}
+		} catch {
+			return 0;
+		}
+
+		return 0;
+	};
+
+	const syncProjectIssue = () => {
+		if (!currentProject) return;
+		projectIssue =
+			getDetectedPackageCount(projectType, rawJson) > 0 ? "" : "no-packages";
+	};
 
 	$effect(() => {
 		const value = $menuActive;
@@ -108,70 +158,65 @@
 			rawJson = "";
 			manifestPath = "";
 			loading = false;
+			projectIssue = "";
 		}
 	});
 
 	async function loadProject(projectPath) {
 		loading = true;
+		projectIssue = "";
 		try {
-			try {
-				rawJson = await getProjectComposerPackages(projectPath);
-				projectType = "composer";
-				manifestPath = `${projectPath}/composer.json`;
-			} catch {
-				try {
+			const detected = detectProjectType(projectPath);
+			if (!detected) throw new Error("Unsupported project type");
+
+			projectType = detected.projectType;
+			manifestPath = detected.manifestPath;
+
+			switch (detected.projectType) {
+				case "composer":
+					rawJson = await getProjectComposerPackages(projectPath);
+					break;
+				case "npm":
 					rawJson = await getProjectPackages(projectPath);
-					projectType = "npm";
-					manifestPath = `${projectPath}/package.json`;
-				} catch {
-					try {
-						rawJson = await getProjectFlutterManifest(projectPath);
-						projectType = "flutter";
-						manifestPath = `${projectPath}/pubspec.yaml`;
-					} catch {
-						try {
-							rawJson = await getProjectGoManifest(projectPath);
-							projectType = "go";
-							manifestPath = `${projectPath}/go.mod`;
-						} catch {
-							try {
-								rawJson = await getProjectCargoManifest(projectPath);
-								projectType = "rust";
-								manifestPath = `${projectPath}/Cargo.toml`;
-							} catch {
-								try {
-									rawJson = await getProjectGemfile(projectPath);
-									projectType = "ruby";
-									manifestPath = `${projectPath}/Gemfile`;
-								} catch {
-									try {
-										const androidManifest =
-											await getProjectAndroidManifest(projectPath);
-										rawJson = androidManifest.raw;
-										projectType = androidManifest.projectType;
-										manifestPath = androidManifest.manifestPath;
-									} catch {
-										try {
-											rawJson = await getProjectPodPackages(projectPath);
-											projectType = "cocoapods";
-											manifestPath = `${projectPath}/Podfile`;
-										} catch {
-											rawJson = await getProjectSwiftPackages(projectPath);
-											projectType = "swift";
-											manifestPath = `${projectPath}/Package.swift`;
-										}
-									}
-								}
-							}
-						}
-					}
+					break;
+				case "flutter":
+					rawJson = await getProjectFlutterManifest(projectPath);
+					break;
+				case "go":
+					rawJson = await getProjectGoManifest(projectPath);
+					break;
+				case "rust":
+					rawJson = await getProjectCargoManifest(projectPath);
+					break;
+				case "ruby":
+					rawJson = await getProjectGemfile(projectPath);
+					break;
+				case "android-gradle":
+				case "android-version-catalog": {
+					const androidManifest = await getProjectAndroidManifest(projectPath);
+					rawJson = androidManifest.raw;
+					projectType = androidManifest.projectType;
+					manifestPath = androidManifest.manifestPath;
+					break;
 				}
+				case "cocoapods":
+					rawJson = await getProjectPodPackages(projectPath);
+					break;
+				case "swift":
+					rawJson = await getProjectSwiftPackages(projectPath);
+					break;
+				default:
+					throw new Error(`Unsupported project type: ${detected.projectType}`);
 			}
 		} catch {
 			rawJson = "";
 			manifestPath = "";
+			projectType = "unknown";
+			projectIssue = "unsupported";
 		}
+
 		loading = false;
+		if (!projectIssue) syncProjectIssue();
 	}
 
 	async function addProject() {
@@ -201,6 +246,7 @@
 
 	function handleRefresh(newRaw) {
 		rawJson = newRaw;
+		syncProjectIssue();
 	}
 
 	function reloadCurrentProject() {
@@ -227,6 +273,8 @@
 <div class="content">
 	{#if showingInstalledApps}
 		<InstalledAppsView />
+	{:else if showingSettings}
+		<SettingsView />
 	{:else}
 		<div class="project-shell">
 			<SimpleBar maxHeight={"calc(100vh)"}>
@@ -297,6 +345,44 @@
 				{:else if loading}
 					<div class="empty">
 						<div class="empty__card">Loading project…</div>
+					</div>
+				{:else if projectIssue}
+					<div class="empty">
+						<div class="empty__card empty__card--notice">
+							<div class="empty__notice">
+								<div class="empty__noticeIcon">
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.8"
+										xmlns="http://www.w3.org/2000/svg"
+									>
+										<path d="M12 9v4" />
+										<path d="M12 17h.01" />
+										<path
+											d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+										/>
+									</svg>
+								</div>
+								<div class="empty__eyebrow">Project not detected</div>
+								<h2 class="empty__title empty__title--compact">
+									{projectIssue === "unsupported"
+										? "This folder is not a supported project."
+										: "We couldn't detect any packages in this project."}
+								</h2>
+								<p class="empty__sub empty__sub--centered">
+									{projectIssue === "unsupported"
+										? "Please choose a valid project folder and try again."
+										: "Please review the project path and choose the correct folder again."}
+								</p>
+								<div class="empty__actions empty__actions--centered">
+									<button class="empty__btn" onclick={addProject}>
+										Choose Another Folder
+									</button>
+								</div>
+							</div>
+						</div>
 					</div>
 				{:else if projectType === "composer"}
 					<ComposerEditor
@@ -414,10 +500,21 @@
 		margin-bottom: 18px;
 	}
 
+	.empty__title--compact {
+		font-size: clamp(26px, 3.2vw, 38px);
+		max-width: 700px;
+	}
+
 	.empty__sub,
 	.empty__hint {
 		color: var(--text-secondary);
 		line-height: 1.65;
+	}
+
+	.empty__sub--centered {
+		max-width: 580px;
+		margin: 0 auto;
+		text-align: center;
 	}
 
 	.empty__actions {
@@ -438,6 +535,39 @@
 		background: linear-gradient(135deg, #78b4ff, #58d8c2);
 		color: #07131f;
 		font-weight: 700;
+	}
+
+	.empty__card--notice {
+		width: min(760px, 100%);
+		padding: 48px 32px;
+	}
+
+	.empty__notice {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+	}
+
+	.empty__noticeIcon {
+		width: 72px;
+		height: 72px;
+		border-radius: 22px;
+		display: grid;
+		place-items: center;
+		margin-bottom: 18px;
+		background: rgba(255, 184, 77, 0.12);
+		color: #ffcf7d;
+		border: 1px solid rgba(255, 207, 125, 0.18);
+	}
+
+	.empty__noticeIcon svg {
+		width: 30px;
+		height: 30px;
+	}
+
+	.empty__actions--centered {
+		align-items: center;
 	}
 
 	.empty__visual {

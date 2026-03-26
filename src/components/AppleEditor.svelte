@@ -268,13 +268,6 @@
 						<span class="pkg-status">
 							{#if getStatus(dependency) === "loading"}
 								<span class="badge badge--loading"><span class="spin-sm"></span></span>
-							{:else if getStatus(dependency) === "ok"}
-								<span class="badge badge--ok">
-									<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">
-										<polyline points="13 4 6.5 11 3 7.5" />
-									</svg>
-									{getLatest(dependency)}
-								</span>
 							{:else if getStatus(dependency) === "update"}
 								<button class="badge badge--update" onclick={() => handleUpdate(dependency)}>
 									↑ {getLatest(dependency)}
@@ -489,16 +482,6 @@
 		padding: 1px 7px;
 		font-weight: 500;
 
-		svg {
-			width: 11px;
-			height: 11px;
-		}
-	}
-
-	.badge--ok {
-		color: rgba(52, 199, 89, 0.85);
-		background: rgba(52, 199, 89, 0.1);
-		border: 1px solid rgba(52, 199, 89, 0.18);
 	}
 
 	.badge--update {
