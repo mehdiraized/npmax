@@ -1,18 +1,30 @@
 <!doctype html>
-<html lang="en" class="no-js">
+<html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>npMax | Desktop app and dependency update manager for macOS, Windows, and Linux</title>
+		<title>npMax — The Ultimate Desktop Package & App Update Manager</title>
 		<meta
 			name="description"
-			content="npMax is an open source desktop workspace to inspect project dependencies, scan installed system apps, and surface update opportunities across macOS, Windows, and Linux."
+			content="npMax is a free, open-source desktop workspace to manage project dependencies across 11+ ecosystems, scan installed apps, and surface updates on macOS, Windows, and Linux."
 		/>
+		<meta
+			property="og:title"
+			content="npMax — Desktop Package & App Update Manager"
+		/>
+		<meta
+			property="og:description"
+			content="Manage dependencies across Node, PHP, Swift, Android, Flutter, Go, Rust, Ruby and more. Scan installed apps. One desktop workspace."
+		/>
+		<meta
+			property="og:image"
+			content="https://mehdiraized.github.io/npmax/dist/images/screenshots/Apps.jpg"
+		/>
+		<meta name="twitter:card" content="summary_large_image" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
-			href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Space+Grotesk:wght@500;700&amp;display=swap"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
 			rel="stylesheet"
 		/>
 		<script
@@ -20,1692 +32,3254 @@
 			src="https://statics.mehd.ir/stats"
 			data-website-id="237c0fed-054d-416c-a138-c66ec1f4b182"
 		></script>
-		<link rel="stylesheet" href="dist/css/style.css" />
 		<style>
-			:root {
-				--landing-bg:
-					radial-gradient(circle at top left, rgba(18, 127, 255, 0.14), transparent 28%),
-					radial-gradient(circle at top right, rgba(20, 196, 142, 0.14), transparent 26%),
-					linear-gradient(180deg, #f4f8fc 0%, #ffffff 40%, #eef5fb 100%);
-				--surface: rgba(255, 255, 255, 0.86);
-				--surface-strong: #ffffff;
-				--surface-muted: #edf4fb;
-				--surface-border: rgba(14, 26, 42, 0.08);
-				--text-strong: #0e1a2a;
-				--text-body: #506176;
-				--text-soft: #72839b;
-				--accent: #147dff;
-				--accent-strong: #0b5fcc;
-				--accent-soft: rgba(20, 125, 255, 0.12);
-				--accent-alt: #10b981;
-				--warm: #ff9b53;
-				--shadow-lg: 0 32px 80px rgba(13, 23, 38, 0.14);
-				--shadow-md: 0 18px 46px rgba(13, 23, 38, 0.08);
-				--radius-xl: 32px;
-				--radius-lg: 24px;
-				--radius-md: 18px;
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
 			}
-
-			body {
-				background: var(--landing-bg);
-				color: var(--text-body);
-				font-family: "Manrope", sans-serif;
-			}
-
-			body.lights-off {
-				--landing-bg:
-					radial-gradient(circle at top left, rgba(20, 125, 255, 0.18), transparent 24%),
-					radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 24%),
-					linear-gradient(180deg, #0b1320 0%, #111c2d 46%, #09111c 100%);
-				--surface: rgba(16, 26, 41, 0.86);
-				--surface-strong: #111d2d;
-				--surface-muted: rgba(255, 255, 255, 0.04);
-				--surface-border: rgba(255, 255, 255, 0.08);
-				--text-strong: #eff6ff;
-				--text-body: #b0bfd4;
-				--text-soft: #91a2b8;
-				--accent: #68b4ff;
-				--accent-strong: #8ec7ff;
-				--accent-soft: rgba(104, 180, 255, 0.14);
-				--accent-alt: #4ce2b1;
-				--warm: #ffc077;
-				--shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.28);
-				--shadow-md: 0 18px 42px rgba(0, 0, 0, 0.22);
-			}
-
 			html {
 				scroll-behavior: smooth;
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+			}
+			body {
+				font-family:
+					"Inter",
+					system-ui,
+					-apple-system,
+					sans-serif;
+				background: #06090f;
+				color: #94a3b8;
+				line-height: 1.6;
+				overflow-x: hidden;
+			}
+			img {
+				display: block;
+				max-width: 100%;
+			}
+			a {
+				color: inherit;
+				text-decoration: none;
+			}
+			ul {
+				list-style: none;
+			}
+			button {
+				border: none;
+				background: none;
+				cursor: pointer;
+				font: inherit;
+				color: inherit;
 			}
 
-			body,
-			.body-wrap,
-			.is-boxed {
-				background: var(--landing-bg);
-			}
-
-			.body-wrap {
-				overflow: hidden;
-			}
-
-			.boxed-container {
-				max-width: 1720px;
-				box-shadow: none;
+			:root {
+				--accent: #3b82f6;
+				--accent-light: #60a5fa;
+				--accent-glow: rgba(59, 130, 246, 0.25);
+				--green: #10b981;
+				--green-glow: rgba(16, 185, 129, 0.2);
+				--purple: #8b5cf6;
+				--orange: #f59e0b;
+				--pink: #ec4899;
+				--surface: rgba(15, 23, 42, 0.6);
+				--surface-border: rgba(148, 163, 184, 0.08);
+				--surface-hover: rgba(30, 41, 59, 0.8);
+				--text-primary: #f1f5f9;
+				--text-secondary: #94a3b8;
+				--text-muted: #64748b;
+				--container: 1200px;
+				--gutter: 24px;
 			}
 
 			.container {
-				max-width: 1300px;
-				padding-left: 28px;
-				padding-right: 28px;
+				max-width: var(--container);
+				margin: 0 auto;
+				padding: 0 var(--gutter);
+			}
+			.text-gradient {
+				background: linear-gradient(135deg, var(--accent-light), var(--green));
+				-webkit-background-clip: text;
+				-webkit-text-fill-color: transparent;
+				background-clip: text;
+			}
+			.text-gradient-warm {
+				background: linear-gradient(135deg, var(--orange), var(--pink));
+				-webkit-background-clip: text;
+				-webkit-text-fill-color: transparent;
+				background-clip: text;
 			}
 
-			.container-sm {
-				max-width: 1040px;
-				padding-left: 28px;
-				padding-right: 28px;
+			@keyframes fadeUp {
+				from {
+					opacity: 0;
+					transform: translateY(40px);
+				}
+				to {
+					opacity: 1;
+					transform: translateY(0);
+				}
+			}
+			@keyframes float {
+				0%,
+				100% {
+					transform: translateY(0);
+				}
+				50% {
+					transform: translateY(-12px);
+				}
+			}
+			@keyframes pulse-glow {
+				0%,
+				100% {
+					box-shadow: 0 0 20px var(--accent-glow);
+				}
+				50% {
+					box-shadow:
+						0 0 40px var(--accent-glow),
+						0 0 80px rgba(59, 130, 246, 0.1);
+				}
+			}
+			@keyframes rotate {
+				from {
+					transform: rotate(0deg);
+				}
+				to {
+					transform: rotate(360deg);
+				}
 			}
 
-			h1,
-			h2,
-			h3,
-			h4,
-			h5,
-			h6,
-			.h1,
-			.h2,
-			.h3,
-			.h4,
-			.h5,
-			.h6 {
-				font-family: "Space Grotesk", sans-serif;
-				color: var(--text-strong);
+			.reveal {
+				opacity: 0;
+				transform: translateY(40px);
+				transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+			}
+			.reveal.visible {
+				opacity: 1;
+				transform: translateY(0);
+			}
+			.reveal-scale {
+				opacity: 0;
+				transform: scale(0.92);
+				transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+			}
+			.reveal-scale.visible {
+				opacity: 1;
+				transform: scale(1);
+			}
+			.delay-1 {
+				transition-delay: 0.1s;
+			}
+			.delay-2 {
+				transition-delay: 0.2s;
+			}
+			.delay-3 {
+				transition-delay: 0.3s;
+			}
+			.delay-4 {
+				transition-delay: 0.4s;
+			}
+			.delay-5 {
+				transition-delay: 0.5s;
 			}
 
-			p,
-			li {
-				color: var(--text-body);
+			.bg-grid {
+				position: fixed;
+				inset: 0;
+				z-index: 0;
+				pointer-events: none;
+				background-image:
+					linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
+					linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
+				background-size: 60px 60px;
+			}
+			.bg-glow-1 {
+				position: fixed;
+				top: -20%;
+				left: -10%;
+				width: 600px;
+				height: 600px;
+				border-radius: 50%;
+				background: radial-gradient(
+					circle,
+					rgba(59, 130, 246, 0.12),
+					transparent 70%
+				);
+				filter: blur(80px);
+				pointer-events: none;
+				z-index: 0;
+			}
+			.bg-glow-2 {
+				position: fixed;
+				top: 20%;
+				right: -10%;
+				width: 500px;
+				height: 500px;
+				border-radius: 50%;
+				background: radial-gradient(
+					circle,
+					rgba(16, 185, 129, 0.1),
+					transparent 70%
+				);
+				filter: blur(80px);
+				pointer-events: none;
+				z-index: 0;
+			}
+			.bg-glow-3 {
+				position: fixed;
+				bottom: 10%;
+				left: 20%;
+				width: 400px;
+				height: 400px;
+				border-radius: 50%;
+				background: radial-gradient(
+					circle,
+					rgba(139, 92, 246, 0.08),
+					transparent 70%
+				);
+				filter: blur(80px);
+				pointer-events: none;
+				z-index: 0;
 			}
 
-			a {
-				color: var(--accent);
+			.nav {
+				position: fixed;
+				top: 0;
+				left: 0;
+				right: 0;
+				z-index: 100;
+				padding: 16px 0;
+				transition: all 0.3s ease;
 			}
-
-			.site-header,
-			.site-header::before,
-			.features::before,
-			.cta::before {
-				background: none;
+			.nav.scrolled {
+				background: rgba(6, 9, 15, 0.85);
+				backdrop-filter: blur(20px);
+				border-bottom: 1px solid var(--surface-border);
 			}
-
-			.site-header {
-				padding: 26px 0 10px;
-			}
-
-			.site-header-inner {
+			.nav-inner {
 				display: flex;
 				align-items: center;
 				justify-content: space-between;
 				gap: 24px;
 			}
-
-			.header-nav {
-				display: none;
-				align-items: center;
-				gap: 26px;
-			}
-
-			.header-nav a {
-				color: var(--text-soft);
-				font-size: 15px;
-				font-weight: 700;
-				text-decoration: none;
-			}
-
-			.header-nav a:hover,
-			.header-nav a:focus {
-				color: var(--text-strong);
-			}
-
-			.header-actions {
+			.nav-logo {
 				display: flex;
 				align-items: center;
-				gap: 16px;
+				gap: 12px;
+				font-weight: 800;
+				font-size: 20px;
+				color: var(--text-primary);
 			}
-
-			.lights-toggle {
-				color: var(--text-soft);
+			.nav-logo img {
+				height: 32px;
+				width: auto;
 			}
-
-			.section {
-				padding: 0 0 24px;
+			.nav-links {
+				display: flex;
+				align-items: center;
+				gap: 32px;
 			}
-
-			.section-shell {
-				border: 1px solid var(--surface-border);
-				border-radius: var(--radius-xl);
-				background: var(--surface);
-				box-shadow: var(--shadow-md);
-				backdrop-filter: blur(18px);
+			.nav-links a {
+				font-size: 14px;
+				font-weight: 500;
+				color: var(--text-secondary);
+				transition: color 0.2s;
 			}
-
-			.section-heading {
-				max-width: 760px;
-				margin: 0 auto 26px;
-				text-align: center;
+			.nav-links a:hover {
+				color: var(--text-primary);
 			}
-
-			.section-kicker {
+			.nav-actions {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+			}
+			.btn {
 				display: inline-flex;
 				align-items: center;
-				gap: 10px;
-				margin-bottom: 12px;
-				padding: 8px 14px;
-				border-radius: 999px;
-				background: var(--accent-soft);
-				color: var(--accent);
-				font-size: 13px;
-				font-weight: 800;
-				letter-spacing: 0.08em;
-				text-transform: uppercase;
+				gap: 8px;
+				padding: 10px 20px;
+				border-radius: 10px;
+				font-size: 14px;
+				font-weight: 600;
+				transition: all 0.3s ease;
+			}
+			.btn-primary {
+				background: var(--accent);
+				color: #fff;
+				box-shadow: 0 4px 20px var(--accent-glow);
+			}
+			.btn-primary:hover {
+				background: var(--accent-light);
+				transform: translateY(-2px);
+				box-shadow: 0 8px 30px var(--accent-glow);
+			}
+			.btn-ghost {
+				color: var(--text-secondary);
+				border: 1px solid var(--surface-border);
+			}
+			.btn-ghost:hover {
+				color: var(--text-primary);
+				border-color: rgba(148, 163, 184, 0.2);
+				background: var(--surface);
+			}
+			.btn-lg {
+				padding: 14px 28px;
+				font-size: 16px;
+				border-radius: 12px;
+			}
+			.btn svg {
+				width: 18px;
+				height: 18px;
+			}
+			.mobile-toggle {
+				display: none;
+				flex-direction: column;
+				gap: 5px;
+				padding: 8px;
+			}
+			.mobile-toggle span {
+				display: block;
+				width: 22px;
+				height: 2px;
+				background: var(--text-secondary);
+				border-radius: 2px;
+				transition: 0.3s;
 			}
 
-			.section-title {
-				margin-top: 0;
-				margin-bottom: 14px;
-				font-size: clamp(34px, 4vw, 52px);
-				line-height: 1.02;
-			}
-
-			.section-paragraph {
-				margin-bottom: 0;
-				font-size: 18px;
-				line-height: 1.72;
+			@media (max-width: 768px) {
+				.nav-links {
+					display: none;
+				}
+				.mobile-toggle {
+					display: flex;
+				}
+				.nav-links.open {
+					display: flex;
+					flex-direction: column;
+					position: absolute;
+					top: 100%;
+					left: 0;
+					right: 0;
+					background: rgba(6, 9, 15, 0.95);
+					backdrop-filter: blur(20px);
+					padding: 24px;
+					border-bottom: 1px solid var(--surface-border);
+				}
 			}
 
 			.hero {
-				padding: 22px 0 48px;
-			}
-
-			.hero-inner {
-				display: grid;
-				gap: 34px;
-				align-items: center;
-			}
-
-			.hero-copy {
 				position: relative;
+				padding: 140px 0 80px;
+				overflow: hidden;
 				z-index: 1;
 			}
-
+			.hero-inner {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 60px;
+				align-items: center;
+			}
 			.hero-badge {
 				display: inline-flex;
 				align-items: center;
-				gap: 10px;
-				padding: 10px 16px;
+				gap: 8px;
+				padding: 6px 16px;
 				border-radius: 999px;
-				background: rgba(14, 26, 42, 0.05);
-				color: var(--text-strong);
+				background: rgba(59, 130, 246, 0.1);
+				border: 1px solid rgba(59, 130, 246, 0.2);
 				font-size: 13px;
-				font-weight: 800;
-				letter-spacing: 0.08em;
-				text-transform: uppercase;
+				font-weight: 600;
+				color: var(--accent-light);
+				margin-bottom: 24px;
+				animation: fadeUp 0.6s ease both;
 			}
-
-			.hero-title {
-				margin-top: 22px;
-				margin-bottom: 18px;
-				font-size: clamp(48px, 7vw, 86px);
-				line-height: 0.94;
-				letter-spacing: -0.05em;
+			.hero-badge-dot {
+				width: 6px;
+				height: 6px;
+				border-radius: 50%;
+				background: var(--green);
+				animation: pulse-glow 2s ease infinite;
 			}
-
-			.hero-paragraph {
-				max-width: 58ch;
-				margin-bottom: 18px;
-				font-size: 21px;
-				line-height: 1.68;
+			.hero h1 {
+				font-size: clamp(40px, 5.5vw, 72px);
+				font-weight: 900;
+				line-height: 1.05;
+				letter-spacing: -0.03em;
+				color: var(--text-primary);
+				margin-bottom: 24px;
+				animation: fadeUp 0.8s ease both 0.1s;
 			}
-
-			.hero-summary {
-				max-width: 56ch;
-				margin-bottom: 22px;
-				font-size: 17px;
+			.hero-desc {
+				font-size: clamp(16px, 1.8vw, 20px);
+				color: var(--text-secondary);
+				max-width: 540px;
+				margin-bottom: 36px;
 				line-height: 1.7;
-				color: var(--text-soft);
+				animation: fadeUp 0.8s ease both 0.2s;
 			}
-
-			.hero-points {
-				display: grid;
-				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 12px;
-				margin: 0 0 28px;
-				padding: 0;
-				list-style: none;
-			}
-
-			.hero-points li {
-				display: flex;
-				align-items: flex-start;
-				gap: 12px;
-				padding: 14px 16px;
-				border-radius: 18px;
-				background: rgba(255, 255, 255, 0.68);
-				border: 1px solid var(--surface-border);
-				box-shadow: 0 10px 28px rgba(14, 26, 42, 0.06);
-				font-size: 15px;
-				font-weight: 700;
-				color: var(--text-strong);
-			}
-
-			.hero-points li::before {
-				content: "";
-				flex: 0 0 auto;
-				width: 11px;
-				height: 11px;
-				margin-top: 6px;
-				border-radius: 999px;
-				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
-			}
-
 			.hero-cta {
 				display: flex;
 				flex-wrap: wrap;
-				align-items: center;
-				gap: 14px;
-				margin: 0 0 26px;
-			}
-
-			.button {
-				border-radius: 14px;
-				font-family: "Space Grotesk", sans-serif;
-				font-size: 13px;
-				font-weight: 700;
-				letter-spacing: 0.04em;
-				text-transform: uppercase;
-			}
-
-			.button.button-primary {
-				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
-				box-shadow: 0 14px 28px rgba(20, 125, 255, 0.22);
-			}
-
-			.button.button-secondary {
-				border: 1px solid var(--surface-border);
-				background: rgba(255, 255, 255, 0.3);
-				color: var(--text-strong) !important;
-			}
-
-			.button.button-secondary:hover {
-				background: var(--surface-muted);
-			}
-
-			.hero-meta {
-				display: grid;
-				grid-template-columns: repeat(4, minmax(0, 1fr));
 				gap: 16px;
+				margin-bottom: 48px;
+				animation: fadeUp 0.8s ease both 0.3s;
 			}
-
+			.hero-stats {
+				display: grid;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 24px;
+				animation: fadeUp 0.8s ease both 0.4s;
+			}
 			.hero-stat {
-				padding: 18px 18px 16px;
-				border-radius: 20px;
-				border: 1px solid var(--surface-border);
-				background: rgba(255, 255, 255, 0.7);
-				box-shadow: 0 10px 24px rgba(14, 26, 42, 0.06);
+				text-align: center;
 			}
-
-			.hero-stat strong {
-				display: block;
-				margin-bottom: 8px;
-				font-family: "Space Grotesk", sans-serif;
-				font-size: 30px;
-				line-height: 1;
-				color: var(--text-strong);
+			.hero-stat-value {
+				font-size: 32px;
+				font-weight: 800;
+				color: var(--text-primary);
 			}
-
-			.hero-stat span {
-				font-size: 14px;
-				line-height: 1.5;
-				color: var(--text-soft);
+			.hero-stat-label {
+				font-size: 13px;
+				color: var(--text-muted);
+				margin-top: 4px;
 			}
-
 			.hero-visual {
 				position: relative;
+				animation: fadeUp 1s ease both 0.4s;
 			}
-
-			.hero-panel {
+			.hero-mockup {
 				position: relative;
-				padding: 24px;
-				border-radius: 34px;
-				border: 1px solid var(--surface-border);
-				background:
-					radial-gradient(circle at top left, rgba(20, 125, 255, 0.14), transparent 34%),
-					radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.14), transparent 26%),
-					var(--surface);
-				box-shadow: var(--shadow-lg);
+				border-radius: 16px;
 				overflow: hidden;
+				border: 1px solid rgba(148, 163, 184, 0.1);
+				box-shadow:
+					0 40px 100px rgba(0, 0, 0, 0.4),
+					0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+				background: #0f172a;
 			}
-
-			.hero-frame {
-				overflow: hidden;
-				border-radius: 28px;
-				border: 1px solid var(--surface-border);
-				background: var(--surface-strong);
+			.hero-mockup-bar {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				padding: 12px 16px;
+				background: rgba(15, 23, 42, 0.9);
+				border-bottom: 1px solid var(--surface-border);
 			}
-
-			.hero-frame img {
+			.hero-mockup-dot {
+				width: 10px;
+				height: 10px;
+				border-radius: 50%;
+			}
+			.hero-mockup-dot:nth-child(1) {
+				background: #ef4444;
+			}
+			.hero-mockup-dot:nth-child(2) {
+				background: #f59e0b;
+			}
+			.hero-mockup-dot:nth-child(3) {
+				background: #22c55e;
+			}
+			.hero-mockup img {
 				display: block;
 				width: 100%;
 			}
-
-			.hero-float-grid {
-				display: grid;
-				grid-template-columns: repeat(2, minmax(0, 1fr));
-				gap: 16px;
-				margin-top: 18px;
+			.hero-glow {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				width: 120%;
+				height: 120%;
+				background: radial-gradient(
+					ellipse,
+					var(--accent-glow),
+					transparent 60%
+				);
+				pointer-events: none;
+				z-index: -1;
+				filter: blur(60px);
 			}
-
-			.hero-float-card {
-				padding: 18px;
-				border-radius: 22px;
-				border: 1px solid var(--surface-border);
-				background: rgba(255, 255, 255, 0.78);
+			.hero-float-badge {
+				position: absolute;
+				padding: 10px 16px;
+				border-radius: 12px;
+				background: rgba(15, 23, 42, 0.8);
 				backdrop-filter: blur(16px);
-				box-shadow: 0 12px 28px rgba(14, 26, 42, 0.08);
-			}
-
-			.hero-float-card strong {
-				display: block;
-				margin-bottom: 8px;
-				color: var(--text-strong);
-				font-size: 15px;
-			}
-
-			.hero-float-card span {
-				font-size: 14px;
-				line-height: 1.55;
-				color: var(--text-soft);
-			}
-
-			.screenshots-shell,
-			.features-shell,
-			.workflow-shell,
-			.downloads-shell,
-			.community-shell,
-			.faq-shell,
-			.roadmap-shell {
-				padding: 54px;
-			}
-
-			.screenshot-grid,
-			.feature-grid,
-			.roadmap-grid,
-			.workflow-grid,
-			.download-grid,
-			.faq-grid {
-				display: grid;
-				gap: 22px;
-				align-items: start;
-			}
-
-			.screenshot-grid {
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-			}
-
-			.screenshot-card {
-				display: flex;
-				flex-direction: column;
-				height: 100%;
-				padding: 18px;
-				border-radius: 26px;
 				border: 1px solid var(--surface-border);
-				background: var(--surface-strong);
-				box-shadow: 0 16px 36px rgba(14, 26, 42, 0.08);
+				font-size: 13px;
+				font-weight: 600;
+				color: var(--text-primary);
+				white-space: nowrap;
+				animation: float 4s ease infinite;
+			}
+			.hero-float-badge.pos-1 {
+				top: 15%;
+				right: -30px;
+				animation-delay: 0s;
+			}
+			.hero-float-badge.pos-2 {
+				bottom: 25%;
+				left: -30px;
+				animation-delay: 1s;
+			}
+			.hero-float-badge.pos-3 {
+				bottom: 10%;
+				right: 10%;
+				animation-delay: 2s;
 			}
 
-			.screenshot-frame {
-				overflow: hidden;
-				border-radius: 20px;
-				border: 1px solid var(--surface-border);
-				background: #f6f9fc;
-				margin-bottom: 18px;
+			@media (max-width: 960px) {
+				.hero-inner {
+					grid-template-columns: 1fr;
+					text-align: center;
+				}
+				.hero-desc {
+					margin-left: auto;
+					margin-right: auto;
+				}
+				.hero-cta {
+					justify-content: center;
+				}
+				.hero-visual {
+					max-width: 600px;
+					margin: 0 auto;
+				}
+				.hero-float-badge {
+					display: none;
+				}
+			}
+			@media (max-width: 560px) {
+				.hero-stats {
+					grid-template-columns: 1fr;
+					gap: 16px;
+				}
+				.hero {
+					padding: 120px 0 60px;
+				}
 			}
 
-			.screenshot-frame img {
-				display: block;
-				width: 100%;
+			.section {
+				position: relative;
+				z-index: 1;
+				padding: 100px 0;
 			}
-
-			.screenshot-card h3 {
-				margin: 0 0 10px;
-				font-size: 24px;
+			.section-header {
+				text-align: center;
+				max-width: 680px;
+				margin: 0 auto 64px;
 			}
-
-			.screenshot-card p {
-				margin: 0;
-				font-size: 15px;
-				line-height: 1.66;
-			}
-
-			.feature-grid {
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-			}
-
-			.feature-card {
-				display: flex;
-				flex-direction: column;
-				height: 100%;
-				padding: 28px;
-				border-radius: 28px;
-				border: 1px solid var(--surface-border);
-				background:
-					linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 252, 0.98));
-				box-shadow: 0 14px 32px rgba(14, 26, 42, 0.08);
-			}
-
-			.lights-off .feature-card,
-			.lights-off .screenshot-card {
-				background:
-					linear-gradient(180deg, rgba(18, 29, 44, 0.98), rgba(13, 22, 35, 0.98));
-			}
-
-			.feature-icon {
+			.section-badge {
 				display: inline-flex;
 				align-items: center;
-				justify-content: center;
-				width: 48px;
-				height: 48px;
-				margin-bottom: 18px;
-				border-radius: 16px;
-				background: var(--accent-soft);
-				color: var(--accent);
-				font-family: "Space Grotesk", sans-serif;
-				font-size: 18px;
-				font-weight: 700;
-			}
-
-			.feature-card h3 {
-				margin: 0 0 12px;
-				font-size: 26px;
-				line-height: 1.12;
-			}
-
-			.feature-card p {
-				margin: 0 0 16px;
-				font-size: 15px;
-				line-height: 1.68;
-			}
-
-			.feature-list {
-				margin: 0;
-				padding-left: 18px;
-			}
-
-			.feature-list li {
-				margin-bottom: 10px;
-				font-size: 14px;
-				line-height: 1.56;
-			}
-
-			.roadmap-grid {
-				grid-template-columns: 1.15fr 0.85fr;
-				align-items: stretch;
-			}
-
-			.roadmap-stack {
-				display: grid;
-				gap: 22px;
-			}
-
-			.roadmap-card,
-			.workflow-step,
-			.download-card,
-			.faq-card {
-				display: flex;
-				flex-direction: column;
-				height: 100%;
-				padding: 30px;
-				border-radius: 28px;
-				border: 1px solid var(--surface-border);
-				background: var(--surface-strong);
-			}
-
-			.roadmap-card {
-				position: relative;
-				overflow: hidden;
-				box-shadow: 0 16px 38px rgba(14, 26, 42, 0.08);
-			}
-
-			.roadmap-card--pro {
-				background:
-					radial-gradient(circle at top right, rgba(20, 125, 255, 0.2), transparent 32%),
-					radial-gradient(circle at bottom left, rgba(255, 155, 83, 0.2), transparent 28%),
-					linear-gradient(135deg, #0d1b2c 0%, #13253d 100%);
-				color: #eff6ff;
-			}
-
-			.roadmap-card--pro h3,
-			.roadmap-card--pro p,
-			.roadmap-card--pro li,
-			.roadmap-card--pro .roadmap-label {
-				color: #eff6ff;
-			}
-
-			.roadmap-label {
-				display: inline-flex;
-				margin-bottom: 14px;
-				padding: 7px 12px;
+				gap: 6px;
+				padding: 6px 14px;
 				border-radius: 999px;
-				background: rgba(255, 255, 255, 0.12);
 				font-size: 12px;
-				font-weight: 800;
-				letter-spacing: 0.08em;
+				font-weight: 700;
+				letter-spacing: 0.05em;
 				text-transform: uppercase;
+				margin-bottom: 16px;
 			}
-
-			.roadmap-card h3 {
-				margin: 0 0 12px;
-				font-size: clamp(28px, 3vw, 40px);
-				line-height: 1.06;
+			.section-badge-blue {
+				background: rgba(59, 130, 246, 0.1);
+				border: 1px solid rgba(59, 130, 246, 0.15);
+				color: var(--accent-light);
 			}
-
-			.roadmap-card p {
-				margin: 0 0 18px;
-				font-size: 16px;
+			.section-badge-green {
+				background: rgba(16, 185, 129, 0.1);
+				border: 1px solid rgba(16, 185, 129, 0.15);
+				color: var(--green);
+			}
+			.section-badge-purple {
+				background: rgba(139, 92, 246, 0.1);
+				border: 1px solid rgba(139, 92, 246, 0.15);
+				color: var(--purple);
+			}
+			.section-badge-orange {
+				background: rgba(245, 158, 11, 0.1);
+				border: 1px solid rgba(245, 158, 11, 0.15);
+				color: var(--orange);
+			}
+			.section-title {
+				font-size: clamp(32px, 4vw, 52px);
+				font-weight: 800;
+				line-height: 1.1;
+				letter-spacing: -0.02em;
+				color: var(--text-primary);
+				margin-bottom: 20px;
+			}
+			.section-desc {
+				font-size: 18px;
+				color: var(--text-secondary);
 				line-height: 1.7;
 			}
 
-			.roadmap-list,
-			.download-card ul {
-				margin: 0;
-				padding-left: 18px;
+			.ecosystem {
+				padding: 60px 0 80px;
+				position: relative;
+				z-index: 1;
+			}
+			.ecosystem-label {
+				text-align: center;
+				font-size: 14px;
+				font-weight: 600;
+				color: var(--text-muted);
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+				margin-bottom: 32px;
+			}
+			.ecosystem-track {
+				display: flex;
+				justify-content: center;
+				flex-wrap: wrap;
+				gap: 16px;
+				max-width: 960px;
+				margin: 0 auto;
+			}
+			.eco-chip {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				padding: 10px 18px;
+				border-radius: 12px;
+				background: var(--surface);
+				border: 1px solid var(--surface-border);
+				font-size: 14px;
+				font-weight: 600;
+				color: var(--text-secondary);
+				transition: all 0.3s ease;
+				backdrop-filter: blur(10px);
+			}
+			.eco-chip:hover {
+				border-color: rgba(59, 130, 246, 0.3);
+				color: var(--text-primary);
+				transform: translateY(-2px);
+				box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+			}
+			.eco-chip svg,
+			.eco-chip-icon {
+				width: 20px;
+				height: 20px;
+				flex-shrink: 0;
 			}
 
-			.roadmap-list li,
-			.download-card li {
-				margin-bottom: 10px;
+			.preview-grid {
+				display: grid;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 24px;
+			}
+			.preview-card {
+				position: relative;
+				border-radius: 16px;
+				overflow: hidden;
+				border: 1px solid var(--surface-border);
+				background: var(--surface);
+				backdrop-filter: blur(10px);
+				transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+			}
+			.preview-card:hover {
+				transform: translateY(-8px);
+				box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+				border-color: rgba(59, 130, 246, 0.2);
+			}
+			.preview-card-img {
+				overflow: hidden;
+				border-bottom: 1px solid var(--surface-border);
+			}
+			.preview-card-img img {
+				transition: transform 0.6s ease;
+			}
+			.preview-card:hover .preview-card-img img {
+				transform: scale(1.03);
+			}
+			.preview-card-body {
+				padding: 24px;
+			}
+			.preview-card-body h3 {
+				font-size: 20px;
+				font-weight: 700;
+				color: var(--text-primary);
+				margin-bottom: 8px;
+			}
+			.preview-card-body p {
+				font-size: 14px;
+				color: var(--text-secondary);
 				line-height: 1.6;
 			}
-
-			.mini-pills {
-				display: flex;
-				flex-wrap: wrap;
-				gap: 10px;
-				margin-top: 18px;
+			@media (max-width: 768px) {
+				.preview-grid {
+					grid-template-columns: 1fr;
+					max-width: 480px;
+					margin: 0 auto;
+				}
 			}
 
-			.mini-pill {
-				display: inline-flex;
-				align-items: center;
-				padding: 8px 12px;
-				border-radius: 999px;
-				background: rgba(255, 255, 255, 0.12);
-				border: 1px solid rgba(255, 255, 255, 0.12);
-				font-size: 13px;
-				font-weight: 700;
-			}
-
-			.workflow-grid,
-			.download-grid,
-			.faq-grid {
-				grid-template-columns: repeat(3, minmax(0, 1fr));
-			}
-
-			.workflow-step strong {
-				display: inline-flex;
-				margin-bottom: 16px;
-				padding: 7px 11px;
-				border-radius: 999px;
-				background: var(--accent-soft);
-				color: var(--accent);
-				font-size: 12px;
-				font-weight: 800;
-				letter-spacing: 0.08em;
-				text-transform: uppercase;
-			}
-
-			.workflow-step h3,
-			.download-card h3,
-			.faq-card h3 {
-				margin-top: 0;
-				margin-bottom: 12px;
-				font-size: 24px;
-			}
-
-			.workflow-step p,
-			.download-card p,
-			.faq-card p {
-				margin-bottom: 0;
-				font-size: 15px;
-				line-height: 1.68;
-			}
-
-			.inline-link {
-				display: inline-flex;
-				margin-top: 18px;
-				font-weight: 800;
-				text-decoration: none;
-			}
-
-			.community-shell {
+			.features-grid {
 				display: grid;
-				grid-template-columns: 1.15fr 0.85fr;
-				gap: 26px;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 24px;
+			}
+			.feature-card {
+				position: relative;
+				padding: 32px;
+				border-radius: 16px;
+				background: var(--surface);
+				border: 1px solid var(--surface-border);
+				backdrop-filter: blur(10px);
+				transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+				overflow: hidden;
+			}
+			.feature-card::before {
+				content: "";
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				height: 2px;
+				background: linear-gradient(
+					90deg,
+					transparent,
+					var(--accent),
+					transparent
+				);
+				opacity: 0;
+				transition: opacity 0.3s;
+			}
+			.feature-card:hover {
+				transform: translateY(-4px);
+				border-color: rgba(59, 130, 246, 0.2);
+				box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+			}
+			.feature-card:hover::before {
+				opacity: 1;
+			}
+			.feature-icon {
+				width: 48px;
+				height: 48px;
+				border-radius: 12px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				margin-bottom: 20px;
+			}
+			.feature-icon-blue {
+				background: rgba(59, 130, 246, 0.12);
+				color: var(--accent-light);
+			}
+			.feature-icon-green {
+				background: rgba(16, 185, 129, 0.12);
+				color: var(--green);
+			}
+			.feature-icon-purple {
+				background: rgba(139, 92, 246, 0.12);
+				color: var(--purple);
+			}
+			.feature-icon-orange {
+				background: rgba(245, 158, 11, 0.12);
+				color: var(--orange);
+			}
+			.feature-icon-pink {
+				background: rgba(236, 72, 153, 0.12);
+				color: var(--pink);
+			}
+			.feature-icon-cyan {
+				background: rgba(6, 182, 212, 0.12);
+				color: #06b6d4;
+			}
+			.feature-card h3 {
+				font-size: 18px;
+				font-weight: 700;
+				color: var(--text-primary);
+				margin-bottom: 10px;
+			}
+			.feature-card p {
+				font-size: 14px;
+				color: var(--text-secondary);
+				line-height: 1.65;
+			}
+			.feature-bullets {
+				margin-top: 16px;
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+			}
+			.feature-bullets li {
+				display: flex;
+				align-items: flex-start;
+				gap: 8px;
+				font-size: 13px;
+				color: var(--text-muted);
+			}
+			.feature-bullets li svg {
+				flex-shrink: 0;
+				width: 16px;
+				height: 16px;
+				margin-top: 2px;
+				color: var(--green);
+			}
+			@media (max-width: 960px) {
+				.features-grid {
+					grid-template-columns: repeat(2, 1fr);
+				}
+			}
+			@media (max-width: 640px) {
+				.features-grid {
+					grid-template-columns: 1fr;
+				}
 			}
 
-			.community-list {
-				margin: 22px 0 0;
-				padding: 0;
-				list-style: none;
+			.workflow-steps {
+				display: grid;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 32px;
+				position: relative;
+			}
+			.workflow-steps::before {
+				content: "";
+				position: absolute;
+				top: 40px;
+				left: 16%;
+				right: 16%;
+				height: 2px;
+				background: linear-gradient(
+					90deg,
+					transparent,
+					var(--accent-glow),
+					var(--green-glow),
+					transparent
+				);
+				z-index: 0;
+			}
+			.workflow-step {
+				position: relative;
+				z-index: 1;
+				text-align: center;
+				padding: 32px 24px;
+			}
+			.workflow-num {
+				width: 56px;
+				height: 56px;
+				margin: 0 auto 20px;
+				border-radius: 16px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 20px;
+				font-weight: 800;
+				color: #fff;
+				background: linear-gradient(135deg, var(--accent), #2563eb);
+				box-shadow: 0 8px 24px var(--accent-glow);
+			}
+			.workflow-step:nth-child(2) .workflow-num {
+				background: linear-gradient(135deg, var(--green), #059669);
+				box-shadow: 0 8px 24px var(--green-glow);
+			}
+			.workflow-step:nth-child(3) .workflow-num {
+				background: linear-gradient(135deg, var(--purple), #7c3aed);
+				box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
+			}
+			.workflow-step h3 {
+				font-size: 20px;
+				font-weight: 700;
+				color: var(--text-primary);
+				margin-bottom: 12px;
+			}
+			.workflow-step p {
+				font-size: 14px;
+				color: var(--text-secondary);
+				line-height: 1.65;
+				max-width: 300px;
+				margin: 0 auto;
+			}
+			@media (max-width: 768px) {
+				.workflow-steps {
+					grid-template-columns: 1fr;
+					max-width: 400px;
+					margin: 0 auto;
+				}
+				.workflow-steps::before {
+					display: none;
+				}
 			}
 
-			.community-list li {
+			.showcase {
+				padding: 100px 0;
+				position: relative;
+				z-index: 1;
+			}
+			.showcase-inner {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 60px;
+				align-items: center;
+			}
+			.showcase-inner.reverse {
+				direction: rtl;
+			}
+			.showcase-inner.reverse > * {
+				direction: ltr;
+			}
+			.showcase-text h3 {
+				font-size: clamp(28px, 3.5vw, 40px);
+				font-weight: 800;
+				color: var(--text-primary);
+				margin-bottom: 16px;
+				line-height: 1.15;
+			}
+			.showcase-text p {
+				font-size: 16px;
+				color: var(--text-secondary);
+				line-height: 1.7;
+				margin-bottom: 24px;
+			}
+			.showcase-list {
+				display: flex;
+				flex-direction: column;
+				gap: 12px;
+			}
+			.showcase-list li {
 				display: flex;
 				align-items: flex-start;
 				gap: 12px;
-				margin-bottom: 16px;
+				font-size: 15px;
+				color: var(--text-secondary);
 			}
-
-			.community-bullet {
-				flex: 0 0 auto;
-				width: 10px;
-				height: 10px;
-				margin-top: 10px;
-				border-radius: 999px;
-				background: linear-gradient(135deg, var(--accent) 0%, var(--accent-alt) 100%);
+			.showcase-list li svg {
+				flex-shrink: 0;
+				width: 20px;
+				height: 20px;
+				margin-top: 2px;
+				color: var(--accent-light);
 			}
-
-			.community-panel {
-				padding: 28px;
-				border-radius: 28px;
+			.showcase-image {
+				position: relative;
+				border-radius: 16px;
+				overflow: hidden;
 				border: 1px solid var(--surface-border);
-				background:
-					radial-gradient(circle at top right, rgba(20, 125, 255, 0.14), transparent 30%),
-					linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 252, 0.98));
+				box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+			}
+			.showcase-image img {
+				width: 100%;
+			}
+			@media (max-width: 768px) {
+				.showcase-inner,
+				.showcase-inner.reverse {
+					grid-template-columns: 1fr;
+					direction: ltr;
+				}
+				.showcase-inner.reverse > * {
+					direction: ltr;
+				}
 			}
 
-			.lights-off .community-panel,
-			.lights-off .download-card,
-			.lights-off .faq-card,
-			.lights-off .workflow-step,
-			.lights-off .roadmap-card:not(.roadmap-card--pro) {
-				background:
-					linear-gradient(180deg, rgba(18, 29, 44, 0.98), rgba(12, 20, 32, 0.98));
+			.download-grid {
+				display: grid;
+				grid-template-columns: repeat(3, 1fr);
+				gap: 24px;
 			}
-
-			.community-panel ul {
-				margin: 18px 0 0;
-				padding-left: 18px;
+			.download-card {
+				padding: 32px;
+				border-radius: 16px;
+				background: var(--surface);
+				border: 1px solid var(--surface-border);
+				backdrop-filter: blur(10px);
+				transition: all 0.4s ease;
+				position: relative;
+				overflow: hidden;
 			}
-
-			.cta .section-inner {
-				padding: 28px 0 94px;
+			.download-card:hover {
+				transform: translateY(-4px);
+				border-color: rgba(59, 130, 246, 0.2);
+				box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
 			}
-
-			.cta-banner {
-				padding: 44px;
-				border-radius: 34px;
-				background:
-					radial-gradient(circle at top right, rgba(20, 125, 255, 0.22), transparent 30%),
-					radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.18), transparent 26%),
-					linear-gradient(135deg, #0d1a2a 0%, #16263b 100%);
-				box-shadow: var(--shadow-lg);
-				text-align: center;
-			}
-
-			.cta-banner h2,
-			.cta-banner p {
-				color: #eff6ff !important;
-			}
-
-			.cta-banner .hero-cta {
-				justify-content: center;
-				margin-bottom: 0;
-			}
-
-			.cta-banner .button-secondary {
-				color: #eff6ff !important;
-				border-color: rgba(255, 255, 255, 0.18);
-				background: rgba(255, 255, 255, 0.05);
-			}
-
-			.cta-banner .button-secondary:hover {
-				background: rgba(255, 255, 255, 0.12);
-			}
-
-			.site-footer {
-				background: transparent;
-				color: var(--text-soft);
-			}
-
-			.site-footer::before {
-				display: none;
-			}
-
-			.site-footer-inner {
+			.download-icon {
+				width: 48px;
+				height: 48px;
+				border-radius: 12px;
 				display: flex;
+				align-items: center;
+				justify-content: center;
+				margin-bottom: 20px;
+				background: rgba(59, 130, 246, 0.1);
+				color: var(--accent-light);
+			}
+			.download-icon svg {
+				width: 24px;
+				height: 24px;
+			}
+			.download-card h3 {
+				font-size: 20px;
+				font-weight: 700;
+				color: var(--text-primary);
+				margin-bottom: 10px;
+			}
+			.download-card p {
+				font-size: 14px;
+				color: var(--text-secondary);
+				margin-bottom: 16px;
+				line-height: 1.6;
+			}
+			.download-card ul {
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+				margin-bottom: 20px;
+			}
+			.download-card li {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				font-size: 13px;
+				color: var(--text-muted);
+			}
+			.download-card li svg {
+				width: 14px;
+				height: 14px;
+				color: var(--green);
+			}
+			.download-link {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				font-size: 14px;
+				font-weight: 600;
+				color: var(--accent-light);
+				transition: gap 0.2s;
+			}
+			.download-link:hover {
+				gap: 10px;
+			}
+			.download-link svg {
+				width: 16px;
+				height: 16px;
+			}
+			@media (max-width: 768px) {
+				.download-grid {
+					grid-template-columns: 1fr;
+				}
+			}
+
+			.eco-detail-grid {
+				display: grid;
+				grid-template-columns: repeat(5, 1fr);
+				gap: 16px;
+			}
+			.eco-detail-card {
+				padding: 20px;
+				border-radius: 14px;
+				background: var(--surface);
+				border: 1px solid var(--surface-border);
+				text-align: center;
+				transition: all 0.3s ease;
+			}
+			.eco-detail-card:hover {
+				border-color: rgba(59, 130, 246, 0.2);
+				transform: translateY(-2px);
+			}
+			.eco-detail-card .eco-d-icon {
+				width: 36px;
+				height: 36px;
+				margin: 0 auto 10px;
+				border-radius: 10px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+			.eco-detail-card .eco-d-icon svg {
+				width: 20px;
+				height: 20px;
+			}
+			.eco-detail-card h4 {
+				font-size: 14px;
+				font-weight: 700;
+				color: var(--text-primary);
+				margin-bottom: 4px;
+			}
+			.eco-detail-card p {
+				font-size: 12px;
+				color: var(--text-muted);
+			}
+			@media (max-width: 960px) {
+				.eco-detail-grid {
+					grid-template-columns: repeat(3, 1fr);
+				}
+			}
+			@media (max-width: 640px) {
+				.eco-detail-grid {
+					grid-template-columns: repeat(2, 1fr);
+				}
+			}
+
+			.faq-grid {
+				display: grid;
+				grid-template-columns: repeat(2, 1fr);
+				gap: 24px;
+				max-width: 900px;
+				margin: 0 auto;
+			}
+			.faq-item {
+				padding: 28px;
+				border-radius: 16px;
+				background: var(--surface);
+				border: 1px solid var(--surface-border);
+				backdrop-filter: blur(10px);
+				transition: all 0.3s ease;
+			}
+			.faq-item:hover {
+				border-color: rgba(59, 130, 246, 0.15);
+			}
+			.faq-item h3 {
+				font-size: 16px;
+				font-weight: 700;
+				color: var(--text-primary);
+				margin-bottom: 10px;
+			}
+			.faq-item p {
+				font-size: 14px;
+				color: var(--text-secondary);
+				line-height: 1.65;
+			}
+			@media (max-width: 640px) {
+				.faq-grid {
+					grid-template-columns: 1fr;
+				}
+			}
+
+			.donate-section {
+				padding: 100px 0;
+				position: relative;
+				z-index: 1;
+			}
+			.donate-box {
+				position: relative;
+				padding: 60px;
+				border-radius: 24px;
+				text-align: center;
+				overflow: hidden;
+				background: linear-gradient(
+					135deg,
+					rgba(59, 130, 246, 0.08),
+					rgba(139, 92, 246, 0.08),
+					rgba(16, 185, 129, 0.08)
+				);
+				border: 1px solid rgba(148, 163, 184, 0.1);
+			}
+			.donate-box::before {
+				content: "";
+				position: absolute;
+				inset: 0;
+				border-radius: 24px;
+				background: linear-gradient(
+					135deg,
+					rgba(59, 130, 246, 0.15),
+					transparent 30%,
+					transparent 70%,
+					rgba(16, 185, 129, 0.15)
+				);
+				pointer-events: none;
+			}
+			.donate-box h2 {
+				font-size: clamp(28px, 3.5vw, 42px);
+				font-weight: 800;
+				color: var(--text-primary);
+				margin-bottom: 16px;
+				position: relative;
+			}
+			.donate-box > p {
+				font-size: 18px;
+				color: var(--text-secondary);
+				max-width: 600px;
+				margin: 0 auto 32px;
+				line-height: 1.7;
+				position: relative;
+			}
+			.donate-box .btn {
+				position: relative;
+			}
+			.donate-hearts {
+				position: absolute;
+				inset: 0;
+				pointer-events: none;
+				overflow: hidden;
+			}
+			.donate-hearts span {
+				position: absolute;
+				font-size: 24px;
+				opacity: 0.15;
+				animation: float 6s ease infinite;
+			}
+			.donate-hearts span:nth-child(1) {
+				top: 15%;
+				left: 10%;
+				animation-delay: 0s;
+			}
+			.donate-hearts span:nth-child(2) {
+				top: 20%;
+				right: 15%;
+				animation-delay: 1s;
+			}
+			.donate-hearts span:nth-child(3) {
+				bottom: 20%;
+				left: 20%;
+				animation-delay: 2s;
+			}
+			.donate-hearts span:nth-child(4) {
+				bottom: 15%;
+				right: 10%;
+				animation-delay: 3s;
+			}
+			.donate-hearts span:nth-child(5) {
+				top: 40%;
+				left: 5%;
+				animation-delay: 1.5s;
+			}
+
+			.cta-section {
+				padding: 80px 0 120px;
+				position: relative;
+				z-index: 1;
+			}
+			.cta-box {
+				position: relative;
+				border-radius: 24px;
+				padding: 64px;
+				text-align: center;
+				overflow: hidden;
+				background: linear-gradient(135deg, #0f172a, #1e293b);
+				border: 1px solid var(--surface-border);
+			}
+			.cta-box::before {
+				content: "";
+				position: absolute;
+				top: -50%;
+				left: -50%;
+				width: 200%;
+				height: 200%;
+				background: conic-gradient(
+					from 180deg,
+					transparent,
+					rgba(59, 130, 246, 0.08),
+					transparent 30%
+				);
+				animation: rotate 20s linear infinite;
+				pointer-events: none;
+			}
+			.cta-box h2 {
+				font-size: clamp(28px, 3.5vw, 42px);
+				font-weight: 800;
+				color: var(--text-primary);
+				margin-bottom: 16px;
+				position: relative;
+			}
+			.cta-box p {
+				font-size: 18px;
+				color: var(--text-secondary);
+				max-width: 550px;
+				margin: 0 auto 32px;
+				line-height: 1.7;
+				position: relative;
+			}
+			.cta-actions {
+				display: flex;
+				justify-content: center;
 				flex-wrap: wrap;
+				gap: 16px;
+				position: relative;
+			}
+
+			.footer {
+				position: relative;
+				z-index: 1;
+				padding: 48px 0;
+				border-top: 1px solid var(--surface-border);
+			}
+			.footer-inner {
+				display: flex;
 				align-items: center;
 				justify-content: space-between;
+				flex-wrap: wrap;
 				gap: 24px;
-				padding-top: 10px;
-				padding-bottom: 42px;
 			}
-
-			.site-footer a {
-				color: var(--text-soft);
-			}
-
-			.site-footer a:hover {
-				color: var(--text-strong);
-			}
-
-			.footer-links,
-			.footer-social-links {
-				display: inline-flex;
+			.footer-brand {
+				display: flex;
 				align-items: center;
+				gap: 10px;
+			}
+			.footer-brand img {
+				height: 28px;
+			}
+			.footer-brand span {
+				font-weight: 700;
+				color: var(--text-primary);
+				font-size: 16px;
+			}
+			.footer-links {
+				display: flex;
+				gap: 24px;
+			}
+			.footer-links a {
+				font-size: 14px;
+				color: var(--text-muted);
+				transition: color 0.2s;
+			}
+			.footer-links a:hover {
+				color: var(--text-primary);
+			}
+			.footer-copy {
+				font-size: 13px;
+				color: var(--text-muted);
+			}
+			.footer-social {
+				display: flex;
 				gap: 16px;
-				margin: 0;
-				padding: 0;
-				list-style: none;
 			}
-
-			.footer-social-links svg {
-				stroke: currentColor;
+			.footer-social a {
+				color: var(--text-muted);
+				transition: color 0.2s;
 			}
-
-			.footer-brand,
-			.footer-copyright {
-				display: inline-flex;
-				align-items: center;
+			.footer-social a:hover {
+				color: var(--text-primary);
 			}
-
-			.asset-dark {
-				display: none;
+			.footer-social svg {
+				width: 20px;
+				height: 20px;
 			}
-
-			html.sr body.has-animations .is-revealing {
-				visibility: visible;
-			}
-
-			.lights-off .asset-light {
-				display: none;
-			}
-
-			.lights-off .asset-dark {
-				display: block;
-			}
-
-			@media (min-width: 960px) {
-				.header-nav {
-					display: flex;
+			@media (max-width: 640px) {
+				.footer-inner {
+					flex-direction: column;
+					text-align: center;
 				}
-
-				.hero-inner {
-					grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
-				}
-			}
-
-			@media (max-width: 1120px) {
-				.feature-grid,
-				.screenshot-grid {
-					grid-template-columns: repeat(2, minmax(0, 1fr));
-				}
-
-				.hero-meta {
-					grid-template-columns: repeat(2, minmax(0, 1fr));
-				}
-
-				.roadmap-grid,
-				.community-shell {
-					grid-template-columns: 1fr;
-				}
-			}
-
-			@media (max-width: 920px) {
-				.hero-points,
-				.hero-float-grid,
-				.feature-grid,
-				.screenshot-grid,
-				.roadmap-grid,
-				.workflow-grid,
-				.download-grid,
-				.faq-grid,
-				.community-shell {
-					grid-template-columns: 1fr;
-				}
-
-				.hero-meta {
-					grid-template-columns: repeat(2, minmax(0, 1fr));
-				}
-
-				.screenshots-shell,
-				.features-shell,
-				.workflow-shell,
-				.downloads-shell,
-				.community-shell,
-				.faq-shell,
-				.roadmap-shell {
-					padding: 36px 24px;
-				}
-			}
-
-			@media (max-width: 720px) {
-				.site-header {
-					padding-top: 18px;
-				}
-
-				.site-header-inner {
-					flex-wrap: wrap;
-				}
-
-				.header-actions {
-					width: 100%;
-					justify-content: space-between;
-				}
-
-				.hero {
-					padding-top: 12px;
-					padding-bottom: 32px;
-				}
-
-				.hero-title {
-					font-size: 46px;
-				}
-
-				.hero-paragraph {
-					font-size: 18px;
-				}
-
-				.hero-cta {
-					align-items: stretch;
-				}
-
-				.hero-cta .button {
-					width: 100%;
-				}
-
-				.hero-panel,
-				.cta-banner {
-					padding: 24px;
-				}
-
-				.container,
-				.container-sm {
-					padding-left: 18px;
-					padding-right: 18px;
-				}
-
 				.footer-links,
-				.footer-social-links,
-				.site-footer-inner {
+				.footer-social {
 					justify-content: center;
 				}
 			}
 
-			@media (max-width: 560px) {
-				.section {
-					padding-bottom: 18px;
-				}
-
-				.section-heading {
-					margin-bottom: 20px;
-				}
-
-				.section-title {
-					font-size: 34px;
-				}
-
-				.section-paragraph {
-					font-size: 16px;
-					line-height: 1.62;
-				}
-
-				.hero-title {
-					font-size: 42px;
-					line-height: 0.96;
-				}
-
-				.hero-points,
-				.hero-float-grid,
-				.hero-meta {
+			.oss-grid {
+				display: grid;
+				grid-template-columns: 1.2fr 0.8fr;
+				gap: 32px;
+				align-items: start;
+			}
+			.oss-card {
+				padding: 32px;
+				border-radius: 16px;
+				background: var(--surface);
+				border: 1px solid var(--surface-border);
+			}
+			.oss-card h3 {
+				font-size: 18px;
+				font-weight: 700;
+				color: var(--text-primary);
+				margin-bottom: 12px;
+			}
+			.oss-card p {
+				font-size: 14px;
+				color: var(--text-secondary);
+				line-height: 1.65;
+				margin-bottom: 16px;
+			}
+			.oss-links {
+				display: flex;
+				flex-direction: column;
+				gap: 10px;
+			}
+			.oss-links a {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				padding: 12px 16px;
+				border-radius: 12px;
+				background: rgba(15, 23, 42, 0.5);
+				border: 1px solid var(--surface-border);
+				font-size: 14px;
+				color: var(--text-secondary);
+				transition: all 0.2s;
+			}
+			.oss-links a:hover {
+				border-color: rgba(59, 130, 246, 0.3);
+				color: var(--text-primary);
+				background: var(--surface);
+			}
+			.oss-links a svg {
+				width: 18px;
+				height: 18px;
+				flex-shrink: 0;
+				color: var(--accent-light);
+			}
+			@media (max-width: 768px) {
+				.oss-grid {
 					grid-template-columns: 1fr;
-				}
-
-				.hero-points li,
-				.hero-stat,
-				.hero-float-card,
-				.screenshot-card,
-				.feature-card,
-				.roadmap-card,
-				.workflow-step,
-				.download-card,
-				.faq-card,
-				.community-panel {
-					padding: 22px;
-				}
-
-				.screenshots-shell,
-				.features-shell,
-				.workflow-shell,
-				.downloads-shell,
-				.community-shell,
-				.faq-shell,
-				.roadmap-shell {
-					padding: 28px 18px;
-					border-radius: 24px;
-				}
-
-				.screenshot-card h3,
-				.workflow-step h3,
-				.download-card h3,
-				.faq-card h3,
-				.feature-card h3 {
-					font-size: 22px;
-				}
-
-				.site-footer-inner {
-					padding-bottom: 28px;
 				}
 			}
 		</style>
-		<script src="https://unpkg.com/scrollreveal@4.0.0/dist/scrollreveal.min.js"></script>
 	</head>
+	<body>
+		<div class="bg-grid"></div>
+		<div class="bg-glow-1"></div>
+		<div class="bg-glow-2"></div>
+		<div class="bg-glow-3"></div>
 
-	<body class="is-boxed">
-		<div class="body-wrap boxed-container">
-			<header class="site-header">
-				<div class="container">
-					<div class="site-header-inner">
-						<div class="brand header-brand">
-							<h1 class="m-0">
-								<a href="https://github.com/mehdiraized/npmax" aria-label="npMax on GitHub">
-									<img
-										class="header-logo-image asset-light"
-										width="128"
-										src="dist/images/logo.png"
-										alt="npMax logo"
-									/>
-									<img
-										class="header-logo-image asset-dark"
-										width="128"
-										src="dist/images/logo.png"
-										alt="npMax logo"
-									/>
-								</a>
-							</h1>
+		<!-- Navigation -->
+		<nav class="nav" id="nav">
+			<div class="container nav-inner">
+				<a href="#" class="nav-logo">
+					<img src="dist/images/logo.png" alt="npMax" />
+					<span>npMax</span>
+				</a>
+				<div class="nav-links" id="navLinks">
+					<a href="#features">Features</a>
+					<a href="#ecosystems">Ecosystems</a>
+					<a href="#preview">Screenshots</a>
+					<a href="#downloads">Downloads</a>
+					<a href="#faq">FAQ</a>
+				</div>
+				<div class="nav-actions">
+					<a
+						class="btn btn-ghost"
+						href="https://github.com/mehdiraized/npmax"
+						target="_blank"
+						rel="noopener"
+					>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path
+								d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+							/>
+						</svg>
+						GitHub
+					</a>
+					<a
+						class="btn btn-primary"
+						href="https://github.com/mehdiraized/npmax/releases/latest"
+						>Download</a
+					>
+					<button
+						class="mobile-toggle"
+						id="mobileToggle"
+						aria-label="Toggle menu"
+					>
+						<span></span><span></span><span></span>
+					</button>
+				</div>
+			</div>
+		</nav>
+
+		<!-- Hero -->
+		<section class="hero">
+			<div class="container">
+				<div class="hero-inner">
+					<div>
+						<div class="hero-badge">
+							<span class="hero-badge-dot"></span>
+							Open Source &amp; Free
 						</div>
-						<nav class="header-nav" aria-label="Primary">
-							<a href="#screenshots">Screenshots</a>
-							<a href="#features">Features</a>
-							<a href="#roadmap">Coming next</a>
-							<a href="#downloads">Downloads</a>
-							<a href="#faq">FAQ</a>
-						</nav>
-						<div class="header-actions">
-							<div class="lights-toggle">
-								<input
-									id="lights-toggle"
-									type="checkbox"
-									name="lights-toggle"
-									class="switch"
-									checked="checked"
-								/>
-								<label for="lights-toggle" class="text-xs">
-									<span>Turn me <span class="label-text">dark</span></span>
-								</label>
+						<h1>
+							All your <span class="text-gradient">packages</span> &amp;
+							<span class="text-gradient">apps</span> in one place
+						</h1>
+						<p class="hero-desc">
+							The desktop workspace that manages project dependencies across 11+
+							ecosystems, scans installed apps, and surfaces updates on macOS,
+							Windows, and Linux.
+						</p>
+						<div class="hero-cta">
+							<a
+								class="btn btn-primary btn-lg"
+								href="https://github.com/mehdiraized/npmax/releases/latest"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+									<polyline points="7 10 12 15 17 10" />
+									<line x1="12" y1="15" x2="12" y2="3" />
+								</svg>
+								Download Free
+							</a>
+							<a
+								class="btn btn-ghost btn-lg"
+								href="https://github.com/mehdiraized/npmax#readme"
+								target="_blank"
+								rel="noopener"
+								>Documentation</a
+							>
+						</div>
+						<div class="hero-stats">
+							<div class="hero-stat">
+								<div class="hero-stat-value text-gradient">11+</div>
+								<div class="hero-stat-label">Package Ecosystems</div>
 							</div>
-							<a
-								class="button button-secondary button-sm"
-								href="https://github.com/mehdiraized/npmax"
+							<div class="hero-stat">
+								<div class="hero-stat-value text-gradient">3</div>
+								<div class="hero-stat-label">Desktop Platforms</div>
+							</div>
+							<div class="hero-stat">
+								<div class="hero-stat-value text-gradient-warm">AI</div>
+								<div class="hero-stat-label">Recommendations Soon</div>
+							</div>
+						</div>
+					</div>
+					<div class="hero-visual">
+						<div class="hero-glow"></div>
+						<div class="hero-mockup">
+							<div class="hero-mockup-bar">
+								<span class="hero-mockup-dot"></span>
+								<span class="hero-mockup-dot"></span>
+								<span class="hero-mockup-dot"></span>
+							</div>
+							<img
+								src="dist/images/screenshots/Apps.jpg"
+								alt="npMax installed apps view"
+							/>
+						</div>
+						<div class="hero-float-badge pos-1">
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
 							>
-								GitHub
-							</a>
-							<a
-								class="button button-secondary button-sm"
-								href="https://buymeacoffee.com/farobox"
+								<polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+							</svg>
+							&nbsp;11+ ecosystems
+						</div>
+						<div class="hero-float-badge pos-2">
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="#10b981"
+								stroke-width="2"
 							>
-								Donate
-							</a>
+								<polyline points="20 6 9 17 4 12" />
+							</svg>
+							&nbsp;One-click updates
+						</div>
+						<div class="hero-float-badge pos-3">
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="#f59e0b"
+								stroke-width="2"
+							>
+								<path
+									d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+								/>
+							</svg>
+							&nbsp;AI coming soon
 						</div>
 					</div>
 				</div>
-			</header>
+			</div>
+		</section>
 
-			<main>
-				<section class="hero">
-					<div class="container">
-						<div class="hero-inner">
-							<div class="hero-copy">
-								<div class="hero-badge">Desktop package, app, and AI update workspace</div>
-								<h2 class="hero-title mt-0">
-									Keep dependencies, installed apps, and upgrade decisions in one sharper flow.
-								</h2>
-								<p class="hero-paragraph">
-									npMax brings project dependencies and installed desktop apps into one
-									desktop workspace, then grows into an AI-guided layer for smarter
-									recommendations, alternatives, and update decisions.
-								</p>
-								<p class="hero-summary">
-									Today you can inspect packages, review outdated versions, switch between
-									repositories, and scan installed software. Next, we are adding intelligent
-									recommendations for better apps, better packages, and category-based discovery.
-								</p>
-								<ul class="hero-points" aria-label="npMax highlights">
-									<li>Multi-project dependency checks across Node, Apple, Android, Flutter, Go, Rust, Ruby, and PHP.</li>
-									<li>Installed Apps scanning with update visibility for macOS, Windows, and Linux.</li>
-									<li>Roadmap for AI alternatives, new app discovery, and package upgrade suggestions.</li>
-									<li>Future CLI tools, skill store, and automation surfacing inside the app.</li>
-								</ul>
-								<div class="hero-cta">
-									<a
-										class="button button-primary"
-										href="https://github.com/mehdiraized/npmax/releases/latest"
-									>
-										Download latest release
-									</a>
-									<a
-										class="button button-secondary"
-										href="https://github.com/mehdiraized/npmax#readme"
-									>
-										Read documentation
-									</a>
-									<a
-										class="button button-secondary"
-										href="https://buymeacoffee.com/farobox"
-									>
-										Support Pro
-									</a>
-								</div>
-								<div class="hero-meta">
-									<div class="hero-stat">
-										<strong>11+</strong>
-										<span>package ecosystems already handled in one desktop workflow</span>
-									</div>
-									<div class="hero-stat">
-										<strong>3</strong>
-										<span>desktop operating systems supported with one product surface</span>
-									</div>
-									<div class="hero-stat">
-										<strong>AI next</strong>
-										<span>planned recommendations for apps, packages, and alternatives</span>
-									</div>
-									<div class="hero-stat">
-										<strong>CLI soon</strong>
-										<span>future support for tools like Claude, Codex, Gemini, and related AI workflows</span>
-									</div>
-								</div>
-							</div>
-
-							<div class="hero-visual">
-								<div class="hero-panel">
-									<div class="hero-frame">
-										<img
-											src="dist/images/screenshots/Apps.jpg"
-											alt="npMax installed apps view"
-										/>
-									</div>
-									<div class="hero-float-grid">
-										<div class="hero-float-card">
-											<strong>Installed apps update view</strong>
-											<span>See desktop software, compare versions, and keep machine-level tools visible beside project work.</span>
-										</div>
-										<div class="hero-float-card">
-											<strong>Package editor view</strong>
-											<span>Review project dependencies with live version context instead of jumping across registries manually.</span>
-										</div>
-										<div class="hero-float-card">
-											<strong>Multi-project sidebar</strong>
-											<span>Keep several repositories pinned and move between them without losing update context.</span>
-										</div>
-										<div class="hero-float-card">
-											<strong>Roadmap-ready foundation</strong>
-											<span>The UI now has room for recommendations, discovery, and AI-powered suggestions without feeling bolted on.</span>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
+		<!-- Ecosystem Chips -->
+		<section class="ecosystem">
+			<div class="container">
+				<div class="ecosystem-label reveal">
+					Supports all major package ecosystems
+				</div>
+				<div class="ecosystem-track reveal delay-1">
+					<div class="eco-chip"><span class="eco-chip-icon">📦</span> npm</div>
+					<div class="eco-chip"><span class="eco-chip-icon">🧶</span> yarn</div>
+					<div class="eco-chip"><span class="eco-chip-icon">⚡</span> pnpm</div>
+					<div class="eco-chip">
+						<span class="eco-chip-icon">🎵</span> Composer
 					</div>
-				</section>
-
-				<section class="section" id="screenshots">
-					<div class="container">
-						<div class="screenshots-shell section-shell">
-							<div class="section-heading">
-								<span class="section-kicker">Screenshots</span>
-								<h2 class="section-title">A clearer look at the actual desktop product</h2>
-								<p class="section-paragraph">
-									Instead of oversized empty cards, the landing now shows the product screens
-									directly so visitors can understand the app faster.
-								</p>
-							</div>
-							<div class="screenshot-grid">
-								<article class="screenshot-card is-revealing">
-									<div class="screenshot-frame">
-										<img
-											src="dist/images/screenshots/Apps.jpg"
-											alt="npMax installed apps screenshot"
-										/>
-									</div>
-									<h3>Installed Apps</h3>
-									<p>
-										Scan the machine, review installed software, and spot updates without
-										starting from a repository first.
-									</p>
-								</article>
-								<article class="screenshot-card is-revealing">
-									<div class="screenshot-frame">
-										<img
-											src="dist/images/screenshots/packages.jpg"
-											alt="npMax package editor screenshot"
-										/>
-									</div>
-									<h3>Package Management</h3>
-									<p>
-										Check current versions, latest releases, and dependency status across the
-										ecosystems your team already uses.
-									</p>
-								</article>
-								<article class="screenshot-card is-revealing">
-									<div class="screenshot-frame">
-										<img
-											src="dist/images/screenshots/projects.jpg"
-											alt="npMax project workspace screenshot"
-										/>
-									</div>
-									<h3>Project Workspace</h3>
-									<p>
-										Switch between multiple repos, keep the sidebar active, and maintain a
-										repeatable audit-to-update loop.
-									</p>
-								</article>
-							</div>
-						</div>
+					<div class="eco-chip">
+						<span class="eco-chip-icon">🍎</span> SwiftPM
 					</div>
-				</section>
-
-				<section class="section" id="features">
-					<div class="container">
-						<div class="features-shell section-shell">
-							<div class="section-heading">
-								<span class="section-kicker">Core Features</span>
-								<h2 class="section-title">What npMax already does well, without the filler</h2>
-								<p class="section-paragraph">
-									These cards focus on concrete product behavior so the middle of the landing
-									page feels tighter, more useful, and easier to scan.
-								</p>
-							</div>
-							<div class="feature-grid">
-								<article class="feature-card is-revealing">
-									<div class="feature-icon">01</div>
-									<h3>Project dependency control</h3>
-									<p>
-										Inspect manifests, compare installed and latest versions, and edit packages
-										from one desktop UI instead of bouncing between editor, registry, and terminal.
-									</p>
-									<ul class="feature-list">
-										<li>npm, yarn, pnpm, Composer, SwiftPM, CocoaPods, Gradle, Flutter, Go, Cargo, and Bundler support</li>
-										<li>Semver-aware updates that preserve existing version style</li>
-										<li>Lock file awareness when sync or install is required</li>
-									</ul>
-								</article>
-								<article class="feature-card is-revealing">
-									<div class="feature-icon">02</div>
-									<h3>Installed app visibility</h3>
-									<p>
-										npMax is not limited to code dependencies. It can also scan installed apps
-										and surface update opportunities across desktop software.
-									</p>
-									<ul class="feature-list">
-										<li>Useful for tools like Docker, Steam, Android Studio, and VS Code</li>
-										<li>Cross-platform story for macOS, Windows, and Linux</li>
-										<li>Brings system maintenance into the same product as project maintenance</li>
-									</ul>
-								</article>
-								<article class="feature-card is-revealing">
-									<div class="feature-icon">03</div>
-									<h3>Multi-repo workflow</h3>
-									<p>
-										Keep several repositories in one sidebar, jump between them quickly, and
-										reuse the same update workflow without losing context.
-									</p>
-									<ul class="feature-list">
-										<li>Great for maintainers, agencies, and teams with many projects</li>
-										<li>Less context switching than terminal-heavy update sessions</li>
-										<li>Designed for repeat weekly maintenance work</li>
-									</ul>
-								</article>
-								<article class="feature-card is-revealing">
-									<div class="feature-icon">04</div>
-									<h3>Registry-backed version checks</h3>
-									<p>
-										Review live package information before you commit to an update so the
-										decision is grounded in current package data.
-									</p>
-									<ul class="feature-list">
-										<li>Checks registries your ecosystems already rely on</li>
-										<li>Lets you compare current and latest versions with less guesswork</li>
-										<li>Keeps update choices visible inside the app</li>
-									</ul>
-								</article>
-								<article class="feature-card is-revealing">
-									<div class="feature-icon">05</div>
-									<h3>Mobile and systems support</h3>
-									<p>
-										Apple, Android, Flutter, Go, Rust, and Ruby projects fit into the same UI,
-										so product teams are not forced back to fragmented tooling.
-									</p>
-									<ul class="feature-list">
-										<li>Supports Package.swift, Podfile, build.gradle, libs.versions.toml, pubspec.yaml, go.mod, Cargo.toml, and Gemfile</li>
-										<li>Useful for cross-functional teams with mixed stacks</li>
-										<li>One mental model across app, backend, and tooling repos</li>
-									</ul>
-								</article>
-								<article class="feature-card is-revealing">
-									<div class="feature-icon">06</div>
-									<h3>Foundation for smarter suggestions</h3>
-									<p>
-										The next version extends the current data model into an AI-aware layer for
-										recommendations, discovery, and better upgrade choices.
-									</p>
-									<ul class="feature-list">
-										<li>Alternative app suggestions by category</li>
-										<li>Better package and library recommendations for projects</li>
-										<li>New tools surfaced when they match the user’s stack</li>
-									</ul>
-								</article>
-							</div>
-						</div>
+					<div class="eco-chip">
+						<span class="eco-chip-icon">🫛</span> CocoaPods
 					</div>
-				</section>
-
-				<section class="section" id="roadmap">
-					<div class="container">
-						<div class="roadmap-shell section-shell">
-							<div class="section-heading">
-								<span class="section-kicker">Pro + Roadmap</span>
-								<h2 class="section-title">Pro coming soon, with AI recommendations built into the product</h2>
-								<p class="section-paragraph">
-									The next major step is not just more update data. It is smarter guidance about
-									which app, package, CLI tool, skill, or automation a user should adopt next.
-								</p>
-							</div>
-
-							<div class="roadmap-grid">
-								<div class="roadmap-stack">
-									<article class="roadmap-card is-revealing">
-										<div class="roadmap-label">App intelligence</div>
-										<h3>Recommend better desktop apps for every category and surface new arrivals.</h3>
-										<p>
-											npMax will suggest alternative applications for categories like browsers,
-											design tools, terminals, note apps, database clients, and developer utilities.
-											It will also highlight newly released apps that fit the user’s current setup.
-										</p>
-										<ul class="roadmap-list">
-											<li>Suggest alternatives when an installed app is outdated, weak, or no longer the best choice</li>
-											<li>Recommend fresh apps the user has not installed yet</li>
-											<li>Organize app discovery by category so recommendations feel intentional, not random</li>
-										</ul>
-									</article>
-
-									<article class="roadmap-card is-revealing">
-										<div class="roadmap-label">Project intelligence</div>
-										<h3>Suggest stronger packages and better replacements inside code projects too.</h3>
-										<p>
-											The same idea applies to repositories: npMax will analyze dependencies and
-											suggest better-maintained, more popular, or more capable alternatives where
-											that makes sense for the team.
-										</p>
-										<ul class="roadmap-list">
-											<li>Alternative package recommendations for frontend, backend, mobile, and tooling stacks</li>
-											<li>Upgrade guidance when a library is stale, abandoned, or no longer the best option</li>
-											<li>New package discovery based on project category and existing dependency graph</li>
-										</ul>
-									</article>
-
-									<article class="roadmap-card is-revealing">
-										<div class="roadmap-label">CLI + skills + automation</div>
-										<h3>Upcoming support for AI CLI apps, update tracking, skill store, and automations.</h3>
-										<p>
-											A later version will extend beyond GUI apps and project manifests to cover AI
-											tooling itself, including CLI apps, stored skills, and useful automation flows.
-										</p>
-										<ul class="roadmap-list">
-											<li>Support for CLI tools like Claude, Codex, Gemini, and similar AI-first utilities</li>
-											<li>Visibility into updates for those tools, not just installation status</li>
-											<li>Skill store and automation sections that help users unlock more value inside the app</li>
-											<li>More AI-powered workflows so npMax becomes an active assistant, not just a passive dashboard</li>
-										</ul>
-									</article>
-								</div>
-
-								<article class="roadmap-card roadmap-card--pro is-revealing">
-									<div class="roadmap-label">Pro version coming soon</div>
-									<h3>A premium layer for tailored recommendations, faster discovery, and more useful actions.</h3>
-									<p>
-										npMax Pro is planned as the intelligent layer on top of the existing desktop
-										product. It will help users decide what to update, what to replace, what to try,
-										and which workflows are worth adopting next.
-									</p>
-									<p>
-										If you want to help us build it sooner, you can support development through
-										Buy Me a Coffee.
-									</p>
-									<ul class="roadmap-list">
-										<li>AI recommendations for desktop apps and project dependencies</li>
-										<li>Context-aware alternative suggestions instead of generic lists</li>
-										<li>Category-based app discovery and curated new-tool highlights</li>
-										<li>Smarter recommendations around CLI apps, skills, automations, and AI productivity tooling</li>
-									</ul>
-									<div class="mini-pills" aria-label="Planned areas">
-										<span class="mini-pill">Apps</span>
-										<span class="mini-pill">Packages</span>
-										<span class="mini-pill">CLI tools</span>
-										<span class="mini-pill">Skill store</span>
-										<span class="mini-pill">Automations</span>
-										<span class="mini-pill">AI workflows</span>
-									</div>
-									<div class="hero-cta">
-										<a
-											class="button button-secondary"
-											href="https://buymeacoffee.com/farobox"
-										>
-											Donate for npMax Pro
-										</a>
-									</div>
-								</article>
-							</div>
-						</div>
+					<div class="eco-chip">
+						<span class="eco-chip-icon">🤖</span> Gradle
 					</div>
-				</section>
-
-				<section class="section" id="workflow">
-					<div class="container">
-						<div class="workflow-shell section-shell">
-							<div class="section-heading">
-								<span class="section-kicker">Workflow</span>
-								<h2 class="section-title">A short path from visibility to action</h2>
-								<p class="section-paragraph">
-									The product is still centered on a clear maintenance loop, now with a roadmap
-									that makes the workflow feel expandable instead of crowded.
-								</p>
-							</div>
-							<div class="workflow-grid">
-								<article class="workflow-step is-revealing">
-									<strong>Step 1</strong>
-									<h3>Open apps or projects</h3>
-									<p>
-										Start from Installed Apps for machine-wide checks, or select a project and let
-										npMax detect the right manifest automatically.
-									</p>
-								</article>
-								<article class="workflow-step is-revealing">
-									<strong>Step 2</strong>
-									<h3>Review health and updates</h3>
-									<p>
-										Compare installed and latest versions, inspect outdated packages, and identify
-										which software or libraries deserve attention first.
-									</p>
-								</article>
-								<article class="workflow-step is-revealing">
-									<strong>Step 3</strong>
-									<h3>Act now, recommend next</h3>
-									<p>
-										Apply updates today, then move into upcoming recommendation flows for better
-										alternatives, smarter tools, and stronger maintenance decisions.
-									</p>
-								</article>
-							</div>
-						</div>
+					<div class="eco-chip">
+						<span class="eco-chip-icon">🦋</span> Flutter
 					</div>
-				</section>
-
-				<section class="section" id="downloads">
-					<div class="container">
-						<div class="downloads-shell section-shell">
-							<div class="section-heading">
-								<span class="section-kicker">Downloads</span>
-								<h2 class="section-title">Available for all major desktop platforms</h2>
-								<p class="section-paragraph">
-									Download the latest build from GitHub Releases and use the package format that
-									matches your environment.
-								</p>
-							</div>
-							<div class="download-grid">
-								<article class="download-card is-revealing">
-									<h3>macOS</h3>
-									<p>
-										Native builds for Apple Silicon and Intel Macs, designed for developers who
-										want a GUI companion to their existing toolchain.
-									</p>
-									<ul>
-										<li>Apple Silicon (arm64) DMG</li>
-										<li>Intel (x64) DMG</li>
-									</ul>
-									<a
-										class="inline-link"
-										href="https://github.com/mehdiraized/npmax/releases/latest"
-									>
-										View macOS downloads
-									</a>
-								</article>
-								<article class="download-card is-revealing">
-									<h3>Windows</h3>
-									<p>
-										Choose between installer and portable builds depending on how your team rolls
-										out tools across workstations.
-									</p>
-									<ul>
-										<li>Windows installer</li>
-										<li>Portable executable</li>
-									</ul>
-									<a
-										class="inline-link"
-										href="https://github.com/mehdiraized/npmax/releases/latest"
-									>
-										View Windows downloads
-									</a>
-								</article>
-								<article class="download-card is-revealing">
-									<h3>Linux</h3>
-									<p>
-										Use AppImage for flexible distribution or install the packaged
-										<code>.deb</code> release for Debian-based systems.
-									</p>
-									<ul>
-										<li>AppImage for x64 and arm64</li>
-										<li><code>.deb</code> packages for x64 and arm64</li>
-									</ul>
-									<a
-										class="inline-link"
-										href="https://github.com/mehdiraized/npmax/releases/latest"
-									>
-										View Linux downloads
-									</a>
-								</article>
-							</div>
-						</div>
+					<div class="eco-chip"><span class="eco-chip-icon">🐹</span> Go</div>
+					<div class="eco-chip">
+						<span class="eco-chip-icon">🦀</span> Cargo
 					</div>
-				</section>
-
-				<section class="section">
-					<div class="container">
-						<div class="community-shell section-shell">
-							<div>
-								<span class="section-kicker">Open source</span>
-								<h2 class="section-title">Practical today, extensible tomorrow</h2>
-								<p class="section-paragraph">
-									npMax is open source right now, but the product direction clearly expands toward
-									skills, automation, AI tooling, and recommendation-driven workflows.
-								</p>
-								<ul class="community-list">
-									<li>
-										<span class="community-bullet"></span>
-										<div>
-											<strong>Built for actual maintenance work.</strong>
-											The current product already solves repetitive dependency and app update
-											tasks in a more visual workflow.
-										</div>
-									</li>
-									<li>
-										<span class="community-bullet"></span>
-										<div>
-											<strong>Ready for broader AI utility.</strong>
-											The roadmap adds recommendations, discovery, and action layers rather than
-											turning the app into vague AI marketing.
-										</div>
-									</li>
-									<li>
-										<span class="community-bullet"></span>
-										<div>
-											<strong>Easy to contribute to.</strong>
-											Clone the repo, run <code>npm install</code>, then <code>npm run dev</code>
-											to start iterating.
-										</div>
-									</li>
-								</ul>
-							</div>
-							<aside class="community-panel">
-								<h3 class="mt-0">Useful links</h3>
-								<p class="mb-16">
-									Start with the release page if you want the app now, or jump into the repo if
-									you want to contribute to the next version.
-								</p>
-								<ul class="mb-0">
-									<li>
-										<a href="https://github.com/mehdiraized/npmax/releases/latest">
-											Latest release
-										</a>
-									</li>
-									<li>
-										<a href="https://github.com/mehdiraized/npmax">GitHub repository</a>
-									</li>
-									<li>
-										<a href="https://github.com/mehdiraized/npmax/blob/master/CONTRIBUTING.md">
-											Contributing guide
-										</a>
-									</li>
-									<li><a href="https://t.me/npmax_app">Telegram community</a></li>
-									<li><a href="https://twitter.com/npMax_app">Project updates</a></li>
-								</ul>
-							</aside>
-						</div>
+					<div class="eco-chip">
+						<span class="eco-chip-icon">💎</span> Bundler
 					</div>
-				</section>
+				</div>
+			</div>
+		</section>
 
-				<section class="section" id="faq">
-					<div class="container">
-						<div class="faq-shell section-shell">
-							<div class="section-heading">
-								<span class="section-kicker">FAQ</span>
-								<h2 class="section-title">Questions people usually ask first</h2>
-							</div>
-							<div class="faq-grid">
-								<article class="faq-card is-revealing">
-									<h3>Is npMax free to use today?</h3>
-									<p>
-										Yes. npMax is open source and the public builds are available from GitHub
-										Releases.
-									</p>
-								</article>
-								<article class="faq-card is-revealing">
-									<h3>What is already supported right now?</h3>
-									<p>
-										Today the app covers multi-ecosystem project dependencies, installed apps, and
-										cross-platform desktop releases for macOS, Windows, and Linux.
-									</p>
-								</article>
-								<article class="faq-card is-revealing">
-									<h3>What is coming in the next version?</h3>
-									<p>
-										AI-powered recommendations for apps and packages, category-based discovery,
-										CLI tool support, and sections for skills and automations are all planned.
-									</p>
-								</article>
-							</div>
+		<!-- Screenshots -->
+		<section class="section" id="preview">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-blue">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+							<line x1="8" y1="21" x2="16" y2="21" />
+							<line x1="12" y1="17" x2="12" y2="21" />
+						</svg>
+						Screenshots
+					</span>
+					<h2 class="section-title">See the app in action</h2>
+					<p class="section-desc">
+						A clean, intuitive interface to manage everything from a single
+						desktop workspace.
+					</p>
+				</div>
+				<div class="preview-grid">
+					<article class="preview-card reveal delay-1">
+						<div class="preview-card-img">
+							<img
+								src="dist/images/screenshots/Apps.jpg"
+								alt="npMax Installed Apps"
+							/>
 						</div>
-					</div>
-				</section>
+						<div class="preview-card-body">
+							<h3>Installed Apps Dashboard</h3>
+							<p>
+								Scan your machine for all installed desktop apps, see which ones
+								have updates, and keep your tools current.
+							</p>
+						</div>
+					</article>
+					<article class="preview-card reveal delay-2">
+						<div class="preview-card-img">
+							<img
+								src="dist/images/screenshots/packages.jpg"
+								alt="npMax Package Editor"
+							/>
+						</div>
+						<div class="preview-card-body">
+							<h3>Package Management</h3>
+							<p>
+								View dependencies with live version data, compare installed vs
+								latest, and update with one click.
+							</p>
+						</div>
+					</article>
+					<article class="preview-card reveal delay-3">
+						<div class="preview-card-img">
+							<img
+								src="dist/images/screenshots/projects.jpg"
+								alt="npMax Project Workspace"
+							/>
+						</div>
+						<div class="preview-card-body">
+							<h3>Multi-Project Workspace</h3>
+							<p>
+								Pin multiple repos in the sidebar, switch between them
+								instantly, and maintain a consistent update workflow.
+							</p>
+						</div>
+					</article>
+				</div>
+			</div>
+		</section>
 
-				<section class="cta section">
-					<div class="container-sm">
-						<div class="section-inner">
-							<div class="cta-banner">
-								<h2 class="section-title mt-0">Start with updates now, grow into recommendations next</h2>
-								<p class="section-paragraph">
-									Download npMax today for project and app update visibility, then follow the
-									roadmap as the product expands into AI-guided recommendations and broader desktop tooling.
-								</p>
-								<div class="hero-cta">
-									<a
-										class="button button-primary"
-										href="https://github.com/mehdiraized/npmax/releases/latest"
-									>
-										Download now
-									</a>
-									<a
-										class="button button-secondary"
-										href="https://github.com/mehdiraized/npmax"
-									>
-										View source
-									</a>
-									<a
-										class="button button-secondary"
-										href="https://buymeacoffee.com/farobox"
-									>
-										Donate for Pro
-									</a>
-								</div>
-							</div>
+		<!-- Features -->
+		<section class="section" id="features">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-green">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<polygon
+								points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+							/>
+						</svg>
+						Core Features
+					</span>
+					<h2 class="section-title">Everything you need, nothing you don't</h2>
+					<p class="section-desc">
+						Built for developers who want a visual, cross-platform way to manage
+						dependencies and app updates.
+					</p>
+				</div>
+				<div class="features-grid">
+					<article class="feature-card reveal delay-1">
+						<div class="feature-icon feature-icon-blue">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M20 7h-9" />
+								<path d="M14 17H5" />
+								<circle cx="17" cy="17" r="3" />
+								<circle cx="7" cy="7" r="3" />
+							</svg>
 						</div>
-					</div>
-				</section>
-			</main>
-
-			<footer class="site-footer has-top-divider">
-				<div class="container">
-					<div class="site-footer-inner">
-						<div class="brand footer-brand">
-							<a href="https://github.com/mehdiraized/npmax" aria-label="npMax on GitHub">
-								<img class="asset-light" width="64" src="dist/images/logo.png" alt="npMax logo" />
-								<img class="asset-dark" width="64" src="dist/images/logo.png" alt="npMax logo" />
-							</a>
-						</div>
-						<ul class="footer-links">
-							<li><a href="#screenshots">Screenshots</a></li>
-							<li><a href="#features">Features</a></li>
-							<li><a href="#roadmap">Coming next</a></li>
-							<li><a href="#downloads">Downloads</a></li>
-						</ul>
-						<ul class="footer-social-links">
+						<h3>Dependency Control</h3>
+						<p>
+							Inspect manifests, compare installed and latest versions, and
+							update packages from one place.
+						</p>
+						<ul class="feature-bullets">
 							<li>
-								<a href="https://github.com/mehdiraized/npmax" aria-label="GitHub">
-									<span class="screen-reader-text">GitHub</span>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Semver-aware updates preserving version style
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Lock file detection with install/sync buttons
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Live registry checks for all ecosystems
+							</li>
+						</ul>
+					</article>
+					<article class="feature-card reveal delay-2">
+						<div class="feature-icon feature-icon-green">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+								<line x1="8" y1="21" x2="16" y2="21" />
+								<line x1="12" y1="17" x2="12" y2="21" />
+							</svg>
+						</div>
+						<h3>Installed Apps Scanner</h3>
+						<p>
+							Not just code — scan installed desktop apps and surface update
+							opportunities across your system.
+						</p>
+						<ul class="feature-bullets">
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Docker, VS Code, Android Studio, and more
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Homebrew, winget, Flatpak, Snap detection
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Search, filter, and sort with update badges
+							</li>
+						</ul>
+					</article>
+					<article class="feature-card reveal delay-3">
+						<div class="feature-icon feature-icon-purple">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<rect x="3" y="3" width="7" height="7" />
+								<rect x="14" y="3" width="7" height="7" />
+								<rect x="14" y="14" width="7" height="7" />
+								<rect x="3" y="14" width="7" height="7" />
+							</svg>
+						</div>
+						<h3>Multi-Repo Workspace</h3>
+						<p>
+							Pin multiple projects in a sidebar, jump between them, and reuse
+							the same workflow across repos.
+						</p>
+						<ul class="feature-bullets">
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Great for agencies and teams with many projects
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Auto-detects project type from manifests
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Less context switching than terminal sessions
+							</li>
+						</ul>
+					</article>
+					<article class="feature-card reveal delay-1">
+						<div class="feature-icon feature-icon-orange">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<circle cx="12" cy="12" r="10" />
+								<line x1="12" y1="8" x2="12" y2="12" />
+								<line x1="12" y1="16" x2="12.01" y2="16" />
+							</svg>
+						</div>
+						<h3>Registry-Backed Checks</h3>
+						<p>
+							Queries real registries — npm, Packagist, Maven, pub.dev,
+							crates.io, RubyGems, Go proxy, and more.
+						</p>
+						<ul class="feature-bullets">
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>In-memory caching for fast lookups
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Package details with version history
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Downloads, compatibility, and metadata
+							</li>
+						</ul>
+					</article>
+					<article class="feature-card reveal delay-2">
+						<div class="feature-icon feature-icon-pink">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M12 20h9" />
+								<path
+									d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+								/>
+							</svg>
+						</div>
+						<h3>One-Click Updates</h3>
+						<p>
+							Update versions directly in your manifest file with a single
+							click, preserving version constraints.
+						</p>
+						<ul class="feature-bullets">
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Preserves ^, ~, >= prefixes automatically
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Detects lock file drift and suggests sync
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Runs install/sync commands for you
+							</li>
+						</ul>
+					</article>
+					<article class="feature-card reveal delay-3">
+						<div class="feature-icon feature-icon-cyan">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path
+									d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V15M9 21H5a2 2 0 0 1-2-2v-4"
+								/>
+							</svg>
+						</div>
+						<h3>Cross-Platform</h3>
+						<p>
+							Native builds for macOS (Apple Silicon &amp; Intel), Windows
+							(installer &amp; portable), and Linux (AppImage &amp; .deb).
+						</p>
+						<ul class="feature-bullets">
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Same features across all three platforms
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Built with Electron + Svelte
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Lightweight and resource-friendly
+							</li>
+						</ul>
+					</article>
+				</div>
+			</div>
+		</section>
+
+		<!-- Ecosystems Detail -->
+		<section class="section" id="ecosystems">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-purple">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<circle cx="12" cy="12" r="10" />
+							<path d="M2 12h20" />
+							<path
+								d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+							/>
+						</svg>
+						Ecosystem Support
+					</span>
+					<h2 class="section-title">One app for every stack</h2>
+					<p class="section-desc">
+						npMax auto-detects your project type and shows the right editor with
+						live registry data.
+					</p>
+				</div>
+				<div class="eco-detail-grid">
+					<div class="eco-detail-card reveal delay-1">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(59, 130, 246, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--accent-light)"
+								stroke-width="1.5"
+							>
+								<rect x="3" y="3" width="18" height="18" rx="2" />
+								<path d="M12 8v8m-4-4h8" />
+							</svg>
+						</div>
+						<h4>npm / yarn / pnpm</h4>
+						<p>package.json</p>
+					</div>
+					<div class="eco-detail-card reveal delay-1">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(139, 92, 246, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--purple)"
+								stroke-width="1.5"
+							>
+								<circle cx="12" cy="12" r="9" />
+								<path d="M12 3v18M3 12h18" />
+							</svg>
+						</div>
+						<h4>Composer</h4>
+						<p>composer.json</p>
+					</div>
+					<div class="eco-detail-card reveal delay-2">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(245, 158, 11, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--orange)"
+								stroke-width="1.5"
+							>
+								<path d="M12 2L2 7l10 5 10-5-10-5z" />
+								<path d="M2 17l10 5 10-5" />
+								<path d="M2 12l10 5 10-5" />
+							</svg>
+						</div>
+						<h4>SwiftPM</h4>
+						<p>Package.swift</p>
+					</div>
+					<div class="eco-detail-card reveal delay-2">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(236, 72, 153, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--pink)"
+								stroke-width="1.5"
+							>
+								<circle cx="12" cy="12" r="9" />
+								<circle cx="12" cy="12" r="4" />
+							</svg>
+						</div>
+						<h4>CocoaPods</h4>
+						<p>Podfile</p>
+					</div>
+					<div class="eco-detail-card reveal delay-3">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(16, 185, 129, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--green)"
+								stroke-width="1.5"
+							>
+								<path d="M12 2L2 7l10 5 10-5-10-5z" />
+								<path d="M2 17l10 5 10-5" />
+								<path d="M2 12l10 5 10-5" />
+							</svg>
+						</div>
+						<h4>Gradle</h4>
+						<p>build.gradle(.kts)</p>
+					</div>
+					<div class="eco-detail-card reveal delay-3">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(59, 130, 246, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--accent-light)"
+								stroke-width="1.5"
+							>
+								<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+								<path
+									d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+								/>
+							</svg>
+						</div>
+						<h4>Version Catalog</h4>
+						<p>libs.versions.toml</p>
+					</div>
+					<div class="eco-detail-card reveal delay-4">
+						<div class="eco-d-icon" style="background: rgba(6, 182, 212, 0.12)">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="#06b6d4"
+								stroke-width="1.5"
+							>
+								<path d="M12 19l7-7 3 3-7 7-3-3z" />
+								<path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+								<path d="M2 2l7.586 7.586" />
+								<circle cx="11" cy="11" r="2" />
+							</svg>
+						</div>
+						<h4>Flutter / Dart</h4>
+						<p>pubspec.yaml</p>
+					</div>
+					<div class="eco-detail-card reveal delay-4">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(59, 130, 246, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--accent-light)"
+								stroke-width="1.5"
+							>
+								<circle cx="12" cy="12" r="9" />
+								<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+								<circle cx="12" cy="17" r=".5" />
+							</svg>
+						</div>
+						<h4>Go Modules</h4>
+						<p>go.mod</p>
+					</div>
+					<div class="eco-detail-card reveal delay-5">
+						<div
+							class="eco-d-icon"
+							style="background: rgba(245, 158, 11, 0.12)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="var(--orange)"
+								stroke-width="1.5"
+							>
+								<path
+									d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+								/>
+							</svg>
+						</div>
+						<h4>Cargo (Rust)</h4>
+						<p>Cargo.toml</p>
+					</div>
+					<div class="eco-detail-card reveal delay-5">
+						<div class="eco-d-icon" style="background: rgba(239, 68, 68, 0.12)">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="#ef4444"
+								stroke-width="1.5"
+							>
+								<path
+									d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+								/>
+							</svg>
+						</div>
+						<h4>Bundler (Ruby)</h4>
+						<p>Gemfile</p>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- Showcase: Installed Apps -->
+		<section class="showcase">
+			<div class="container">
+				<div class="showcase-inner reveal">
+					<div class="showcase-text">
+						<span class="section-badge section-badge-green">
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+								<line x1="8" y1="21" x2="16" y2="21" />
+								<line x1="12" y1="17" x2="12" y2="21" />
+							</svg>
+							Installed Apps
+						</span>
+						<h3>
+							Beyond code: manage
+							<span class="text-gradient">every app</span> on your machine
+						</h3>
+						<p>
+							npMax scans your operating system for installed desktop
+							applications, detects available updates from native package
+							managers, and shows everything in a clean, searchable dashboard.
+						</p>
+						<ul class="showcase-list">
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Homebrew Casks, winget, Flatpak, and Snap detection
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Curated catalog fallback with platform-specific identifiers
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>View installed version, latest version, and suggested update
+								command
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Works for Docker, Steam, Android Studio, VS Code, Spotify, and
+								more
+							</li>
+						</ul>
+					</div>
+					<div class="showcase-image">
+						<img
+							src="dist/images/screenshots/Apps.jpg"
+							alt="npMax Installed Apps"
+						/>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- Showcase: Package Editor -->
+		<section class="showcase">
+			<div class="container">
+				<div class="showcase-inner reverse reveal">
+					<div class="showcase-text">
+						<span class="section-badge section-badge-blue">
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path d="M20 7h-9" />
+								<path d="M14 17H5" />
+								<circle cx="17" cy="17" r="3" />
+								<circle cx="7" cy="7" r="3" />
+							</svg>
+							Package Management
+						</span>
+						<h3>
+							Live version data from
+							<span class="text-gradient">every registry</span>
+						</h3>
+						<p>
+							Stop bouncing between your editor, terminal, and package
+							registries. npMax brings everything into a single view with
+							real-time version comparisons and one-click updates.
+						</p>
+						<ul class="showcase-list">
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Checks npm, Packagist, Maven, pub.dev, crates.io, RubyGems, Go
+								proxy
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Package detail modal with version history, downloads, and links
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Preserves ^, ~, >= constraints on version updates
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Detects lock file drift and runs sync commands
+							</li>
+						</ul>
+					</div>
+					<div class="showcase-image">
+						<img
+							src="dist/images/screenshots/packages.jpg"
+							alt="npMax Package Editor"
+						/>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- Workflow -->
+		<section class="section" id="workflow">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-orange">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+						</svg>
+						How It Works
+					</span>
+					<h2 class="section-title">Three steps to a healthier stack</h2>
+					<p class="section-desc">
+						From scanning to updating, npMax keeps the workflow tight and
+						repeatable.
+					</p>
+				</div>
+				<div class="workflow-steps">
+					<div class="workflow-step reveal delay-1">
+						<div class="workflow-num">1</div>
+						<h3>Open or Add Projects</h3>
+						<p>
+							Start from Installed Apps for machine-wide checks, or add a
+							project folder and let npMax auto-detect the manifest.
+						</p>
+					</div>
+					<div class="workflow-step reveal delay-2">
+						<div class="workflow-num">2</div>
+						<h3>Review &amp; Compare</h3>
+						<p>
+							Compare installed and latest versions, inspect outdated packages,
+							and identify what needs attention first.
+						</p>
+					</div>
+					<div class="workflow-step reveal delay-3">
+						<div class="workflow-num">3</div>
+						<h3>Update with One Click</h3>
+						<p>
+							Apply version updates directly, run sync commands, and keep your
+							projects and tools consistently up to date.
+						</p>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- Roadmap -->
+		<section class="section" id="roadmap">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-purple">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+							/>
+						</svg>
+						Roadmap
+					</span>
+					<h2 class="section-title">AI-powered recommendations are coming</h2>
+					<p class="section-desc">
+						The next major step is smarter guidance about which app, package, or
+						tool to adopt next.
+					</p>
+				</div>
+				<div class="features-grid">
+					<article
+						class="feature-card reveal delay-1"
+						style="border-color: rgba(139, 92, 246, 0.15)"
+					>
+						<div class="feature-icon feature-icon-purple">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+								<line x1="8" y1="21" x2="16" y2="21" />
+								<line x1="12" y1="17" x2="12" y2="21" />
+							</svg>
+						</div>
+						<h3>App Intelligence</h3>
+						<p>
+							Suggest better desktop apps by category. Recommend alternatives
+							when an installed app is outdated. Surface newly released apps
+							that fit your current setup.
+						</p>
+					</article>
+					<article
+						class="feature-card reveal delay-2"
+						style="border-color: rgba(59, 130, 246, 0.15)"
+					>
+						<div class="feature-icon feature-icon-blue">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+								/>
+							</svg>
+						</div>
+						<h3>Package Intelligence</h3>
+						<p>
+							Analyze dependencies and suggest better-maintained, more popular,
+							or more capable alternatives where that makes sense for your team.
+						</p>
+					</article>
+					<article
+						class="feature-card reveal delay-3"
+						style="border-color: rgba(16, 185, 129, 0.15)"
+					>
+						<div class="feature-icon feature-icon-green">
+							<svg
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<polyline points="4 17 10 11 4 5" />
+								<line x1="12" y1="19" x2="20" y2="19" />
+							</svg>
+						</div>
+						<h3>CLI &amp; AI Tools</h3>
+						<p>
+							Track CLI tools like Claude, Codex, and Gemini. Skill store and
+							automation sections to help unlock more value inside the app.
+						</p>
+					</article>
+				</div>
+			</div>
+		</section>
+
+		<!-- Downloads -->
+		<section class="section" id="downloads">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-blue">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+							<polyline points="7 10 12 15 17 10" />
+							<line x1="12" y1="15" x2="12" y2="3" />
+						</svg>
+						Downloads
+					</span>
+					<h2 class="section-title">Available on every platform</h2>
+					<p class="section-desc">
+						Free and open source. Download the latest build for your operating
+						system.
+					</p>
+				</div>
+				<div class="download-grid">
+					<article class="download-card reveal delay-1">
+						<div class="download-icon">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83"
+								/>
+								<path
+									d="M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"
+								/>
+							</svg>
+						</div>
+						<h3>macOS</h3>
+						<p>Native builds for Apple Silicon and Intel Macs.</p>
+						<ul>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Apple Silicon (arm64) DMG
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Intel (x64) DMG
+							</li>
+						</ul>
+						<a
+							class="download-link"
+							href="https://github.com/mehdiraized/npmax/releases/latest"
+							>Download for macOS
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<line x1="5" y1="12" x2="19" y2="12" />
+								<polyline points="12 5 19 12 12 19" /></svg
+						></a>
+					</article>
+					<article class="download-card reveal delay-2">
+						<div
+							class="download-icon"
+							style="background: rgba(16, 185, 129, 0.1); color: var(--green)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<path
+									d="M3 5.5L5.5 3H10l2 2H18.5L21 7.5V12l-2 2v5.5L16.5 22H12l-2-2H4.5L2 17.5V13l2-2V5.5z"
+								/>
+							</svg>
+						</div>
+						<h3>Windows</h3>
+						<p>Installer and portable builds for all workstations.</p>
+						<ul>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Windows installer (.exe)
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>Portable executable
+							</li>
+						</ul>
+						<a
+							class="download-link"
+							href="https://github.com/mehdiraized/npmax/releases/latest"
+							>Download for Windows
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<line x1="5" y1="12" x2="19" y2="12" />
+								<polyline points="12 5 19 12 12 19" /></svg
+						></a>
+					</article>
+					<article class="download-card reveal delay-3">
+						<div
+							class="download-icon"
+							style="background: rgba(139, 92, 246, 0.1); color: var(--purple)"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+							>
+								<polyline points="4 17 10 11 4 5" />
+								<line x1="12" y1="19" x2="20" y2="19" />
+							</svg>
+						</div>
+						<h3>Linux</h3>
+						<p>AppImage and .deb packages for x64 and arm64.</p>
+						<ul>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>AppImage (x64 &amp; arm64)
+							</li>
+							<li>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+								>
+									<polyline points="20 6 9 17 4 12" /></svg
+								>.deb packages (x64 &amp; arm64)
+							</li>
+						</ul>
+						<a
+							class="download-link"
+							href="https://github.com/mehdiraized/npmax/releases/latest"
+							>Download for Linux
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<line x1="5" y1="12" x2="19" y2="12" />
+								<polyline points="12 5 19 12 12 19" /></svg
+						></a>
+					</article>
+				</div>
+			</div>
+		</section>
+
+		<!-- Open Source -->
+		<section class="section">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-green">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+							/>
+						</svg>
+						Open Source
+					</span>
+					<h2 class="section-title">Built in the open, for everyone</h2>
+					<p class="section-desc">
+						npMax is MIT-licensed and fully open source. Contribute, fork, or
+						just use it.
+					</p>
+				</div>
+				<div class="oss-grid reveal">
+					<div>
+						<div class="oss-card" style="margin-bottom: 24px">
+							<h3>Built for actual maintenance work</h3>
+							<p>
+								The current product solves the repetitive dependency and app
+								update tasks in a cleaner, more visual workflow. No vague
+								dashboards — real tools for real developers.
+							</p>
+						</div>
+						<div class="oss-card" style="margin-bottom: 24px">
+							<h3>Ready for broader AI utility</h3>
+							<p>
+								The roadmap adds recommendations, discovery, and action layers —
+								making the app smarter without turning it into AI marketing
+								noise.
+							</p>
+						</div>
+						<div class="oss-card">
+							<h3>Easy to contribute</h3>
+							<p>
+								Clone the repo, run
+								<code
+									style="
+										padding: 2px 8px;
+										border-radius: 6px;
+										background: rgba(59, 130, 246, 0.1);
+										color: var(--accent-light);
+										font-size: 13px;
+									"
+									>npm install</code
+								>, then
+								<code
+									style="
+										padding: 2px 8px;
+										border-radius: 6px;
+										background: rgba(59, 130, 246, 0.1);
+										color: var(--accent-light);
+										font-size: 13px;
+									"
+									>npm run dev</code
+								>
+								to start iterating.
+							</p>
+						</div>
+					</div>
+					<div>
+						<div class="oss-card">
+							<h3>Useful Links</h3>
+							<p>Jump into the repo, grab a release, or join the community.</p>
+							<div class="oss-links">
+								<a href="https://github.com/mehdiraized/npmax/releases/latest">
 									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="48"
-										height="48"
 										viewBox="0 0 24 24"
 										fill="none"
-										stroke-width="1.5"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										class="feather feather-github"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+										<polyline points="7 10 12 15 17 10" />
+										<line x1="12" y1="15" x2="12" y2="3" />
+									</svg>
+									Latest Release
+								</a>
+								<a href="https://github.com/mehdiraized/npmax">
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
 									>
 										<path
 											d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
-										></path>
+										/>
 									</svg>
+									GitHub Repository
 								</a>
-							</li>
-						</ul>
-						<div class="footer-copyright">
-							npMax is open source today and expanding toward smarter desktop recommendations.
+								<a
+									href="https://github.com/mehdiraized/npmax/blob/master/CONTRIBUTING.md"
+								>
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+										<circle cx="9" cy="7" r="4" />
+										<path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+										<path d="M16 3.13a4 4 0 0 1 0 7.75" />
+									</svg>
+									Contributing Guide
+								</a>
+								<a href="https://t.me/npmax_app">
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+										/>
+									</svg>
+									Telegram Community
+								</a>
+								<a href="https://twitter.com/npMax_app">
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<path
+											d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"
+										/>
+									</svg>
+									Project Updates
+								</a>
+							</div>
 						</div>
 					</div>
 				</div>
-			</footer>
-		</div>
+			</div>
+		</section>
 
-		<script src="dist/js/main.min.js"></script>
+		<!-- FAQ -->
+		<section class="section" id="faq">
+			<div class="container">
+				<div class="section-header reveal">
+					<span class="section-badge section-badge-blue">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<circle cx="12" cy="12" r="10" />
+							<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+							<line x1="12" y1="17" x2="12.01" y2="17" />
+						</svg>
+						FAQ
+					</span>
+					<h2 class="section-title">Frequently asked questions</h2>
+				</div>
+				<div class="faq-grid">
+					<article class="faq-item reveal delay-1">
+						<h3>Is npMax free?</h3>
+						<p>
+							Yes. npMax is open source under the MIT license and all public
+							builds are available from GitHub Releases at no cost.
+						</p>
+					</article>
+					<article class="faq-item reveal delay-2">
+						<h3>What ecosystems are supported?</h3>
+						<p>
+							npm, yarn, pnpm, Composer, Swift Package Manager, CocoaPods,
+							Gradle, Flutter/Dart, Go, Rust/Cargo, and Ruby/Bundler — 11+
+							ecosystems in total.
+						</p>
+					</article>
+					<article class="faq-item reveal delay-1">
+						<h3>Does it scan installed apps too?</h3>
+						<p>
+							Yes. npMax scans your system for installed desktop apps, detects
+							updates via Homebrew, winget, Flatpak, Snap, and a curated
+							catalog.
+						</p>
+					</article>
+					<article class="faq-item reveal delay-2">
+						<h3>What platforms does it run on?</h3>
+						<p>
+							macOS (Apple Silicon &amp; Intel), Windows (installer &amp;
+							portable), and Linux (AppImage &amp; .deb) — all three major
+							desktop platforms.
+						</p>
+					</article>
+					<article class="faq-item reveal delay-1">
+						<h3>What is npMax Pro?</h3>
+						<p>
+							An upcoming premium layer with AI-powered recommendations for
+							apps, packages, CLI tools, skills, and automations. You can
+							support its development via donations.
+						</p>
+					</article>
+					<article class="faq-item reveal delay-2">
+						<h3>How do I contribute?</h3>
+						<p>
+							Clone the repo, run
+							<code
+								style="
+									padding: 2px 6px;
+									border-radius: 4px;
+									background: rgba(59, 130, 246, 0.1);
+									color: var(--accent-light);
+									font-size: 13px;
+								"
+								>npm install</code
+							>
+							then
+							<code
+								style="
+									padding: 2px 6px;
+									border-radius: 4px;
+									background: rgba(59, 130, 246, 0.1);
+									color: var(--accent-light);
+									font-size: 13px;
+								"
+								>npm run dev</code
+							>. Check the contributing guide on GitHub for details.
+						</p>
+					</article>
+				</div>
+			</div>
+		</section>
+
+		<!-- Donate -->
+		<section class="donate-section">
+			<div class="container">
+				<div class="donate-box reveal-scale">
+					<div class="donate-hearts">
+						<span>&#x2764;</span><span>&#x2764;</span><span>&#x2764;</span
+						><span>&#x2764;</span><span>&#x2764;</span>
+					</div>
+					<h2>
+						Support npMax
+						<span class="text-gradient-warm">Pro</span> Development
+					</h2>
+					<p>
+						Help us build AI-powered recommendations, smarter discovery, and
+						automation workflows. Every contribution helps bring npMax Pro
+						closer to launch.
+					</p>
+					<a
+						class="btn btn-primary btn-lg"
+						href="https://buymeacoffee.com/farobox"
+						target="_blank"
+						rel="noopener"
+					>
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+							/>
+						</svg>
+						Donate via Buy Me a Coffee
+					</a>
+				</div>
+			</div>
+		</section>
+
+		<!-- CTA -->
+		<section class="cta-section">
+			<div class="container">
+				<div class="cta-box reveal-scale">
+					<h2>Ready to simplify your update workflow?</h2>
+					<p>
+						Download npMax for free and manage all your project dependencies and
+						installed apps from one beautiful desktop workspace.
+					</p>
+					<div class="cta-actions">
+						<a
+							class="btn btn-primary btn-lg"
+							href="https://github.com/mehdiraized/npmax/releases/latest"
+						>
+							<svg
+								width="18"
+								height="18"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+								<polyline points="7 10 12 15 17 10" />
+								<line x1="12" y1="15" x2="12" y2="3" />
+							</svg>
+							Download Free
+						</a>
+						<a
+							class="btn btn-ghost btn-lg"
+							href="https://github.com/mehdiraized/npmax"
+							target="_blank"
+							rel="noopener"
+						>
+							<svg
+								width="18"
+								height="18"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+								/>
+							</svg>
+							View Source
+						</a>
+						<a
+							class="btn btn-ghost btn-lg"
+							href="https://buymeacoffee.com/farobox"
+							target="_blank"
+							rel="noopener"
+						>
+							<svg
+								width="18"
+								height="18"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+								/>
+							</svg>
+							Donate
+						</a>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<!-- Footer -->
+		<footer class="footer">
+			<div class="container">
+				<div class="footer-inner">
+					<div class="footer-brand">
+						<img src="dist/images/logo.png" alt="npMax" />
+						<span>npMax</span>
+					</div>
+					<div class="footer-links">
+						<a href="#features">Features</a>
+						<a href="#ecosystems">Ecosystems</a>
+						<a href="#preview">Screenshots</a>
+						<a href="#downloads">Downloads</a>
+						<a href="#faq">FAQ</a>
+					</div>
+					<div class="footer-social">
+						<a
+							href="https://github.com/mehdiraized/npmax"
+							aria-label="GitHub"
+							target="_blank"
+							rel="noopener"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path
+									d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
+								/>
+							</svg>
+						</a>
+						<a
+							href="https://t.me/npmax_app"
+							aria-label="Telegram"
+							target="_blank"
+							rel="noopener"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+								/>
+							</svg>
+						</a>
+						<a
+							href="https://twitter.com/npMax_app"
+							aria-label="Twitter"
+							target="_blank"
+							rel="noopener"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path
+									d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"
+								/>
+							</svg>
+						</a>
+					</div>
+					<div class="footer-copy">
+						&copy; npMax — Open source desktop package &amp; app update manager.
+						MIT License.
+					</div>
+				</div>
+			</div>
+		</footer>
+
+		<script>
+			document.addEventListener("DOMContentLoaded", function () {
+				var revealEls = document.querySelectorAll(
+					".reveal, .reveal-left, .reveal-right, .reveal-scale",
+				);
+				if ("IntersectionObserver" in window) {
+					var observer = new IntersectionObserver(
+						function (entries) {
+							entries.forEach(function (entry) {
+								if (entry.isIntersecting) {
+									entry.target.classList.add("visible");
+								}
+							});
+						},
+						{ threshold: 0.1, rootMargin: "0px 0px -40px 0px" },
+					);
+					revealEls.forEach(function (el) {
+						observer.observe(el);
+					});
+				} else {
+					revealEls.forEach(function (el) {
+						el.classList.add("visible");
+					});
+				}
+
+				var nav = document.getElementById("nav");
+				window.addEventListener("scroll", function () {
+					nav.classList.toggle("scrolled", window.scrollY > 50);
+				});
+
+				var toggle = document.getElementById("mobileToggle");
+				var links = document.getElementById("navLinks");
+				toggle.addEventListener("click", function () {
+					links.classList.toggle("open");
+				});
+				links.querySelectorAll("a").forEach(function (link) {
+					link.addEventListener("click", function () {
+						links.classList.remove("open");
+					});
+				});
+
+				window.addEventListener("scroll", function () {
+					var y = window.scrollY;
+					var g1 = document.querySelector(".bg-glow-1");
+					var g2 = document.querySelector(".bg-glow-2");
+					var g3 = document.querySelector(".bg-glow-3");
+					if (g1) g1.style.transform = "translateY(" + y * 0.05 + "px)";
+					if (g2) g2.style.transform = "translateY(" + y * -0.03 + "px)";
+					if (g3) g3.style.transform = "translateY(" + y * 0.04 + "px)";
+				});
+			});
+		</script>
 	</body>
 </html>
