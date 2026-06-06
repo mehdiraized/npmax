@@ -10,3 +10,5 @@ npm-debug*
 releases/
 releases/* 
 npm-shrinkwrap.json
+
+.playwright-mcp

@@ -20,7 +20,7 @@
 	import GoIcon from "../icons/go.svelte";
 	import RustIcon from "../icons/rust.svelte";
 	import RubyIcon from "../icons/ruby.svelte";
-	import { projects, menuActive } from "../store";
+	import { projects, menuActive, persistProjects } from "../store";
 	import { parsePodfile, parseSwiftManifest } from "../utils/apple.js";
 	import { parseGradleManifest, parseVersionCatalog } from "../utils/android.js";
 	import { parsePubspec } from "../utils/flutter.js";
@@ -225,18 +225,20 @@
 				const projectPath = result[0];
 				const parts = result[0].split("/");
 				const projectName = parts[parts.length - 1];
+				const existing = $projects.find((project) => project.path === projectPath);
+
+				if (existing) {
+					menuActive.set(`project_${existing.id}`);
+					return;
+				}
+
 				const newId =
-					$projects.length > 0 ? $projects[$projects.length - 1].id + 1 : 0;
-				projects.update((list) => {
-					return [...list, { id: newId, name: projectName, path: projectPath }];
-				});
-				localStorage.setItem(
-					"projects",
-					JSON.stringify([
-						...$projects,
-						{ id: newId, name: projectName, path: projectPath },
-					]),
-				);
+					$projects.length > 0
+						? Math.max(...$projects.map((project) => Number(project.id) || 0)) + 1
+						: 0;
+				const nextProject = { id: newId, name: projectName, path: projectPath };
+				projects.set(persistProjects([...$projects, nextProject]));
+				menuActive.set(`project_${newId}`);
 			}
 		} catch (err) {
 			console.error(err);

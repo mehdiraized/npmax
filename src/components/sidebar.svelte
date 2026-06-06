@@ -2,7 +2,12 @@
 		import { onDestroy, onMount } from "svelte";
 	import { shell } from "electron";
 	import SimpleBar from "../components/SimpleBar.svelte";
-	import { projects, menuActive } from "../store";
+	import {
+		projects,
+		menuActive,
+		normalizeProjects,
+		persistProjects,
+	} from "../store";
 	import {
 		detectProjectType,
 		globalPackages,
@@ -69,10 +74,11 @@
 		packages = isJson(localStorage.getItem("packages"))
 			? JSON.parse(localStorage.getItem("packages"))
 			: {};
-		const storedProjects =
+		const rawStoredProjects =
 			localStorage.getItem("projects") !== "null"
 				? JSON.parse(localStorage.getItem("projects") || "[]")
 				: [];
+		const storedProjects = persistProjects(rawStoredProjects);
 		projects.set(storedProjects);
 		for (const project of storedProjects) {
 			void resolveProjectType(project);
@@ -105,22 +111,21 @@
 				const projectPath = result[0];
 				const parts = result[0].split("/");
 				const projectName = parts[parts.length - 1];
+				const existing = $projects.find((project) => project.path === projectPath);
+
+				if (existing) {
+					menuActive.set(`project_${existing.id}`);
+					return;
+				}
+
 				const newId =
-					$projects.length > 0 ? $projects[$projects.length - 1].id + 1 : 0;
-				projects.update((list) => [
-					...list,
-					{ id: newId, name: projectName, path: projectPath },
-				]);
-				void resolveProjectType({
-					id: newId,
-					name: projectName,
-					path: projectPath,
-				});
-				const nextProjects = [
-					...$projects,
-					{ id: newId, name: projectName, path: projectPath },
-				];
-				localStorage.setItem("projects", JSON.stringify(nextProjects));
+					$projects.length > 0
+						? Math.max(...$projects.map((project) => Number(project.id) || 0)) + 1
+						: 0;
+				const nextProject = { id: newId, name: projectName, path: projectPath };
+				const nextProjects = persistProjects([...$projects, nextProject]);
+				projects.set(nextProjects);
+				void resolveProjectType(nextProject);
 				menuActive.set(`project_${newId}`);
 			}
 		} catch (err) {
@@ -129,10 +134,10 @@
 	}
 
 	function removeProject(id) {
-		const filtered = $projects.filter((item) => item.id !== id);
+		const filtered = normalizeProjects($projects.filter((item) => item.id !== id));
 		projects.set(filtered);
 		menuActive.set("installed-apps");
-		localStorage.setItem("projects", JSON.stringify(filtered));
+		persistProjects(filtered);
 	}
 
 	function openBugReport() {
@@ -342,13 +347,24 @@
 
 <style lang="scss">
 	.nav {
+		--text-primary: rgba(255, 255, 255, 0.98);
+		--text-secondary: rgba(255, 255, 255, 0.86);
+		--text-muted: rgba(255, 255, 255, 0.66);
+		--border-subtle: rgba(255, 255, 255, 0.18);
+		--border-light: rgba(255, 255, 255, 0.3);
+
 		width: 232px;
 		min-width: 232px;
 		height: 100vh;
 		display: flex;
 		flex-direction: column;
-		// border-right: 1px solid var(--border-subtle);
-		background: rgba(0, 0, 0, 0.12);
+		border-right: 1px solid rgba(255, 255, 255, 0.14);
+		background:
+			linear-gradient(180deg, rgba(12, 16, 24, 0.68), rgba(12, 16, 24, 0.56)),
+			rgba(12, 16, 24, 0.58);
+		backdrop-filter: blur(28px) saturate(170%);
+		-webkit-backdrop-filter: blur(28px) saturate(170%);
+		box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.18);
 		overflow: hidden;
 		padding-right: 10px;
 	}
@@ -373,8 +389,8 @@
 		align-items: center;
 		justify-content: flex-start;
 		gap: 6px;
-		min-height: 32px;
-		padding: 2px 6px 4px 74px;
+		min-height: 40px;
+		padding: 10px 6px 4px 74px;
 		-webkit-app-region: drag;
 	}
 
@@ -417,10 +433,10 @@
 	}
 
 	.nav__secLabel {
-		font-size: 10px;
-		font-weight: 600;
+		font-size: 11px;
+		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 0.12em;
+		letter-spacing: 0.1em;
 		color: var(--text-muted);
 	}
 
@@ -454,12 +470,15 @@
 		display: flex;
 		align-items: center;
 		gap: 9px;
-		padding: 8px 10px;
+		min-height: 38px;
+		padding: 9px 10px;
 		border-radius: var(--radius-md);
 		border: 1px solid transparent;
 		background: transparent;
 		color: var(--text-secondary);
-		font-size: 13px;
+		font-size: 14px;
+		font-weight: 600;
+		line-height: 1.2;
 		text-align: left;
 		transition:
 			background var(--transition-fast),
@@ -472,22 +491,22 @@
 		}
 
 		&--active {
-			background: var(--glass-medium);
-			border-color: var(--border-subtle);
+			background: rgba(255, 255, 255, 0.14);
+			border-color: var(--border-light);
 			color: var(--text-primary);
 		}
 	}
 
 	.nav__itemIcon {
-		width: 15px;
-		height: 15px;
+		width: 16px;
+		height: 16px;
 		flex-shrink: 0;
 		color: inherit;
 	}
 
 	.nav__itemBadge {
 		margin-left: auto;
-		font-size: 10px;
+		font-size: 11px;
 		color: var(--text-muted);
 	}
 
@@ -497,12 +516,14 @@
 		align-items: center;
 		gap: 8px;
 		width: 100%;
+		min-height: 38px;
 		padding: 10px;
 		border-radius: var(--radius-md);
 		border: 1px dashed var(--border-subtle);
 		background: transparent;
 		color: var(--text-muted);
-		font-size: 12px;
+		font-size: 13px;
+		line-height: 1.2;
 		transition:
 			border-color var(--transition-fast),
 			color var(--transition-fast),
@@ -540,8 +561,8 @@
 		}
 
 		&--active {
-			background: var(--glass-light);
-			border-color: var(--border-subtle);
+			background: rgba(255, 255, 255, 0.12);
+			border-color: var(--border-light);
 		}
 	}
 
@@ -549,11 +570,14 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 7px 8px 7px 10px;
+		min-height: 36px;
+		padding: 8px 8px 8px 10px;
 		border: 0;
 		background: transparent;
 		color: var(--text-secondary);
-		font-size: 12px;
+		font-size: 13px;
+		font-weight: 600;
+		line-height: 1.2;
 		min-width: 0;
 		text-align: left;
 
@@ -566,8 +590,8 @@
 	}
 
 	.nav__projectIcon {
-		width: 13px;
-		height: 13px;
+		width: 15px;
+		height: 15px;
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
@@ -617,44 +641,35 @@
 	.nav__pkgs {
 		flex-shrink: 0;
 		margin-top: auto;
-		padding: 12px 14px 16px;
+		padding: 8px 14px 10px;
 		border-top: 1px solid var(--border-subtle);
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 5px;
 	}
 
 	.nav__pkgList {
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
+		gap: 0;
 	}
 
 	.nav__pkgRow {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 6px 8px;
-		border-radius: 12px;
-		transition:
-			background var(--transition-fast),
-			border-color var(--transition-fast);
-		border: 1px solid transparent;
-
-		&:hover {
-			background: rgba(255, 255, 255, 0.04);
-			border-color: rgba(255, 255, 255, 0.05);
-		}
+		gap: 8px;
+		min-height: 30px;
+		padding: 2px 8px;
 	}
 
 	.nav__pkgIcon {
-		width: 24px;
-		height: 24px;
+		width: 20px;
+		height: 20px;
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
-		padding: 3px;
-		border-radius: 8px;
+		padding: 2px;
+		border-radius: 6px;
 		background:
 			linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
 		border: 1px solid rgba(255, 255, 255, 0.08);
@@ -663,14 +678,15 @@
 
 	.nav__pkgName {
 		flex: 1;
-		font-size: 12.5px;
-		color: rgba(255, 255, 255, 0.82);
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-secondary);
 		min-width: 0;
 	}
 
 	.nav__pkgVer {
-		font-size: 11.5px;
-		color: rgba(255, 255, 255, 0.54);
+		font-size: 12px;
+		color: var(--text-muted);
 		font-variant-numeric: tabular-nums;
 	}
 </style>

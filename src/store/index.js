@@ -8,12 +8,37 @@ const safeJsonParse = (value, fallback) => {
 	}
 };
 
+export const normalizeProjects = (list) => {
+	if (!Array.isArray(list)) return [];
+	const seen = new Set();
+
+	return list.filter((project) => {
+		if (!project || typeof project !== "object") return false;
+		const key =
+			typeof project.path === "string" && project.path.trim()
+				? `path:${project.path.trim()}`
+				: `id:${project.id}:${project.name || ""}`;
+
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+};
+
+export const persistProjects = (list) => {
+	const next = normalizeProjects(list);
+	if (typeof window !== "undefined") {
+		localStorage.setItem("projects", JSON.stringify(next));
+	}
+	return next;
+};
+
 const getStoredProjects = () => {
 	if (typeof window === "undefined") return [];
 	const stored = localStorage.getItem("projects");
 	if (!stored || stored === "null") return [];
 	const parsed = safeJsonParse(stored, []);
-	return Array.isArray(parsed) ? parsed : [];
+	return persistProjects(parsed);
 };
 
 const getStoredMenuActive = () => {
