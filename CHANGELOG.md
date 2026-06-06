@@ -1,5 +1,44 @@
 # Changelog
 
+## [2.17.0] - 2026-06-06
+
+### ✨ Features
+
+- improve sidebar contrast and project navigation ([71a8015](https://github.com/mehdiraized/npmax/commit/71a8015))
+
+### 📦 Other Changes
+
+- Merge pull request #96 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-cdacf61205 ([2675798](https://github.com/mehdiraized/npmax/commit/2675798))
+- build(deps): bump the npm_and_yarn group across 1 directory with 2 updates ([6019976](https://github.com/mehdiraized/npmax/commit/6019976))
+- Merge pull request #95 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-4d82630448 ([ca8d677](https://github.com/mehdiraized/npmax/commit/ca8d677))
+- build(deps-dev): bump @tootallnate/once ([928952f](https://github.com/mehdiraized/npmax/commit/928952f))
+- Merge pull request #94 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-c9b7a62d09 ([0e23517](https://github.com/mehdiraized/npmax/commit/0e23517))
+- build(deps-dev): bump svelte ([d48d2fb](https://github.com/mehdiraized/npmax/commit/d48d2fb))
+- Merge pull request #93 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-e4e91a86d1 ([cd42470](https://github.com/mehdiraized/npmax/commit/cd42470))
+- build(deps): bump devalue in the npm_and_yarn group across 1 directory ([be89241](https://github.com/mehdiraized/npmax/commit/be89241))
+- Merge pull request #92 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-078bed7bf7 ([11c382d](https://github.com/mehdiraized/npmax/commit/11c382d))
+- build(deps-dev): bump the npm_and_yarn group across 1 directory with 2 updates ([718abfa](https://github.com/mehdiraized/npmax/commit/718abfa))
+- Merge pull request #91 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-c740b3f234 ([fbbf6eb](https://github.com/mehdiraized/npmax/commit/fbbf6eb))
+- build(deps): bump the npm_and_yarn group across 1 directory with 2 updates ([16b349b](https://github.com/mehdiraized/npmax/commit/16b349b))
+- Merge pull request #90 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-0a68a62365 ([4cf6540](https://github.com/mehdiraized/npmax/commit/4cf6540))
+- build(deps-dev): bump @xmldom/xmldom ([9ac657f](https://github.com/mehdiraized/npmax/commit/9ac657f))
+- Merge pull request #89 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-85af2c71bb ([449e6b6](https://github.com/mehdiraized/npmax/commit/449e6b6))
+- build(deps): bump follow-redirects ([38eedf3](https://github.com/mehdiraized/npmax/commit/38eedf3))
+- Merge pull request #88 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-94be095972 ([768bac4](https://github.com/mehdiraized/npmax/commit/768bac4))
+- build(deps): bump axios in the npm_and_yarn group across 1 directory ([ab46777](https://github.com/mehdiraized/npmax/commit/ab46777))
+- Merge pull request #87 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-c4d5a16f85 ([a1868d3](https://github.com/mehdiraized/npmax/commit/a1868d3))
+- build(deps-dev): bump electron ([3e5c4f8](https://github.com/mehdiraized/npmax/commit/3e5c4f8))
+- Merge pull request #86 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-dc97915f16 ([f16fb3c](https://github.com/mehdiraized/npmax/commit/f16fb3c))
+- build(deps): bump the npm_and_yarn group across 1 directory with 2 updates ([7348c8e](https://github.com/mehdiraized/npmax/commit/7348c8e))
+- Merge pull request #85 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-7d3393088f ([f3b9bea](https://github.com/mehdiraized/npmax/commit/f3b9bea))
+- build(deps): bump lodash-es in the npm_and_yarn group across 1 directory ([d5051d7](https://github.com/mehdiraized/npmax/commit/d5051d7))
+- Merge pull request #84 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-282a1442c2 ([407f4b8](https://github.com/mehdiraized/npmax/commit/407f4b8))
+- build(deps-dev): bump @xmldom/xmldom ([7affda8](https://github.com/mehdiraized/npmax/commit/7affda8))
+- Merge pull request #83 from mehdiraized/dependabot/npm_and_yarn/npm_and_yarn-07458b7518 ([36ffb69](https://github.com/mehdiraized/npmax/commit/36ffb69))
+- build(deps-dev): bump serialize-javascript ([c42879a](https://github.com/mehdiraized/npmax/commit/c42879a))
+
+---
+
 ## [2.16.0] - 2026-03-26
 
 ### ✨ Features
