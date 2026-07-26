@@ -155,7 +155,7 @@
 		"@rollup/plugin-commonjs": "^29.0.2",
 		"@rollup/plugin-node-resolve": "^16.0.3",
 		"@rollup/plugin-terser": "^1.0.0",
-		"concurrently": "^10.0.3",
+		"concurrently": "^10.0.4",
 		"electron": "^41.1.0",
 		"electron-builder": "^26.8.1",
 		"husky": "^9.1.7",
@@ -172,7 +172,7 @@
 		"typescript": "^5.9.3"
 	},
 	"dependencies": {
-		"axios": "^1.18.0",
+		"axios": "^1.18.1",
 		"electron-updater": "^6.8.3",
 		"normalize.css": "^8.0.1",
 		"simplebar": "^6.3.3",
