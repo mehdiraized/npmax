@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-const { execSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -33,68 +33,53 @@ assertValidVersion(oldVersion, "old version");
 
 const ROOT = process.cwd();
 
-// 1. Update package.json and package-lock.json
-function updatePackageJson() {
-	const pkgPath = path.join(ROOT, "package.json");
-	const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-	pkg.version = newVersion;
-	fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, "\t") + "\n");
-	console.log(`✓ package.json: ${oldVersion} → ${newVersion}`);
-
-	const lockPath = path.join(ROOT, "package-lock.json");
-	if (fs.existsSync(lockPath)) {
-		const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-		lock.version = newVersion;
-		if (lock.packages && lock.packages[""]) {
-			lock.packages[""].version = newVersion;
-		}
-		fs.writeFileSync(lockPath, JSON.stringify(lock, null, "\t") + "\n");
-		console.log(`✓ package-lock.json: ${oldVersion} → ${newVersion}`);
+async function bumpPackages() {
+	if (newVersion === oldVersion) {
+		console.log(`✓ package versions already at ${newVersion}`);
+		return;
+	}
+	const bumpPath = path.join(ROOT, "scripts", "bump-version.js");
+	const result = spawnSync(process.execPath, [bumpPath, newVersion], {
+		stdio: "inherit",
+		cwd: ROOT,
+	});
+	if (result.status !== 0) {
+		process.exit(result.status || 1);
 	}
 }
 
-// 2. Update README.md download links
 function updateReadme() {
 	const readmePath = path.join(ROOT, "README.md");
+	if (!fs.existsSync(readmePath)) return;
 	let content = fs.readFileSync(readmePath, "utf8");
 	const escapedOldVersion = escapeRegExp(oldVersion);
 
-	// Update section header
 	content = content.replace(
 		/## Download npMax v[\d.]+/,
 		`## Download npMax v${newVersion}`,
 	);
 
-	// Replace version in the release URL path: /download/v2.0.0/ → /download/v2.0.1/
 	content = content.replace(
 		new RegExp(`/releases/download/v${escapedOldVersion}/`, "g"),
 		() => `/releases/download/v${newVersion}/`,
 	);
 
-	// Replace version in file names inside download paths
-	// Covers: npMax-2.0.0, npMax.2.0.0, npMax.Setup.2.0.0
 	content = content.replace(
-		new RegExp(`(npMax[-\\.])${escapedOldVersion}`, "g"),
+		new RegExp(`(npMax[_\\.-])${escapedOldVersion}`, "g"),
 		(_, prefix) => `${prefix}${newVersion}`,
 	);
-	// Covers: npmax_2.0.0
 	content = content.replace(
 		new RegExp(`(npmax_)${escapedOldVersion}`, "g"),
 		(_, prefix) => `${prefix}${newVersion}`,
 	);
-	// Covers: Setup.2.0.0 (for npMax.Setup.2.0.0.exe)
-	content = content.replace(
-		new RegExp(`(Setup\\.)${escapedOldVersion}`, "g"),
-		(_, prefix) => `${prefix}${newVersion}`,
-	);
 
 	fs.writeFileSync(readmePath, content);
-	console.log(`✓ README.md download links updated`);
+	console.log("✓ README.md download links updated");
 }
 
-// 3. Generate CHANGELOG entry
 function updateChangelog() {
 	const changelogPath = path.join(ROOT, "CHANGELOG.md");
+	if (!fs.existsSync(changelogPath)) return;
 
 	let lastTag;
 	try {
@@ -123,76 +108,72 @@ function updateChangelog() {
 		commits = [];
 	}
 
-	const cats = { breaking: [], features: [], fixes: [], other: [] };
-
-	for (const commit of commits) {
-		const s = commit.subject;
-		if (/BREAKING CHANGE/.test(s) || /^(\w+)(\(.+\))?!:/.test(s)) {
-			cats.breaking.push(commit);
-		} else if (/^feat(\(.+\))?:/.test(s)) {
-			cats.features.push(commit);
-		} else if (/^fix(\(.+\))?:/.test(s)) {
-			cats.fixes.push(commit);
-		} else if (!/^chore(\(.+\))?:/.test(s)) {
-			cats.other.push(commit);
+	const groups = { feat: [], fix: [], other: [] };
+	for (const c of commits) {
+		if (/^feat(\(.+\))?!?:/.test(c.subject) || /!:/.test(c.subject)) {
+			groups.feat.push(c);
+		} else if (/^fix(\(.+\))?:/.test(c.subject)) {
+			groups.fix.push(c);
+		} else if (
+			/^(docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?:/.test(
+				c.subject,
+			)
+		) {
+			groups.other.push(c);
+		} else {
+			groups.other.push(c);
 		}
 	}
 
-	const ghBase = "https://github.com/mehdiraized/npmax/commit/";
-	const link = (c) => `([${c.hash}](${ghBase}${c.hash}))`;
-	const stripPrefix = (s) => s.replace(/^\w+(\(.+\))?:\s*/, "");
+	const today = new Date().toISOString().slice(0, 10);
+	let entry = `## [${newVersion}] — ${today}\n\n`;
 
-	const date = new Date().toISOString().split("T")[0];
-	let entry = `## [${newVersion}] - ${date}\n\n`;
-
-	if (cats.breaking.length) {
-		entry += `### ⚠️ Breaking Changes\n\n`;
-		cats.breaking.forEach(
-			(c) => (entry += `- ${stripPrefix(c.subject)} ${link(c)}\n`),
-		);
+	if (groups.feat.length) {
+		entry += "### Added\n";
+		for (const c of groups.feat) {
+			entry += `- ${c.subject.replace(/^feat(\(.+\))?!?:\s*/, "")}\n`;
+		}
 		entry += "\n";
 	}
-	if (cats.features.length) {
-		entry += `### ✨ Features\n\n`;
-		cats.features.forEach(
-			(c) => (entry += `- ${stripPrefix(c.subject)} ${link(c)}\n`),
-		);
+	if (groups.fix.length) {
+		entry += "### Fixed\n";
+		for (const c of groups.fix) {
+			entry += `- ${c.subject.replace(/^fix(\(.+\))?:\s*/, "")}\n`;
+		}
 		entry += "\n";
 	}
-	if (cats.fixes.length) {
-		entry += `### 🐛 Bug Fixes\n\n`;
-		cats.fixes.forEach(
-			(c) => (entry += `- ${stripPrefix(c.subject)} ${link(c)}\n`),
-		);
+	if (groups.other.length) {
+		entry += "### Changed\n";
+		for (const c of groups.other.slice(0, 20)) {
+			entry += `- ${c.subject}\n`;
+		}
 		entry += "\n";
 	}
-	if (cats.other.length) {
-		entry += `### 📦 Other Changes\n\n`;
-		cats.other.forEach((c) => (entry += `- ${c.subject} ${link(c)}\n`));
-		entry += "\n";
+	if (!groups.feat.length && !groups.fix.length && !groups.other.length) {
+		entry += "- Release packaging and documentation updates\n\n";
 	}
-	if (
-		!cats.breaking.length &&
-		!cats.features.length &&
-		!cats.fixes.length &&
-		!cats.other.length
-	) {
-		entry += `### 📦 Changes\n\nMaintenance release.\n\n`;
+	entry += "---\n\n";
+
+	const existing = fs.readFileSync(changelogPath, "utf8");
+	if (existing.includes(`## [${newVersion}]`)) {
+		console.log(`✓ CHANGELOG.md already has [${newVersion}]`);
+		return;
 	}
 
-	let existing = "";
-	if (fs.existsSync(changelogPath)) {
-		existing = fs
-			.readFileSync(changelogPath, "utf8")
-			.replace(/^# Changelog\n\n/, "");
-	}
-
-	fs.writeFileSync(changelogPath, `# Changelog\n\n${entry}---\n\n${existing}`);
-	console.log(`✓ CHANGELOG.md updated`);
+	const updated = existing.replace(
+		/^# Changelog\s*\n+/,
+		`# Changelog\n\n${entry}`,
+	);
+	fs.writeFileSync(changelogPath, updated);
+	console.log(`✓ CHANGELOG.md: added [${newVersion}]`);
 }
 
-updatePackageJson();
-updateReadme();
-updateChangelog();
-
-console.log(`\n🚀 Version bumped: ${oldVersion} → ${newVersion}`);
+(async () => {
+	await bumpPackages();
+	updateReadme();
+	updateChangelog();
+	console.log(`\nVersion update complete: ${oldVersion} → ${newVersion}`);
+})().catch((err) => {
+	console.error(err);
+	process.exit(1);
+});

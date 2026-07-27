@@ -1,35 +1,50 @@
 # Contributing Guidelines
 
-If you are so kind to help and support us, please consider following these guidelines before sending PRs or commits:
+Thanks for helping with **npMax**. Please follow these guidelines before opening a PR:
 
-- Possibly no lint errors (eslint, prettier, scss, svelte etc ...) if accidentally you find some then feel free to fix it as you go.
+- Use **English** in code, commits, docs, and discussions
+- Prefer conventional commits (`feat:`, `fix:`, `docs:`, `chore:`, …) — they drive automated releases
+- Keep comments rare and useful (`/** */` for public APIs, `//` for why)
+- Do not disable linting with inline comments in a PR unless necessary
+- Match the monorepo layout: put shared logic in `packages/*`, host-specific code in `apps/*`
 
-- Possibly no formatting errors (if you use [Atom](https://atom.io/) you just have to use the IDE default settings for formatting code and you are synced)
+## Setup
 
-- Possibly use ONLY English language (everywhere in the code and outside the code)
+```bash
+pnpm install
+```
 
-- Possibly no English typos (it can happen of course, just try to avoid them as much as possible)
+### Desktop (Tauri)
 
-- Possibly no comments inside the code
+Requires [Rust](https://rustup.rs) and [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
-- Possibly, just use .lint files in your IDE (don't remove or disable the linters: .eslintrc and so on)
+```bash
+pnpm dev:desktop
+```
 
-- Possibly, just do not disable linters with inline comments (or at least remove comments as you want to PR) but be sure there are no errors in the end.
+### Web
 
-- As you finished to code your changes always make a new clean npm install (`rm -Rf node_modules/ && yarn install`)
-  , Then run the app and test all your changes very deeply (`yarn dev`)
-  
-- Be sure to always update your node version to LTS before to start coding
+```bash
+pnpm dev:web
+```
 
-These guidelines are not imperative at all, it's just the simplest method we have to be synced with you. 
-You can PR any file in the repo: even this same file you are now reading. :ok_hand:
+### MCP
 
-#### Look! One thing...
+```bash
+pnpm dev:mcp
+```
 
-To be absolutely clear with you:
+## Checks before a PR
 
-contributing on the ***npMax*** project, and in general on open source projects, does not mean to get paid or receive any good for the time/ and work and service you freely provide for the project. It is your time/service/work and you provide it on your own choice; Contributing to **npMax**  doesn't mean neither to get hired or to get a job in any company. By reading these contribution guidelines and before to contribute on the **npMax** project you declare you have read and accepted these conditions, thank you.
+```bash
+pnpm test
+pnpm typecheck
+```
 
-Thank you for listening :speaker:! We really would love and hope to have you on board, to have some fun and share new tricks and tips, each others of course!
+These guidelines are not rigid law — they help us stay in sync. You can PR any file, including this one.
 
-Bests.
+#### One clear note
+
+Contributing to npMax (or open source in general) does not mean payment, hiring, or employment. By contributing you acknowledge you are volunteering your time.
+
+Thank you — we would love to have you on board.

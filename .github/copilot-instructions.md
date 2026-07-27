@@ -1,31 +1,26 @@
-# GitHub Copilot Instructions — npmax-desktop
+# GitHub Copilot Instructions — npMax
+
+## Stack
+
+pnpm + Turborepo monorepo: Tauri 2 (Rust) desktop, Next.js web, shared TypeScript packages (`@npmax/core`, `@npmax/ui`, `@npmax/app-shell`), MCP server.
 
 ## Comment Style
-
-This is a JavaScript project (Svelte + Electron). Follow these rules when generating comments.
 
 ### JSDoc — exported functions and public APIs
 
 - Use `/** */` only. Never use `/* */`.
-- One imperative sentence. No trailing period.
-- Skip `@param` / `@returns` for obvious arguments and return types.
+- One imperative sentence. Prefer TypeScript types over redundant `@param` / `@returns`.
 
-```js
+```ts
 // ✅ Correct
 /**
- * Compare two Composer normalized version strings
- * Returns negative if a < b, positive if a > b, 0 if equal.
+ * Compare two normalized Composer version strings
  */
-function compareNormalized(a, b) { ... }
+function compareNormalized(a: string, b: string): number { ... }
 
 // ❌ Wrong — uses /* */ instead of /** */
 /* Compare two version strings */
-function compareNormalized(a, b) { ... }
-
-// ❌ Wrong — "This function" phrasing
-/**
- * This function is used to compare two version strings.
- */
+function compareNormalized(a: string, b: string): number { ... }
 ```
 
 ### Inline comments
@@ -34,16 +29,15 @@ function compareNormalized(a, b) { ... }
 - Explain *why*, not *what*.
 - Keep them short — one line preferred.
 
-```js
-// ✅ Correct
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-// ❌ Wrong — states the obvious
-const cache = new Map(); // create a new Map
-```
-
 ### Rules summary
 
 - `/** */` → exported functions, public APIs
 - `//` → inline clarifications
 - `/* */` → **never use**
+
+## Layout notes
+
+- Shared analysis logic lives in `packages/core`
+- UI shells: `packages/app-shell` + `packages/ui`
+- Desktop-only host bridges: `apps/desktop/src/lib` + `apps/desktop/src-tauri`
+- Do not revive Electron / Svelte / `docs/` GitHub Pages paths

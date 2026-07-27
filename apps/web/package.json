@@ -1,0 +1,29 @@
+{
+	"name": "@npmax/web",
+	"version": "3.0.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev --port 4400",
+		"build": "next build",
+		"start": "next start",
+		"lint": "echo ok",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "echo ok"
+	},
+	"dependencies": {
+		"@npmax/api-client": "workspace:*",
+		"@npmax/app-shell": "workspace:*",
+		"@npmax/core": "workspace:*",
+		"@npmax/types": "workspace:*",
+		"@npmax/ui": "workspace:*",
+		"next": "^16.2.12",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8"
+	},
+	"devDependencies": {
+		"@types/node": "^26.1.1",
+		"@types/react": "^19.2.17",
+		"@types/react-dom": "^19.2.3",
+		"typescript": "^7.0.2"
+	}
+}

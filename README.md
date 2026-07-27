@@ -1,12 +1,12 @@
 # npMax
 
 <p align="center">
-  <img src="https://mehdiraized.github.io/npmax/dist/images/screenshots/Apps.jpg" alt="npMax installed apps view" width="32%" />
-  <img src="https://mehdiraized.github.io/npmax/dist/images/screenshots/packages.jpg" alt="npMax packages view" width="32%" />
-  <img src="https://mehdiraized.github.io/npmax/dist/images/screenshots/projects.jpg" alt="npMax projects view" width="32%" />
+  <img src="apps/web/public/screenshots/Apps.jpg" alt="npMax installed apps view" width="32%" />
+  <img src="apps/web/public/screenshots/packages.jpg" alt="npMax packages view" width="32%" />
+  <img src="apps/web/public/screenshots/projects.jpg" alt="npMax projects view" width="32%" />
 </p>
 
-The open source desktop workspace for project dependencies and installed app updates across macOS, Windows, and Linux.
+The open source workspace for project dependencies and installed app updates — desktop (Tauri), web analyzer, and MCP.
 
 Runs on Linux, macOS and Windows.
 
@@ -14,28 +14,15 @@ Support the project and help fund `npMax Pro`:
 
 **[Donate via Buy Me a Coffee](https://buymeacoffee.com/farobox)**
 
-## Download npMax v2.17.0
+## Download npMax v3.0.0
 
-### macOS
-**[Download for macOS Apple Silicon (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npMax-2.17.0-arm64.dmg)**
+Installers are published on GitHub Releases (Tauri builds for macOS, Windows, and Linux):
 
-**[Download for macOS Intel (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npMax-2.17.0.dmg)**
+**[All Releases](https://github.com/mehdiraized/npmax/releases/)** · **[Latest](https://github.com/mehdiraized/npmax/releases/latest)**
 
-### Windows
-**[Download Installer for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npMax.Setup.2.17.0.exe)**
+After each release, platform assets (`.dmg`, `.exe` / NSIS, `.AppImage`, `.deb`, updater JSON) appear on that release page.
 
-**[Download Portable for Windows](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npMax.2.17.0.exe)**
-
-### Linux
-**[Download AppImage (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npMax-2.17.0.AppImage)**
-
-**[Download AppImage (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npMax-2.17.0-arm64.AppImage)**
-
-**[Download .deb (x64)](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npmax_2.17.0_amd64.deb)**
-
-**[Download .deb (arm64)](https://github.com/mehdiraized/npmax/releases/download/v2.17.0/npmax_2.17.0_arm64.deb)**
-
-[All Releases](https://github.com/mehdiraized/npmax/releases/)
+Web app / landing deploys automatically to **Vercel** on every push (no GitHub Pages).
 
 ## Features
 
@@ -57,17 +44,15 @@ Support the project and help fund `npMax Pro`:
 - Lock file status indicator with Install / Sync button
 - Installed Apps dashboard with search, filters, update badges, and refresh actions
 - Supports multiple projects in a sidebar
-- Cross-platform: macOS, Linux, Windows
+- Cross-platform desktop via **Tauri 2**, plus browser analyzer and **MCP** server
 
 ### Installed apps support
-
-npMax v3 adds a new system-wide view for desktop applications:
 
 - Scans installed apps from the current operating system instead of requiring a project folder first
 - Detects updates from native package managers where possible, including Homebrew Casks, winget, Flatpak, and Snap
 - Falls back to a curated app catalog with platform-specific identifiers and official release sources
 - Shows installed version, latest detected version, update source, and suggested update command when available
-- Keeps the legacy multi-project dependency workflow intact beside the new Installed Apps area
+- Keeps the multi-project dependency workflow intact beside the Installed Apps area
 
 ### Supported project files
 
@@ -120,35 +105,80 @@ For Go, Rust, and Ruby projects:
 - Detects `go.sum`, `Cargo.lock`, and `Gemfile.lock` drift
 - Offers one-click sync flows with `go mod tidy`, `cargo check`, and `bundle install`
 
-## Contributing
+## Monorepo structure
 
-Install the dependencies...
-
-```bash
-npm install
+```
+apps/web        Next.js landing + browser analyzer + API
+apps/desktop    Tauri 2 + React/Vite desktop app
+apps/mcp        @npmax/mcp Model Context Protocol server
+packages/types  Shared TypeScript types
+packages/core   Parsers, registries, advisory heuristics
+packages/api-client  Typed HTTP client for Next API
+packages/ui     Shared React components
+packages/app-shell   Shared app shell (sidebar, editors, storage)
 ```
 
-...then start
+## Prerequisites
+
+- Node.js 20+
+- [pnpm](https://pnpm.io) 9+
+- For desktop: [Rust](https://rustup.rs) + [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+## Setup
 
 ```bash
-npm run dev
+pnpm install
 ```
 
-Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting a Pull Request to the project.
+## Develop
+
+```bash
+pnpm dev:web       # http://localhost:3000
+pnpm dev:desktop   # Tauri window (requires Rust)
+pnpm dev:mcp       # MCP stdio server
+```
+
+Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting a Pull Request.
+
+## MCP (Cursor)
+
+```json
+{
+  "mcpServers": {
+    "npmax": {
+      "command": "npx",
+      "args": ["-y", "@npmax/mcp"],
+      "env": {
+        "NPMAX_API_URL": "https://your-npmax-web.vercel.app"
+      }
+    }
+  }
+}
+```
+
+`NPMAX_API_URL` is optional — without it the MCP talks to registries directly via `@npmax/core`.
+
+## Building for production
+
+Desktop (local smoke build):
+
+```bash
+pnpm build:desktop
+```
+
+Artifacts land under `apps/desktop/src-tauri/target/release/bundle/`.
+
+CI builds multi-platform installers on push to `master` (see `.github/workflows/release.yml`). Signing / notarization notes: `PRODUCTION.md`.
+
+Web builds on Vercel from the repo root (`vercel.json`).
 
 ## Community support
-
-For additional help, you can use one of these channels to ask a question:
 
 - [GitHub](https://github.com/mehdiraized/npmax) (Bug reports, Contributions)
 - [Buy Me a Coffee](https://buymeacoffee.com/farobox) (Support development and help fund npMax Pro)
 - [Twitter](https://twitter.com/npMax_app) (Get the news fast)
 - [Telegram](https://t.me/npmax_app)
 
-## Building and running in production mode
+## License
 
-To create an optimized version of the app:
-
-```bash
-npm run dist
-```
+MIT

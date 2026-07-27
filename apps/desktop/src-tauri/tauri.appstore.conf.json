@@ -1,0 +1,36 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "npMax",
+	"version": "3.0.0",
+	"identifier": "app.mehdir.npmax",
+	"app": {
+		"macOSPrivateApi": false,
+		"windows": [
+			{
+				"title": "npMax",
+				"width": 1280,
+				"height": 840,
+				"resizable": true,
+				"decorations": true,
+				"transparent": false,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true,
+				"trafficLightPosition": {
+					"x": 16,
+					"y": 26
+				}
+			}
+		]
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["app"],
+		"macOS": {
+			"minimumSystemVersion": "12.0",
+			"entitlements": "./Entitlements.plist",
+			"exceptionDomain": "",
+			"providerShortName": null,
+			"signingIdentity": null
+		}
+	}
+}

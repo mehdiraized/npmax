@@ -1,184 +1,49 @@
 {
 	"name": "npmax",
-	"description": "Cross-platform dependency and installed app update manager",
-	"version": "2.17.0",
-	"main": "index.js",
+	"private": true,
+	"version": "3.0.0",
+	"description": "npMax — cross-platform dependency and installed app update manager",
 	"license": "MIT",
-	"homepage": "https://mehdiraized.github.io/npmax/",
-	"github": "https://github.com/mehdiraized/npmax",
+	"homepage": "https://github.com/mehdiraized/npmax",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/mehdiraized/npmax.git"
+	},
+	"bugs": {
+		"url": "https://github.com/mehdiraized/npmax/issues"
+	},
 	"author": {
 		"name": "mehdir",
 		"email": "mehdiraized@gmail.com",
 		"url": "http://mehd.ir"
 	},
-	"authors": [
-		"Mehdi Rezaei"
-	],
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/mehdiraized/npmax.git"
-	},
-	"copyright": "©Mehdir, Mehdi Rezaei",
-	"bugs": {
-		"url": "https://github.com/mehdiraized/npmax/issues"
-	},
-	"social": {
-		"twitter": {
-			"url": "https://twitter.com/mehdiraized"
-		}
-	},
+	"packageManager": "pnpm@9.15.0",
 	"scripts": {
-		"start": "electron .",
-		"dev": "rollup -c -w --bundleConfigAsCjs",
-		"dev-linux": "rollup -c -w --bundleConfigAsCjs --no-sandbox",
-		"build": "rollup -c --bundleConfigAsCjs",
-		"pack": "electron-builder --dir",
-		"dist": "electron-builder",
-		"dist-all": "electron-builder -mwl",
+		"dev:web": "pnpm --filter @npmax/web dev",
+		"dev:desktop": "pnpm --filter @npmax/desktop tauri dev",
+		"dev:mcp": "pnpm --filter @npmax/mcp dev",
+		"build": "turbo run build",
+		"build:web": "pnpm --filter @npmax/web build",
+		"build:desktop": "pnpm --filter @npmax/desktop tauri build",
+		"build:mcp": "pnpm --filter @npmax/mcp build",
+		"lint": "turbo run lint",
+		"test": "pnpm --filter @npmax/core test && pnpm --filter @npmax/desktop test && pnpm --filter @npmax/desktop test:rust",
+		"typecheck": "turbo run typecheck",
+		"version:bump": "node scripts/bump-version.js",
 		"prepare": "husky"
 	},
 	"lint-staged": {
-		"*.js": [
+		"*.{js,mjs,cjs}": [
 			"node --check"
 		]
 	},
-	"build": {
-		"productName": "npMax",
-		"appId": "app.mehdir.npmax",
-		"copyright": "© Mehdir - Mehdi Rezaei",
-		"asar": true,
-		"asarUnpack": "**\\*.{node,dll}",
-		"publish": {
-			"provider": "github",
-			"owner": "mehdiraized",
-			"repo": "npmax"
-		},
-		"mac": {
-			"type": "distribution",
-			"hardenedRuntime": true,
-			"gatekeeperAssess": false,
-			"icon": "./public/icon.icns",
-			"category": "public.app-category.productivity",
-			"target": [
-				{
-					"target": "dmg",
-					"arch": [
-						"arm64",
-						"x64"
-					]
-				},
-				{
-					"target": "zip",
-					"arch": [
-						"arm64",
-						"x64"
-					]
-				}
-			]
-		},
-		"dmg": {
-			"contents": [
-				{
-					"x": 130,
-					"y": 220
-				},
-				{
-					"x": 410,
-					"y": 220,
-					"type": "link",
-					"path": "/Applications"
-				}
-			]
-		},
-		"linux": {
-			"maintainer": "mehdir",
-			"category": "Utility",
-			"description": "Cross-platform dependency and installed app update manager",
-			"packageCategory": "Utility",
-			"target": [
-				{
-					"target": "AppImage",
-					"arch": [
-						"arm64",
-						"x64"
-					]
-				},
-				{
-					"target": "deb",
-					"arch": [
-						"arm64",
-						"x64"
-					]
-				}
-			]
-		},
-		"nsis": {
-			"artifactName": "${productName}.Setup.${version}.${ext}"
-		},
-		"portable": {
-			"artifactName": "${productName}.${version}.${ext}"
-		},
-		"win": {
-			"target": [
-				{
-					"target": "nsis",
-					"arch": [
-						"x64",
-						"ia32"
-					]
-				},
-				{
-					"target": "portable",
-					"arch": [
-						"x64",
-						"ia32"
-					]
-				}
-			],
-			"icon": "./public/icon.ico"
-		},
-		"files": [
-			"./build/**/*",
-			"./dist/**/*",
-			"./node_modules/**/*",
-			"./public/**/*",
-			"*.js"
-		],
-		"directories": {
-			"buildResources": "public",
-			"output": "./releases"
-		}
-	},
 	"devDependencies": {
-		"@commitlint/cli": "^20.4.3",
-		"@commitlint/config-conventional": "^20.4.3",
-		"@rollup/plugin-commonjs": "^29.0.2",
-		"@rollup/plugin-node-resolve": "^16.0.3",
-		"@rollup/plugin-terser": "^1.0.0",
-		"concurrently": "^9.2.1",
-		"electron": "^41.1.0",
-		"electron-builder": "^26.8.1",
+		"@commitlint/cli": "^19.8.1",
+		"@commitlint/config-conventional": "^19.8.1",
 		"husky": "^9.1.7",
-		"lint-staged": "^16.3.3",
-		"postcss": "^8.5.14",
-		"rollup": "^4.59.0",
-		"rollup-plugin-filesize": "^10.0.0",
-		"rollup-plugin-livereload": "^2.0.5",
-		"rollup-plugin-postcss": "^4.0.2",
-		"rollup-plugin-svelte": "^7.2.3",
-		"sass": "^1.98.0",
-		"svelte": "^5.55.7",
-		"svelte-preprocess": "^6.0.3",
-		"typescript": "^5.9.3"
-	},
-	"dependencies": {
-		"axios": "^1.16.0",
-		"electron-updater": "^6.8.3",
-		"normalize.css": "^8.0.1",
-		"simplebar": "^6.3.3",
-		"svelte-sonner": "^1.1.0"
-	},
-	"resolutions": {
-		"tar": "7.5.7"
+		"lint-staged": "^16.1.2",
+		"turbo": "^2.10.7",
+		"typescript": "^7.0.2",
+		"vitest": "^4.1.10"
 	}
 }

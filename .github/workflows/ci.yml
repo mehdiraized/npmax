@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Test & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux Tauri deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm --filter @npmax/types --filter @npmax/core --filter @npmax/api-client --filter @npmax/ui --filter @npmax/app-shell build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test (JS)
+        run: pnpm --filter @npmax/core test && pnpm --filter @npmax/desktop test
+
+      - name: Test (Rust)
+        run: pnpm --filter @npmax/desktop test:rust
+
+      - name: Build web
+        run: pnpm --filter @npmax/web build

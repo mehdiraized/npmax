@@ -1,0 +1,33 @@
+{
+	"name": "@npmax/mcp",
+	"version": "3.0.0",
+	"description": "npMax Model Context Protocol server — analyze manifests, changelogs, and update risk",
+	"type": "module",
+	"bin": {
+		"npmax-mcp": "./dist/index.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"dev": "tsx src/index.ts",
+		"build": "tsc -p tsconfig.json",
+		"start": "node dist/index.js",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"lint": "echo ok",
+		"test": "echo ok"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"@npmax/api-client": "workspace:*",
+		"@npmax/core": "workspace:*",
+		"@npmax/types": "workspace:*",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@types/node": "^26.1.1",
+		"tsx": "^4.23.1",
+		"typescript": "^7.0.2"
+	}
+}

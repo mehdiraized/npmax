@@ -1,13 +1,17 @@
 {
 	"cSpell.words": [
-		"asar",
+		"appstore",
+		"cocoapods",
 		"filesize",
-		"icns",
 		"npmax",
-		"nsis",
+		"packagist",
+		"pnpm",
 		"Rezaei",
-		"simplebar",
-		"sirv"
+		"semver",
+		"tauri",
+		"turborepo",
+		"vitest",
+		"webkitgtk"
 	],
 	"js/ts.suggest.jsdoc.enabled": true,
 	"github.copilot.chat.reviewSelection.instructions": [

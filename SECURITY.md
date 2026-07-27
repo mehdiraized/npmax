@@ -2,20 +2,21 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
 | Version | Supported          |
 | ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| 3.x     | :white_check_mark: |
+| 2.x     | :x: (legacy Electron; security fixes only if critical) |
+| < 2.0   | :x:                |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Please report security issues privately by emailing **mehdiraized@gmail.com**.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Include:
+
+- Affected surface (Desktop / Web / MCP)
+- npMax version
+- Steps to reproduce
+- Impact assessment if known
+
+You can expect an acknowledgement within a few days. Please do not open a public GitHub issue for undisclosed vulnerabilities.

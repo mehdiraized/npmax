@@ -1,0 +1,38 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "npMax default capability",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "dialog:default",
+    "fs:default",
+    "opener:default",
+    "process:default",
+    "updater:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "npm", "cmd": "npm", "args": true },
+        { "name": "yarn", "cmd": "yarn", "args": true },
+        { "name": "pnpm", "cmd": "pnpm", "args": true },
+        { "name": "composer", "cmd": "composer", "args": true },
+        { "name": "swift", "cmd": "swift", "args": true },
+        { "name": "pod", "cmd": "pod", "args": true },
+        { "name": "flutter", "cmd": "flutter", "args": true },
+        { "name": "go", "cmd": "go", "args": true },
+        { "name": "cargo", "cmd": "cargo", "args": true },
+        { "name": "bundle", "cmd": "bundle", "args": true },
+        { "name": "brew", "cmd": "brew", "args": true },
+        { "name": "winget", "cmd": "winget", "args": true },
+        { "name": "flatpak", "cmd": "flatpak", "args": true },
+        { "name": "snap", "cmd": "snap", "args": true },
+        { "name": "gradle", "cmd": "gradle", "args": true },
+        { "name": "gradlew", "cmd": "./gradlew", "args": true },
+        { "name": "gradlew-bat", "cmd": "gradlew.bat", "args": true },
+        { "name": "system_profiler", "cmd": "system_profiler", "args": true }
+      ]
+    }
+  ]
+}

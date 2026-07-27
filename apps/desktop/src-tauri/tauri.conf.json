@@ -1,0 +1,82 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "npMax",
+	"version": "3.0.0",
+	"identifier": "app.mehdir.npmax",
+	"build": {
+		"beforeDevCommand": "pnpm --filter @npmax/desktop dev",
+		"devUrl": "http://localhost:1420",
+		"beforeBuildCommand": "pnpm --filter @npmax/desktop build",
+		"frontendDist": "../dist"
+	},
+	"app": {
+		"macOSPrivateApi": true,
+		"windows": [
+			{
+				"title": "npMax",
+				"width": 1280,
+				"height": 840,
+				"resizable": true,
+				"decorations": true,
+				"transparent": true,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true,
+				"trafficLightPosition": {
+					"x": 16,
+					"y": 26
+				},
+				"windowEffects": {
+					"effects": [
+						"sidebar"
+					],
+					"state": "active"
+				}
+			}
+		],
+		"security": {
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"category": "Productivity",
+		"shortDescription": "Dependency and installed app update manager",
+		"longDescription": "npMax helps you find outdated dependencies and system apps, assess update risk, and keep projects current across npm, Composer, Swift, and more.",
+		"copyright": "© Mehdir - Mehdi Rezaei",
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		],
+		"macOS": {
+			"minimumSystemVersion": "11.0",
+			"hardenedRuntime": true,
+			"dmg": {
+				"appPosition": {
+					"x": 180,
+					"y": 170
+				},
+				"applicationFolderPosition": {
+					"x": 480,
+					"y": 170
+				}
+			}
+		},
+		"windows": {
+			"nsis": {
+				"installMode": "currentUser"
+			}
+		}
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "",
+			"endpoints": [
+				"https://github.com/mehdiraized/npmax/releases/latest/download/latest.json"
+			]
+		}
+	}
+}

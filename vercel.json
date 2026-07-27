@@ -1,0 +1,6 @@
+{
+  "buildCommand": "pnpm --filter @npmax/types build && pnpm --filter @npmax/core build && pnpm --filter @npmax/api-client build && pnpm --filter @npmax/ui build && pnpm --filter @npmax/app-shell build && pnpm --filter @npmax/web build",
+  "installCommand": "pnpm install",
+  "framework": "nextjs",
+  "outputDirectory": "apps/web/.next"
+}
