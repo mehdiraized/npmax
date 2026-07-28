@@ -17,6 +17,9 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   prepare-release:
     name: Prepare Release
@@ -68,6 +71,8 @@ jobs:
     name: Build ${{ matrix.label }}
     needs: prepare-release
     if: needs.prepare-release.outputs.should_release == 'true'
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

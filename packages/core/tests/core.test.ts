@@ -11,6 +11,9 @@ import {
   updatePackageJsonContent,
 } from "../src/parsers/json-ecosystems.js";
 import { detectProjectFromFiles } from "../src/detect.js";
+import { githubApiRepoUrl, isGithubHostUrl, parseGithubRepoUrl } from "../src/github.js";
+import { extractSignals } from "../src/advisory/index.js";
+import { parsePubspec } from "../src/parsers/flutter.js";
 
 describe("semver helpers", () => {
   it("strips common prefixes", () => {
@@ -76,5 +79,56 @@ describe("project detection", () => {
   it("detects composer projects", () => {
     const detected = detectProjectFromFiles(["composer.json", "src"]);
     expect(detected?.fileName).toBe("composer.json");
+  });
+});
+
+describe("github url parsing", () => {
+  it("accepts https and ssh github urls", () => {
+    expect(parseGithubRepoUrl("https://github.com/foo/bar")).toEqual({
+      owner: "foo",
+      repo: "bar",
+    });
+    expect(parseGithubRepoUrl("git@github.com:foo/bar.git")).toEqual({
+      owner: "foo",
+      repo: "bar",
+    });
+    expect(isGithubHostUrl("https://github.com/foo/bar")).toBe(true);
+  });
+
+  it("rejects non-github hosts and path traversal", () => {
+    expect(parseGithubRepoUrl("https://evil.com/foo/bar")).toBeNull();
+    expect(parseGithubRepoUrl("https://github.com/../etc/passwd")).toBeNull();
+    expect(githubApiRepoUrl("foo", "bar", "/releases/latest")).toBe(
+      "https://api.github.com/repos/foo/bar/releases/latest",
+    );
+    expect(githubApiRepoUrl("../x", "bar")).toBeNull();
+  });
+});
+
+describe("advisory signals", () => {
+  it("detects breaking keywords and migration urls without regex backtracking", () => {
+    const signals = extractSignals(
+      "This is a BREAKING CHANGE.\nSee https://example.com/docs/migration for details.",
+    );
+    expect(signals.hasBreaking).toBe(true);
+    expect(signals.hasMigration).toBe(true);
+    expect(signals.migrationUrls).toContain("https://example.com/docs/migration");
+  });
+});
+
+describe("flutter parser", () => {
+  it("parses simple and nested dependency versions", () => {
+    const result = parsePubspec(`name: demo
+dependencies:
+  http: ^1.2.0
+  collection:
+    version: 1.9.0
+dev_dependencies:
+  test: any
+`);
+    expect(result.ecosystem).toBe("flutter");
+    expect(result.dependencies.find((d) => d.name === "http")?.version).toBe("^1.2.0");
+    expect(result.dependencies.find((d) => d.name === "collection")?.version).toBe("1.9.0");
+    expect(result.dependencies.find((d) => d.name === "test")?.isDev).toBe(true);
   });
 });

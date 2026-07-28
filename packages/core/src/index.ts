@@ -2,6 +2,7 @@ export * from "./cache.js";
 export * from "./semver.js";
 export * from "./pool.js";
 export * from "./detect.js";
+export * from "./github.js";
 export * from "./parsers/index.js";
 export * from "./manifest/update.js";
 export * from "./manifest/lock.js";

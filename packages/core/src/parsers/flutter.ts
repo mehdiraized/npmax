@@ -1,9 +1,53 @@
 import type { ManifestParseResult, ParsedDependency } from "@npmax/types";
 
-const SECTION_RE = /^([A-Za-z_][A-Za-z0-9_-]*):\s*$/;
-const DEP_LINE_RE = /^\s{2}([A-Za-z0-9_]+):\s*(.+)?$/;
-const SIMPLE_VERSION_RE = /^["']?([^"']+)["']?$/;
 const IGNORED = new Set(["flutter", "sdk", "path", "git", "hosted", "assets", "uses-material-design"]);
+
+function isYamlKeyChar(ch: string): boolean {
+  return /[A-Za-z0-9_]/.test(ch);
+}
+
+function parseSectionKey(line: string): string | null {
+  // "dependencies:" / "dev_dependencies:" — avoid unbounded character-class quantifiers
+  if (!line.endsWith(":")) return null;
+  if (line.startsWith(" ") || line.startsWith("\t")) return null;
+  const key = line.slice(0, -1).trim();
+  if (!key || key.length > 64) return null;
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(key)) return null;
+  return key;
+}
+
+function parseDepLine(line: string): { name: string; rawValue: string } | null {
+  // Exactly two leading spaces, then name, then colon
+  if (!line.startsWith("  ") || line.startsWith("   ")) return null;
+  const rest = line.slice(2);
+  const colon = rest.indexOf(":");
+  if (colon <= 0) return null;
+  const name = rest.slice(0, colon);
+  if (!name || name.length > 64) return null;
+  for (const ch of name) {
+    if (!isYamlKeyChar(ch)) return null;
+  }
+  const rawValue = rest.slice(colon + 1).trim();
+  return { name, rawValue };
+}
+
+function unwrapQuotes(value: string): string {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function parseNestedVersion(line: string): string | null {
+  // "    version: x" with exactly four spaces
+  if (!line.startsWith("    ") || line.startsWith("     ")) return null;
+  const rest = line.slice(4).trim();
+  if (!rest.startsWith("version:")) return null;
+  return unwrapQuotes(rest.slice("version:".length).trim());
+}
 
 export function parsePubspec(raw: string): ManifestParseResult {
   const lines = raw.split(/\r?\n/);
@@ -15,16 +59,21 @@ export function parsePubspec(raw: string): ManifestParseResult {
     const line = lines[i]!;
     const lineStart = cursor;
     cursor += line.length + 1;
-    if (!line.trim() || line.trim().startsWith("#")) continue;
-    const sectionMatch = line.match(SECTION_RE);
-    if (sectionMatch) { section = sectionMatch[1]!; continue; }
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const sectionKey = parseSectionKey(line);
+    if (sectionKey) {
+      section = sectionKey;
+      continue;
+    }
     if (section !== "dependencies" && section !== "dev_dependencies") continue;
-    const depMatch = line.match(DEP_LINE_RE);
-    if (!depMatch) continue;
-    const name = depMatch[1]!;
-    if (IGNORED.has(name)) continue;
-    const rawValue = depMatch[2]?.trim() || "";
-    if (!rawValue) {
+
+    const dep = parseDepLine(line);
+    if (!dep) continue;
+    if (IGNORED.has(dep.name)) continue;
+
+    if (!dep.rawValue) {
       let nestedVersion: string | undefined;
       let nestedStart: number | undefined;
       let nestedEnd: number | undefined;
@@ -32,31 +81,39 @@ export function parsePubspec(raw: string): ManifestParseResult {
       for (let j = i + 1; j < lines.length; j++) {
         const nestedLine = lines[j]!;
         if (!nestedLine.startsWith("    ")) break;
-        const versionMatch = nestedLine.match(/^\s{4}version:\s*["']?([^"']+)["']?\s*$/);
-        if (versionMatch) {
-          nestedVersion = versionMatch[1];
-          nestedStart = nestedCursor + nestedLine.indexOf(versionMatch[1]!);
-          nestedEnd = nestedStart + versionMatch[1]!.length;
+        const version = parseNestedVersion(nestedLine);
+        if (version != null) {
+          nestedVersion = version;
+          nestedStart = nestedCursor + nestedLine.indexOf(version);
+          nestedEnd = nestedStart + version.length;
           break;
         }
         nestedCursor += nestedLine.length + 1;
       }
       dependencies.push({
-        id: `${section}:${name}:${lineStart}`,
-        name, version: nestedVersion ?? "", rawRequirement: nestedVersion ?? "",
-        isDev: section === "dev_dependencies", section,
-        versionStart: nestedStart, versionEnd: nestedEnd,
+        id: `${section}:${dep.name}:${lineStart}`,
+        name: dep.name,
+        version: nestedVersion ?? "",
+        rawRequirement: nestedVersion ?? "",
+        isDev: section === "dev_dependencies",
+        section,
+        versionStart: nestedStart,
+        versionEnd: nestedEnd,
       });
       continue;
     }
-    const simple = rawValue.match(SIMPLE_VERSION_RE);
-    const version = simple?.[1] || "";
+
+    const version = unwrapQuotes(dep.rawValue);
     const versionStart = version ? lineStart + line.lastIndexOf(version) : undefined;
     dependencies.push({
-      id: `${section}:${name}:${lineStart}`,
-      name, version, rawRequirement: version,
-      isDev: section === "dev_dependencies", section,
-      versionStart, versionEnd: versionStart != null ? versionStart + version.length : undefined,
+      id: `${section}:${dep.name}:${lineStart}`,
+      name: dep.name,
+      version,
+      rawRequirement: version,
+      isDev: section === "dev_dependencies",
+      section,
+      versionStart,
+      versionEnd: versionStart != null ? versionStart + version.length : undefined,
     });
   }
   return { ecosystem: "flutter", fileName: "pubspec.yaml", content: raw, dependencies };

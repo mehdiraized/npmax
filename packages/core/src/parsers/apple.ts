@@ -1,4 +1,5 @@
 import type { ManifestParseResult, ParsedDependency } from "@npmax/types";
+import { isGithubHostUrl } from "../github.js";
 
 const SWIFT_PACKAGE_PREFIX = ".package";
 const SWIFT_VERSION_PATTERNS = [
@@ -63,7 +64,13 @@ export function parseSwiftManifest(raw: string): ManifestParseResult {
       displayName,
       version: versionMatch?.value || "",
       rawRequirement: versionMatch?.value || "",
-      sourceType: localPath ? "local" : repositoryUrl?.includes("github.com") ? "github" : repositoryUrl ? "remote" : "unknown",
+      sourceType: localPath
+        ? "local"
+        : isGithubHostUrl(repositoryUrl)
+          ? "github"
+          : repositoryUrl
+            ? "remote"
+            : "unknown",
       repositoryUrl,
       versionStart: versionMatch == null ? undefined : block.start + versionMatch.start,
       versionEnd: versionMatch == null ? undefined : block.start + versionMatch.end,

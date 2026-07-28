@@ -1,5 +1,6 @@
 import type { Ecosystem, PackageDetails, PackageLink } from "@npmax/types";
 import { TtlCache } from "../cache.js";
+import { githubApiRepoUrl, parseGithubRepoUrl } from "../github.js";
 
 const cache = new TtlCache<{ version: string }>();
 const detailCache = new TtlCache<PackageDetails>();
@@ -82,9 +83,10 @@ export async function getSwiftLatest(
   name: string,
   repositoryUrl?: string,
 ): Promise<{ version: string }> {
-  const m = repositoryUrl?.match(/github\.com[/:]([^/]+)\/([^/.]+)/i);
-  if (m) {
-    const res = await fetch(`https://api.github.com/repos/${m[1]}/${m[2]}/releases/latest`, {
+  const ref = parseGithubRepoUrl(repositoryUrl);
+  const apiUrl = ref ? githubApiRepoUrl(ref.owner, ref.repo, "/releases/latest") : null;
+  if (apiUrl) {
+    const res = await fetch(apiUrl, {
       headers: { Accept: "application/vnd.github+json" },
     });
     if (res.ok) {

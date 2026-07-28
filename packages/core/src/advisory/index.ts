@@ -1,8 +1,20 @@
 import type { AdvisoryReport, ChangelogEntry, Ecosystem, RiskLevel, UpdateRecommendation } from "@npmax/types";
 import { isMajorBump } from "../semver.js";
+import { githubApiRepoUrl, parseGithubRepoUrl } from "../github.js";
 
-const BREAKING_RE = /\b(breaking(\s+change)?|migration|migrate|deprecated|removed|incompatible)\b/i;
-const MIGRATION_URL_RE = /https?:\/\/[^\s)]*(migration|upgrade|breaking)[^\s)]*/gi;
+const BREAKING_KEYWORDS = [
+  "breaking change",
+  "breaking changes",
+  "breaking",
+  "migration",
+  "migrate",
+  "deprecated",
+  "removed",
+  "incompatible",
+] as const;
+
+const MIGRATION_HINTS = ["migration", "upgrade guide"] as const;
+const MIGRATION_URL_HINTS = ["migration", "upgrade", "breaking"] as const;
 
 function githubAuthHeaders(): Record<string, string> {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
@@ -10,10 +22,46 @@ function githubAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function includesKeyword(haystack: string, keywords: readonly string[]): boolean {
+  const lower = haystack.toLowerCase();
+  return keywords.some((k) => lower.includes(k));
+}
+
+/** Extract http(s) URLs without nested quantifiers (ReDoS-safe). */
+function extractHttpUrls(body: string): string[] {
+  const urls: string[] = [];
+  const lower = body.toLowerCase();
+  let i = 0;
+  while (i < body.length) {
+    const httpIdx = lower.indexOf("http://", i);
+    const httpsIdx = lower.indexOf("https://", i);
+    let start = -1;
+    if (httpIdx === -1) start = httpsIdx;
+    else if (httpsIdx === -1) start = httpIdx;
+    else start = Math.min(httpIdx, httpsIdx);
+    if (start === -1) break;
+
+    let end = start;
+    while (end < body.length) {
+      const ch = body[end]!;
+      if (/\s|[)\]>'"<>]/.test(ch)) break;
+      end++;
+      // Cap URL length to avoid pathological input
+      if (end - start > 2048) break;
+    }
+    const url = body.slice(start, end).replace(/[.,;:!?]+$/, "");
+    if (url.length > 8) urls.push(url);
+    i = end + 1;
+  }
+  return urls;
+}
+
 export function extractSignals(body: string) {
-  const hasBreaking = BREAKING_RE.test(body);
-  const hasMigration = /migration|upgrade guide/i.test(body);
-  const migrationUrls = Array.from(body.matchAll(MIGRATION_URL_RE)).map((m) => m[0]!);
+  const hasBreaking = includesKeyword(body, BREAKING_KEYWORDS);
+  const hasMigration = includesKeyword(body, MIGRATION_HINTS);
+  const migrationUrls = extractHttpUrls(body).filter((url) =>
+    includesKeyword(url, MIGRATION_URL_HINTS),
+  );
   return { hasBreaking, hasMigration, migrationUrls };
 }
 
@@ -58,14 +106,22 @@ export function scoreRisk(opts: {
 }
 
 export async function fetchGithubReleases(owner: string, repo: string): Promise<ChangelogEntry[]> {
-  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=15`, {
+  const apiUrl = githubApiRepoUrl(owner, repo, "/releases?per_page=15");
+  if (!apiUrl) return [];
+  const res = await fetch(apiUrl, {
     headers: {
       Accept: "application/vnd.github+json",
       ...githubAuthHeaders(),
     },
   });
   if (!res.ok) return [];
-  const data = (await res.json()) as { tag_name: string; name?: string; body?: string; published_at?: string; html_url?: string }[];
+  const data = (await res.json()) as {
+    tag_name: string;
+    name?: string;
+    body?: string;
+    published_at?: string;
+    html_url?: string;
+  }[];
   return data.map((r) => ({
     version: r.tag_name.replace(/^v/, ""),
     title: r.name,
@@ -75,8 +131,17 @@ export async function fetchGithubReleases(owner: string, repo: string): Promise<
   }));
 }
 
-export async function searchPostUpdateIssues(owner: string, repo: string, version: string): Promise<{ count: number; urls: string[] }> {
-  const q = encodeURIComponent(`repo:${owner}/${repo} is:issue ${version} label:bug created:>2024-01-01`);
+export async function searchPostUpdateIssues(
+  owner: string,
+  repo: string,
+  version: string,
+): Promise<{ count: number; urls: string[] }> {
+  const ref = parseGithubRepoUrl(`https://github.com/${owner}/${repo}`);
+  if (!ref) return { count: 0, urls: [] };
+  const safeVersion = version.replace(/[^\w.+\-]/g, "").slice(0, 64);
+  const q = encodeURIComponent(
+    `repo:${ref.owner}/${ref.repo} is:issue ${safeVersion} label:bug created:>2024-01-01`,
+  );
   const res = await fetch(`https://api.github.com/search/issues?q=${q}&per_page=5`, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -91,13 +156,6 @@ export async function searchPostUpdateIssues(owner: string, repo: string, versio
   };
 }
 
-function parseGithubRepo(url?: string): { owner: string; repo: string } | null {
-  if (!url) return null;
-  const m = url.match(/github\.com[/:]([^/]+)\/([^/.]+)/i);
-  if (!m) return null;
-  return { owner: m[1]!, repo: m[2]! };
-}
-
 export async function assessUpdate(opts: {
   ecosystem: Ecosystem;
   name: string;
@@ -106,7 +164,7 @@ export async function assessUpdate(opts: {
   repositoryUrl?: string;
 }): Promise<AdvisoryReport> {
   const majorBump = isMajorBump(opts.fromVersion, opts.toVersion);
-  const gh = parseGithubRepo(opts.repositoryUrl);
+  const gh = parseGithubRepoUrl(opts.repositoryUrl);
   let changelog: ChangelogEntry[] = [];
   let issueHits = 0;
   let issueUrls: string[] = [];
@@ -118,7 +176,6 @@ export async function assessUpdate(opts: {
     issueUrls = issues.urls;
   }
 
-  // Filter changelog entries between from and to roughly by including toVersion and nearby
   const relevant = changelog.filter((c) => c.version === opts.toVersion || c.body);
   const body = relevant.map((c) => `${c.title || ""}\n${c.body}`).join("\n");
   const signals = extractSignals(body || "");
