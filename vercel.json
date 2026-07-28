@@ -1,5 +1,0 @@
-{
-  "buildCommand": "pnpm --filter @npmax/web build",
-  "installCommand": "pnpm install --frozen-lockfile",
-  "framework": "nextjs"
-}
