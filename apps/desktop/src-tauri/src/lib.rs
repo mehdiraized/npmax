@@ -143,6 +143,10 @@ fn build_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     }
 }
 
+#[cfg_attr(
+    not(any(target_os = "macos", target_os = "windows")),
+    allow(unused_variables)
+)]
 fn apply_window_glass(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "macos")]
     {

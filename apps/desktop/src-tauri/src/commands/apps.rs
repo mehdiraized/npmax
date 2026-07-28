@@ -178,8 +178,8 @@ fn scan_linux() -> Result<Vec<InstalledAppDto>, String> {
                 continue;
             }
             let id = cols[0].to_string();
-            let name = cols.get(1).unwrap_or(&id).to_string();
-            let version = cols.get(2).unwrap_or(&"").to_string();
+            let name = cols.get(1).unwrap_or(&cols[0]).to_string();
+            let version = cols.get(2).copied().unwrap_or("").to_string();
             apps.push(InstalledAppDto {
                 id: format!("flatpak:{id}"),
                 name,
