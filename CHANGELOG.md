@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.1.0] — 2026-07-28
+
+### Added
+- integrate @vercel/analytics and update landing page assets
+
+### Changed
+- refactor: migrate vercel.json configuration to apps/web directory
+- chore: simplify build commands and update TypeScript route imports
+
+---
+
 ## [3.0.0] — 2026-07-25
 
 ### Added
