@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.2.0] — 2026-07-28
+
+### Added
+- enhance GitHub Actions workflow for Tauri app builds and releases
+
+### Changed
+- Merge remote-tracking branch 'origin/master'
+
+---
+
 ## [3.1.0] — 2026-07-28
 
 ### Added
