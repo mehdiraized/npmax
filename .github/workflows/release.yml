@@ -56,30 +56,27 @@ jobs:
           git push origin master
           git push origin "v${{ steps.version.outputs.new_version }}" || true
 
-  publish-tauri:
-    name: Build ${{ matrix.platform }}
+  build-tauri:
+    name: Build ${{ matrix.label }}
     needs: prepare-release
     if: needs.prepare-release.outputs.should_release == 'true'
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: --target aarch64-apple-darwin
-            rust_targets: aarch64-apple-darwin
-          - platform: macos-latest
-            args: --target x86_64-apple-darwin
-            rust_targets: x86_64-apple-darwin
-          - platform: ubuntu-22.04
-            args: ""
-            rust_targets: ""
-          - platform: windows-latest
-            args: ""
-            rust_targets: ""
-
-    runs-on: ${{ matrix.platform }}
+          - label: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - label: macos-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - label: linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - label: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -101,7 +98,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_targets }}
+          targets: ${{ matrix.target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -109,7 +106,7 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -120,10 +117,8 @@ jobs:
       - name: Build shared packages
         run: pnpm --filter @npmax/types --filter @npmax/core --filter @npmax/api-client --filter @npmax/ui --filter @npmax/app-shell build
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v1
+      - name: Build Tauri bundle
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -132,11 +127,92 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm --filter @npmax/desktop tauri build -- --target ${{ matrix.target }}
+
+      - name: Upload bundled artifacts
+        uses: actions/upload-artifact@v4
         with:
-          projectPath: apps/desktop
-          tagName: v__VERSION__
-          releaseName: v__VERSION__
-          releaseBody: See CHANGELOG.md for details.
-          releaseDraft: false
+          name: artifacts-${{ matrix.label }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.zip
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/latest*.json
+
+  create-release:
+    name: Create GitHub Release
+    needs: [prepare-release, build-tauri]
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: master
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate release notes from CHANGELOG
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.new_version }}"
+          awk -v v="$VERSION" '
+            BEGIN{in_section=0}
+            $0 ~ "^## \\["v"\\]" {in_section=1}
+            in_section && $0 ~ "^## \\[" && $0 !~ "^## \\["v"\\]" {exit}
+            in_section {print}
+          ' CHANGELOG.md > RELEASE_BODY.md
+
+          if [ ! -s RELEASE_BODY.md ]; then
+            echo "## [$VERSION]" > RELEASE_BODY.md
+            echo >> RELEASE_BODY.md
+            echo "See CHANGELOG.md for details." >> RELEASE_BODY.md
+          fi
+
+      - name: Collect release files
+        id: files
+        shell: bash
+        run: |
+          mapfile -t file_list < <(find artifacts -type f \( \
+            -name '*.dmg' -o \
+            -name '*.app.tar.gz' -o \
+            -name '*.app.zip' -o \
+            -name '*.msi' -o \
+            -name '*.exe' -o \
+            -name '*.AppImage' -o \
+            -name '*.deb' -o \
+            -name '*.rpm' -o \
+            -name 'latest*.json' \
+          \) | sort)
+
+          if [ "${#file_list[@]}" -eq 0 ]; then
+            echo "No release artifacts found."
+            exit 1
+          fi
+
+          {
+            echo 'files<<EOF'
+            printf '%s\n' "${file_list[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.prepare-release.outputs.new_version }}
+          name: v${{ needs.prepare-release.outputs.new_version }}
+          body_path: RELEASE_BODY.md
+          draft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          make_latest: true
+          files: ${{ steps.files.outputs.files }}
