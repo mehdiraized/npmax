@@ -4,7 +4,7 @@
 	"version": "3.1.0",
 	"description": "npMax — cross-platform dependency and installed app update manager",
 	"license": "MIT",
-	"homepage": "https://github.com/mehdiraized/npmax",
+	"homepage": "https://npmax.vercel.app/",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/mehdiraized/npmax.git"

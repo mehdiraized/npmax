@@ -11,7 +11,7 @@ Add to `.cursor/mcp.json` or global MCP settings:
       "command": "npx",
       "args": ["-y", "@npmax/mcp"],
       "env": {
-        "NPMAX_API_URL": "https://YOUR_DEPLOYMENT.vercel.app"
+        "NPMAX_API_URL": "https://npmax.vercel.app"
       }
     }
   }

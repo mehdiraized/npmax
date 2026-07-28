@@ -149,7 +149,7 @@ Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting a Pull
       "command": "npx",
       "args": ["-y", "@npmax/mcp"],
       "env": {
-        "NPMAX_API_URL": "https://your-npmax-web.vercel.app"
+        "NPMAX_API_URL": "https://npmax.vercel.app"
       }
     }
   }

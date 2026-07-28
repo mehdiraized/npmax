@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - "docs/superpowers/**"
+      - "*.md"
+      - "LICENSE"
+      - "CODE_OF_CONDUCT.md"
+      - "CONTRIBUTING.md"
+      - "SECURITY.md"
+      - "PRODUCTION.md"
   workflow_dispatch:
 
 concurrency:

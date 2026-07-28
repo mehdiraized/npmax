@@ -18,7 +18,7 @@ pub fn get_app_info() -> serde_json::Value {
         "description": "Cross-platform dependency and installed app update manager",
         "copyright": "© Mehdir — Mehdi Rezaei",
         "license": "MIT",
-        "homepage": "https://mehdiraized.github.io/npmax/",
+        "homepage": "https://npmax.vercel.app/",
         "repositoryUrl": "https://github.com/mehdiraized/npmax",
         "releasesUrl": "https://github.com/mehdiraized/npmax/releases",
         "issuesUrl": "https://github.com/mehdiraized/npmax/issues",

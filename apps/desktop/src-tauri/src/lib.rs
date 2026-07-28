@@ -51,11 +51,11 @@ fn about_metadata(_app: &AppHandle) -> AboutMetadata<'static> {
         credits: Some(
             "Cross-platform dependency and installed app update manager.\n\
              Open source under the MIT License.\n\n\
-             Website: https://mehdiraized.github.io/npmax/\n\
+             Website: https://npmax.vercel.app/\n\
              Source: https://github.com/mehdiraized/npmax"
                 .into(),
         ),
-        website: Some("https://mehdiraized.github.io/npmax/".into()),
+        website: Some("https://npmax.vercel.app/".into()),
         website_label: Some("npMax Website".into()),
         license: Some("MIT".into()),
         authors: Some(vec!["Mehdir — Mehdi Rezaei".into()]),

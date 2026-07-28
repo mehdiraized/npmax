@@ -34,7 +34,7 @@ export function SettingsView({
 		description: "Cross-platform dependency and installed app update manager",
 		copyright: "© Mehdir — Mehdi Rezaei",
 		license: "MIT",
-		homepage: "https://github.com/mehdiraized/npmax",
+		homepage: "https://npmax.vercel.app/",
 		repositoryUrl: "https://github.com/mehdiraized/npmax",
 		releasesUrl: "https://github.com/mehdiraized/npmax/releases",
 		issuesUrl: "https://github.com/mehdiraized/npmax/issues",
