@@ -12,6 +12,12 @@ on:
       - "SECURITY.md"
       - "PRODUCTION.md"
   workflow_dispatch:
+    inputs:
+      force_release:
+        description: "Force a patch version bump and full desktop release"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: release
@@ -24,7 +30,9 @@ jobs:
   prepare-release:
     name: Prepare Release
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[skip ci]')
     permissions:
       contents: write
     outputs:
@@ -46,6 +54,9 @@ jobs:
 
       - name: Determine version bump
         id: version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.force_release }}
         run: node scripts/determine-version.js
 
       - name: Update version, README and CHANGELOG
