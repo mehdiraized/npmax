@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.3.0] — 2026-07-29
+
+### Added
+- implement installed apps caching and update PackageEditor for dependency version caching
+
+### Changed
+- ci(release): use bash for tauri build on all OS
+- ci(release): skip mac codesign when secrets missing
+- chore(ci): recover desktop release when GitHub Release is missing
+- chore(deps): bump devDependencies and base64; tune CodeQL
+- chore: update glib dependency and enhance security documentation
+- chore: enhance GitHub integration and update CI workflows
+- chore: update dependencies and CI workflows
+- Merge remote-tracking branch 'origin/master'
+- chore: update homepage URLs and CI workflows
+
+---
+
 ## [3.2.0] — 2026-07-28
 
 ### Added

@@ -14,7 +14,7 @@ Support the project and help fund `npMax Pro`:
 
 **[Donate via Buy Me a Coffee](https://buymeacoffee.com/farobox)**
 
-## Download npMax v3.2.0
+## Download npMax v3.3.0
 
 Installers are published on GitHub Releases (Tauri builds for macOS, Windows, and Linux):
 
