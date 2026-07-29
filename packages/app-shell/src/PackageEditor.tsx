@@ -7,6 +7,12 @@ import {
 import type { Ecosystem, PackageDetails, ParsedDependency } from "@npmax/types";
 import { PackageDetailsModal } from "@npmax/ui";
 import type { PackageEditorAdapter } from "./types.js";
+import {
+  buildDepKey,
+  isDepLatestStale,
+  loadDepLatestCache,
+  saveDepLatestResult,
+} from "./versionCache.js";
 
 type Info = { status: "loading" | "fetched" | "error"; version?: string };
 
@@ -72,6 +78,7 @@ export function PackageEditor({
   const [detailsName, setDetailsName] = useState("");
   const [detailsCurrent, setDetailsCurrent] = useState<string | null>(null);
   const lockStatus = adapter.lockStatus ?? "ok";
+  const [latestUpdateInFlight, setLatestUpdateInFlight] = useState(false);
 
   const fetchLatest = adapter.fetchLatest;
   const fetchDetails = adapter.fetchDetails;
@@ -83,27 +90,62 @@ export function PackageEditor({
 
   useEffect(() => {
     const list = parsed?.dependencies ?? [];
+    const cache = loadDepLatestCache();
+
     const initial: Record<string, Info> = {};
-    for (const dep of list) initial[dep.id] = { status: "loading" };
+    const toFetch: ParsedDependency[] = [];
+
+    for (const dep of list) {
+      const depCacheKey = buildDepKey(ecosystem, dep);
+      const cached = cache?.byDepKey?.[depCacheKey];
+      if (cached && !isDepLatestStale(cached.fetchedAt)) {
+        initial[dep.id] = { status: "fetched", version: cached.version };
+      } else {
+        initial[dep.id] = { status: "loading" };
+        toFetch.push(dep);
+      }
+    }
+
     setInfoMap(initial);
+    setLatestUpdateInFlight(toFetch.length > 0);
+
+    if (toFetch.length === 0) return;
 
     let cancelled = false;
     void (async () => {
-      for (const dep of list) {
+      const next: Record<string, Info> = {};
+      for (const dep of toFetch) {
         try {
-          const meta =
-            ecosystem === "swift" ? { repositoryUrl: dep.repositoryUrl } : undefined;
+          const meta = ecosystem === "swift" ? { repositoryUrl: dep.repositoryUrl } : undefined;
           const version = await fetchLatest(ecosystem, dep.name, meta);
           if (cancelled) return;
-          setInfoMap((prev) => ({ ...prev, [dep.id]: { status: "fetched", version } }));
+
+          const depCacheKey = buildDepKey(ecosystem, dep);
+          saveDepLatestResult(depCacheKey, version);
+
+          next[dep.id] = { status: "fetched", version };
         } catch {
           if (cancelled) return;
-          setInfoMap((prev) => ({ ...prev, [dep.id]: { status: "error" } }));
+          next[dep.id] = { status: "error" };
         }
       }
+
+      if (cancelled) return;
+
+      setInfoMap((prev) => {
+        const updated = { ...prev };
+        for (const dep of toFetch) {
+          const info = next[dep.id];
+          if (info) updated[dep.id] = info;
+        }
+        return updated;
+      });
+      setLatestUpdateInFlight(false);
     })();
+
     return () => {
       cancelled = true;
+      setLatestUpdateInFlight(false);
     };
   }, [rawJson, fetchLatest, ecosystem, depKey, parsed?.dependencies]);
 
@@ -258,7 +300,8 @@ export function PackageEditor({
           ) : null}
           {stats.loading > 0 ? (
             <span className="stat stat--loading">
-              <span className="spin" /> Checking {stats.loading}…
+              <span className="spin" />{" "}
+              {latestUpdateInFlight ? `داریم آپدیت می‌کنیم ${stats.loading}…` : `Checking ${stats.loading}…`}
             </span>
           ) : stats.outdated > 0 ? (
             <span className="stat stat--warn">{stats.outdated} outdated</span>
