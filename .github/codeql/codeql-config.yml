@@ -1,0 +1,6 @@
+name: npmax CodeQL
+
+# Vendored third-party crates (e.g. glib security backport) are not app code.
+# Scanning them produces false-positive FFI pointer findings.
+paths-ignore:
+  - apps/desktop/src-tauri/patches/**
