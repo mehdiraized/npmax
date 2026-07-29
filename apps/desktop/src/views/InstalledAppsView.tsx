@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { InstalledApp } from "@npmax/types";
 import { getFileIcon, openUrl } from "../lib/host";
 import { startWindowDrag } from "../lib/drag";
@@ -7,6 +7,11 @@ import {
   enrichAppsWithRemoteVersions,
   getInstalledAppsInventory,
 } from "../lib/systemApps";
+import {
+  isInstalledAppsCacheStale,
+  loadInstalledAppsCache,
+  saveInstalledAppsCache,
+} from "../lib/installedAppsCache";
 
 export function InstalledAppsView() {
   const [apps, setApps] = useState<InstalledApp[]>([]);
@@ -14,12 +19,14 @@ export function InstalledAppsView() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "updates" | "supported" | "unsupported">("updates");
   const [sortMode, setSortMode] = useState<"updates" | "name" | "installed">("updates");
   const [remoteChecksPending, setRemoteChecksPending] = useState(0);
   const [lastScannedAt, setLastScannedAt] = useState<string | null>(null);
   const [issuesDone, setIssuesDone] = useState<{ type: string; count: number } | null>(null);
+  const refreshRunIdRef = useRef(0);
 
   const summary = useMemo(
     () => ({
@@ -51,31 +58,52 @@ export function InstalledAppsView() {
       });
   }, [apps, filter, query, sortMode]);
 
-  async function loadApps({ silent = true } = {}) {
+  async function refreshInstalledApps({ hadCache, force }: { hadCache: boolean; force: boolean }) {
+    void force; // force is currently handled by caller; update logic doesn't need TTL checks here
+
+    const runId = ++refreshRunIdRef.current;
+    setUpdateError(null);
     setError("");
     setRemoteChecksPending(0);
-    if (silent) setRefreshing(true);
-    else setLoading(true);
+
+    if (!hadCache) setLoading(true);
+    setRefreshing(true);
+
     try {
       const inventory = await getInstalledAppsInventory();
-      setApps(inventory);
-      setLastScannedAt(new Date().toISOString());
-      void loadIcons(inventory);
-      const candidates = inventory.filter((a) => !a.updateAvailable && a.catalogId && a.version);
+      if (refreshRunIdRef.current !== runId) return;
+
+      const finalApps = inventory.map((a) => ({ ...a }));
+      const byId = new Map(finalApps.map((a) => [a.id, a]));
+
+      const candidates = finalApps.filter((a) => !a.updateAvailable && a.catalogId && a.version);
       setRemoteChecksPending(candidates.length);
-      await enrichAppsWithRemoteVersions(inventory, (id, payload) => {
+
+      await enrichAppsWithRemoteVersions(finalApps, (id, payload) => {
         setRemoteChecksPending((n) => Math.max(0, n - 1));
         if (!payload) return;
-        setApps((prev) =>
-          prev.map((app) => (app.id === id ? { ...app, ...payload } : app)),
-        );
+        const target = byId.get(id);
+        if (!target) return;
+        Object.assign(target, payload);
       });
+
+      if (refreshRunIdRef.current !== runId) return;
+
+      saveInstalledAppsCache(finalApps);
+      setApps(finalApps);
+      const now = new Date().toISOString();
+      setLastScannedAt(now);
+      void loadIcons(finalApps);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to scan installed apps.");
+      const msg = err instanceof Error ? err.message : "Failed to scan installed apps.";
+      if (!hadCache) setError(msg);
+      else setUpdateError(msg);
       setRemoteChecksPending(0);
     } finally {
+      if (refreshRunIdRef.current !== runId) return;
       setLoading(false);
       setRefreshing(false);
+      setRemoteChecksPending(0);
     }
   }
 
@@ -105,7 +133,18 @@ export function InstalledAppsView() {
   }
 
   useEffect(() => {
-    void loadApps({ silent: false });
+    const cached = loadInstalledAppsCache();
+    if (cached) {
+      setApps(cached.apps);
+      setLastScannedAt(new Date(cached.cachedAt).toISOString());
+      setLoading(false);
+      void loadIcons(cached.apps);
+      if (isInstalledAppsCacheStale(cached.cachedAt)) {
+        void refreshInstalledApps({ hadCache: true, force: false });
+      }
+      return;
+    }
+    void refreshInstalledApps({ hadCache: false, force: true });
   }, []);
 
   function displayVersion(value?: string | null) {
@@ -200,7 +239,7 @@ export function InstalledAppsView() {
           <button
             type="button"
             className="btn btn--ghost"
-            onClick={() => void loadApps({ silent: true })}
+            onClick={() => void refreshInstalledApps({ hadCache: apps.length > 0, force: true })}
             disabled={loading || refreshing}
           >
             {loading || refreshing ? (
@@ -297,13 +336,16 @@ export function InstalledAppsView() {
         ) : (
           <>
             <div className="body__bar">
-              {remoteChecksPending > 0 ? (
-                <span className="body__pending">
-                  <span className="spin" />
-                  Checking {remoteChecksPending} catalog sources…
-                </span>
-              ) : null}
+                {refreshing ? (
+                  <span className="body__pending">
+                    <span className="spin" />
+                    {remoteChecksPending > 0
+                      ? `Checking ${remoteChecksPending} catalog sources…`
+                      : "Updating installed apps…"}
+                  </span>
+                ) : null}
             </div>
+              {updateError ? <div className="notice notice--error">{updateError}</div> : null}
             <div className="grid">
               {filteredApps.length === 0 ? (
                 <div className="grid__empty">

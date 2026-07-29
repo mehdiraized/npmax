@@ -20,6 +20,17 @@ pub async fn shell_exec(
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+
+    // In packaged builds, the default PATH can be minimal.
+    // Augment it so node-based toolchains (npm/yarn/pnpm) and other language CLIs are discoverable.
+    let home = std::env::var("HOME").unwrap_or_default();
+    let augmented = format!(
+        "/usr/local/bin:/opt/homebrew/bin:{home}/.cargo/bin:{home}/.local/bin"
+    );
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let next_path = format!("{augmented}:{current_path}");
+    command.env("PATH", next_path);
+
     if let Some(dir) = cwd {
         command.current_dir(dir);
     }
