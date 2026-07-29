@@ -151,6 +151,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
         # Pass --target to the Tauri CLI (not after `--`, which would only go to cargo).
         # Otherwise the binary lands in target/<triple>/release/ while the bundler
         # looks in target/release/ and fails with ENOENT.
