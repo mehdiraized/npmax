@@ -154,7 +154,18 @@ jobs:
         # Pass --target to the Tauri CLI (not after `--`, which would only go to cargo).
         # Otherwise the binary lands in target/<triple>/release/ while the bundler
         # looks in target/release/ and fails with ENOENT.
-        run: pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
+        #
+        # Also: macOS codesigning requires signing secrets to be configured.
+        # If they're missing/empty, Tauri tries `security import` with an empty cert and fails.
+        run: |
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            if [ -z "${APPLE_CERTIFICATE:-}" ] || [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+              echo "APPLE signing secrets missing; building without codesigning (macOS)."
+              unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+            fi
+          fi
+
+          pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
 
       - name: Upload bundled artifacts
         uses: actions/upload-artifact@v4
