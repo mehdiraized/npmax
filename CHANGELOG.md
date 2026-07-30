@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.4.2] — 2026-07-30
+
+### Fixed
+- enhance error handling for macOS codesigning in release workflow
+
+### Changed
+- Merge remote-tracking branch 'origin/master'
+
+---
+
 ## [3.4.1] — 2026-07-30
 
 ### Fixed
