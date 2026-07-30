@@ -156,13 +156,62 @@ jobs:
         # Otherwise the binary lands in target/<triple>/release/ while the bundler
         # looks in target/release/ and fails with ENOENT.
         #
-        # Also: macOS codesigning requires signing secrets to be configured.
-        # If they're missing/empty, Tauri tries `security import` with an empty cert and fails.
+        # macOS: APPLE_CERTIFICATE (+ password) are required for codesign.
+        # APPLE_SIGNING_IDENTITY is optional — if missing/wrong we detect it from the .p12
+        # (avoids "failed to resolve signing identity" from typos/quotes in the secret).
         run: |
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            if [ -z "${APPLE_CERTIFICATE:-}" ] || [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-              echo "APPLE signing secrets missing; building without codesigning (macOS)."
+            if [ -z "${APPLE_CERTIFICATE:-}" ]; then
+              echo "APPLE_CERTIFICATE missing; building without codesigning (macOS)."
               unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+            else
+              # Strip accidental quotes/whitespace from identity secret
+              if [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+                APPLE_SIGNING_IDENTITY="$(printf '%s' "$APPLE_SIGNING_IDENTITY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+                export APPLE_SIGNING_IDENTITY
+              fi
+
+              CERT_FILE="$(mktemp /tmp/npmax-cert.XXXXXX.p12)"
+              KEYCHAIN_PATH="$(mktemp /tmp/npmax-kc.XXXXXX.keychain-db)"
+              rm -f "$KEYCHAIN_PATH"
+              KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+              echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_FILE"
+              security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+              security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
+              security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+              # Password may be empty for some exports
+              security import "$CERT_FILE" -k "$KEYCHAIN_PATH" -P "${APPLE_CERTIFICATE_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/security || true
+              security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true
+
+              echo "=== Codesigning identities in certificate ==="
+              security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+
+              DETECTED="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep -F 'Developer ID Application:' | head -1 | sed -n 's/.*"\(.*\)"/\1/p' || true)"
+              if [ -z "$DETECTED" ]; then
+                DETECTED="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | sed -n 's/.*"\(.*\)".*/\1/p' | head -1 || true)"
+              fi
+
+              if [ -n "$DETECTED" ]; then
+                if [ -z "${APPLE_SIGNING_IDENTITY:-}" ] || [ "$APPLE_SIGNING_IDENTITY" != "$DETECTED" ]; then
+                  echo "Using signing identity from .p12: $DETECTED"
+                  if [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ "$APPLE_SIGNING_IDENTITY" != "$DETECTED" ]; then
+                    echo "Note: APPLE_SIGNING_IDENTITY secret did not match .p12 (was: $APPLE_SIGNING_IDENTITY); overriding."
+                  fi
+                  export APPLE_SIGNING_IDENTITY="$DETECTED"
+                else
+                  echo "APPLE_SIGNING_IDENTITY matches .p12: $APPLE_SIGNING_IDENTITY"
+                fi
+              else
+                echo "WARNING: No codesigning identity found in APPLE_CERTIFICATE."
+                echo "Export a Developer ID Application .p12 (with private key) from Keychain Access."
+                if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+                  echo "APPLE_SIGNING_IDENTITY also empty; building without codesigning."
+                  unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+                fi
+              fi
+
+              rm -f "$CERT_FILE"
+              security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
             fi
           fi
 
