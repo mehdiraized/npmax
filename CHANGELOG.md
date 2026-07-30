@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.4.3] — 2026-07-30
+
+### Fixed
+- update author name in package.json for consistency
+- update README formatting and remove outdated links
+
+---
+
 ## [3.4.2] — 2026-07-30
 
 ### Fixed
