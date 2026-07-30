@@ -187,31 +187,34 @@ jobs:
               security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
 
               DETECTED="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep -F 'Developer ID Application:' | head -1 | sed -n 's/.*"\(.*\)"/\1/p' || true)"
-              if [ -z "$DETECTED" ]; then
-                DETECTED="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | sed -n 's/.*"\(.*\)".*/\1/p' | head -1 || true)"
-              fi
+              WRONG_MAS="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep -F '3rd Party Mac Developer Application:' | head -1 | sed -n 's/.*"\(.*\)"/\1/p' || true)"
+
+              rm -f "$CERT_FILE"
+              security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
 
               if [ -n "$DETECTED" ]; then
                 if [ -z "${APPLE_SIGNING_IDENTITY:-}" ] || [ "$APPLE_SIGNING_IDENTITY" != "$DETECTED" ]; then
                   echo "Using signing identity from .p12: $DETECTED"
                   if [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ "$APPLE_SIGNING_IDENTITY" != "$DETECTED" ]; then
-                    echo "Note: APPLE_SIGNING_IDENTITY secret did not match .p12 (was: $APPLE_SIGNING_IDENTITY); overriding."
+                    echo "Note: APPLE_SIGNING_IDENTITY secret did not match .p12; overriding with Developer ID Application from .p12."
                   fi
                   export APPLE_SIGNING_IDENTITY="$DETECTED"
                 else
                   echo "APPLE_SIGNING_IDENTITY matches .p12: $APPLE_SIGNING_IDENTITY"
                 fi
               else
-                echo "WARNING: No codesigning identity found in APPLE_CERTIFICATE."
-                echo "Export a Developer ID Application .p12 (with private key) from Keychain Access."
-                if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-                  echo "APPLE_SIGNING_IDENTITY also empty; building without codesigning."
-                  unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+                echo "::error::APPLE_CERTIFICATE .p12 does not contain a Developer ID Application identity."
+                if [ -n "$WRONG_MAS" ]; then
+                  echo "::error::Found Mac App Store cert instead: $WRONG_MAS"
+                  echo "Re-export from Keychain Access the certificate named exactly:"
+                  echo "  Developer ID Application: …"
+                  echo "Not: 3rd Party Mac Developer Application"
+                else
+                  echo "Export Developer ID Application (with private key) from Keychain → My Certificates → .p12"
                 fi
+                echo "Then: base64 -i YourNew.p12 | pbcopy  → update GitHub secret APPLE_CERTIFICATE"
+                exit 1
               fi
-
-              rm -f "$CERT_FILE"
-              security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
             fi
           fi
 
