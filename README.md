@@ -144,15 +144,15 @@ Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting a Pull
 
 ```json
 {
-  "mcpServers": {
-    "npmax": {
-      "command": "npx",
-      "args": ["-y", "@npmax/mcp"],
-      "env": {
-        "NPMAX_API_URL": "https://npmax.vercel.app"
-      }
-    }
-  }
+	"mcpServers": {
+		"npmax": {
+			"command": "npx",
+			"args": ["-y", "@npmax/mcp"],
+			"env": {
+				"NPMAX_API_URL": "https://npmax.vercel.app"
+			}
+		}
+	}
 }
 ```
 
@@ -176,8 +176,6 @@ Web builds on Vercel from the repo root (`vercel.json`).
 
 - [GitHub](https://github.com/mehdiraized/npmax) (Bug reports, Contributions)
 - [Buy Me a Coffee](https://buymeacoffee.com/farobox) (Support development and help fund npMax Pro)
-- [Twitter](https://twitter.com/npMax_app) (Get the news fast)
-- [Telegram](https://t.me/npmax_app)
 
 ## License
 
