@@ -21,7 +21,7 @@ const api = apiUrl ? new NpmaxApiClient(apiUrl) : null;
 
 const server = new McpServer({
   name: "npmax",
-  version: "3.4.0",
+  version: "3.4.1",
 });
 
 server.tool(
