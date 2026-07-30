@@ -26,9 +26,7 @@
 					"y": 26
 				},
 				"windowEffects": {
-					"effects": [
-						"sidebar"
-					],
+					"effects": ["sidebar"],
 					"state": "active"
 				}
 			}
@@ -74,7 +72,7 @@
 	},
 	"plugins": {
 		"updater": {
-			"pubkey": "",
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBMzE1RDlBRjEyQTM3REQKUldUZE55cnhtbDB4NnZIeFR2ZHhVdDB1cXo4b0UxRytFR2VWYnFhSHNSbmQ4aEo0YmJseGxhK00K",
 			"endpoints": [
 				"https://github.com/mehdiraized/npmax/releases/latest/download/latest.json"
 			]
