@@ -54,6 +54,7 @@
 		"macOS": {
 			"minimumSystemVersion": "11.0",
 			"hardenedRuntime": true,
+			"entitlements": "./Entitlements.developer-id.plist",
 			"dmg": {
 				"appPosition": {
 					"x": 180,

@@ -177,6 +177,7 @@ jobs:
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.tar.gz
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.app.zip
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.sig
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
@@ -226,6 +227,7 @@ jobs:
             -name '*.dmg' -o \
             -name '*.app.tar.gz' -o \
             -name '*.app.zip' -o \
+            -name '*.sig' -o \
             -name '*.msi' -o \
             -name '*.exe' -o \
             -name '*.AppImage' -o \
