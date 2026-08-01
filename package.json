@@ -1,7 +1,7 @@
 {
 	"name": "npmax",
 	"private": true,
-	"version": "3.4.3",
+	"version": "3.4.4",
 	"description": "npMax — cross-platform dependency and installed app update manager",
 	"license": "MIT",
 	"homepage": "https://npmax.vercel.app/",
