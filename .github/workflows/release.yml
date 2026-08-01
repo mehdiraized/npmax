@@ -101,6 +101,7 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -218,7 +219,27 @@ jobs:
             fi
           fi
 
-          pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
+          # Notarization polls Apple for a long time; GH runners sometimes drop the
+          # network mid-wait (NSURLError -1009). Retry the whole macOS build a few times.
+          if [ "${{ matrix.os }}" = "macos-latest" ] && [ -n "${APPLE_CERTIFICATE:-}" ]; then
+            ATTEMPT=1
+            MAX_ATTEMPTS=3
+            while true; do
+              echo "=== macOS build/notarize attempt ${ATTEMPT}/${MAX_ATTEMPTS} ==="
+              if pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}; then
+                break
+              fi
+              if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+                echo "::error::macOS build/notarize failed after ${MAX_ATTEMPTS} attempts"
+                exit 1
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+              echo "Notarize/network failed; waiting 90s before retry…"
+              sleep 90
+            done
+          else
+            pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
+          fi
 
       - name: Upload bundled artifacts
         uses: actions/upload-artifact@v4
