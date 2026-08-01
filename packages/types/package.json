@@ -1,6 +1,6 @@
 {
 	"name": "@npmax/types",
-	"version": "3.4.4",
+	"version": "3.4.5",
 	"private": false,
 	"type": "module",
 	"main": "./dist/index.js",

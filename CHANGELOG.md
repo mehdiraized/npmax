@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.4.5] — 2026-08-01
+
+### Fixed
+- refine macOS notarization process with improved error handling and retries
+
+### Changed
+- Merge remote-tracking branch 'origin/master'
+
+---
+
 ## [3.4.4] — 2026-08-01
 
 ### Fixed
