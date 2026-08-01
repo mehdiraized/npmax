@@ -261,8 +261,8 @@ jobs:
               exit 1
             fi
 
-            for ATTEMPT in 1 2 3; do
-              echo "=== Waiting for Apple notarization ${ATTEMPT}/3 (submission: $SUBMISSION_ID) ==="
+            for ATTEMPT in 1 2 3 4 5 6; do
+              echo "=== Waiting for Apple notarization ${ATTEMPT}/6 (submission: $SUBMISSION_ID) ==="
               if xcrun notarytool wait "$SUBMISSION_ID" \
                 --apple-id "$APPLE_ID" \
                 --password "$APPLE_PASSWORD" \
@@ -270,7 +270,7 @@ jobs:
                 --timeout 25m; then
                 xcrun stapler staple "$DMG_PATH" && xcrun stapler validate "$DMG_PATH" && break
               fi
-              if [ "$ATTEMPT" -lt 3 ]; then
+              if [ "$ATTEMPT" -lt 6 ]; then
                 echo "Notarization is not ready yet; waiting 60s before checking again…"
                 sleep 60
               fi
@@ -281,7 +281,7 @@ jobs:
                 --apple-id "$APPLE_ID" \
                 --password "$APPLE_PASSWORD" \
                 --team-id "$APPLE_TEAM_ID" || true
-              echo "::error::Apple did not accept or staple the notarization submission: $SUBMISSION_ID"
+              echo "::error::Apple notarization did not finish within 150 minutes: $SUBMISSION_ID"
               exit 1
             fi
           else
