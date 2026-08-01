@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.6] — 2026-08-01
+
+### Fixed
+- extend retries for Apple notarization process
+
+---
+
 ## [3.4.5] — 2026-08-01
 
 ### Fixed
