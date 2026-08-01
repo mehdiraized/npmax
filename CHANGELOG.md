@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.4] — 2026-08-01
+
+### Fixed
+- enhance macOS build process with retry logic for notarization
+
+---
+
 ## [3.4.3] — 2026-07-30
 
 ### Fixed
