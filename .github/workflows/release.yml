@@ -91,11 +91,10 @@ jobs:
       matrix:
         include:
           - label: macos-arm64
-            os: macos-latest
+            # Pin a stable Apple Silicon image. `macos-latest` changes over time
+            # and can silently move the release to a new macOS/Xcode generation.
+            os: macos-15
             target: aarch64-apple-darwin
-          - label: macos-x64
-            os: macos-latest
-            target: x86_64-apple-darwin
           - label: linux-x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -163,7 +162,7 @@ jobs:
         # APPLE_SIGNING_IDENTITY is optional — if missing/wrong we detect it from the .p12
         # (avoids "failed to resolve signing identity" from typos/quotes in the secret).
         run: |
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+          if [[ "${{ matrix.label }}" == macos-* ]]; then
             if [ -z "${APPLE_CERTIFICATE:-}" ]; then
               echo "APPLE_CERTIFICATE missing; building without codesigning (macOS)."
               unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
@@ -225,9 +224,19 @@ jobs:
           # connectivity to Apple. Build the signed DMG first, then use notarytool
           # with bounded waits so a transient Apple/network failure cannot consume
           # the entire GitHub Actions job.
-          if [ "${{ matrix.os }}" = "macos-latest" ] && [ -n "${APPLE_CERTIFICATE:-}" ]; then
+          if [[ "${{ matrix.label }}" == macos-* ]] && [ -n "${APPLE_CERTIFICATE:-}" ]; then
             env -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID \
               pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
+
+            APP_PATH="$(find "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
+            if [ -z "$APP_PATH" ]; then
+              echo "::error::Tauri did not create a macOS app bundle."
+              exit 1
+            fi
+            echo "=== Verifying the signed app before notarization ==="
+            codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+            codesign --display --verbose=4 "$APP_PATH" 2>&1 | \
+              grep -E '^(Identifier|TeamIdentifier|Authority|Runtime Version)=' || true
 
             DMG_PATH="$(find "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
             if [ -z "$DMG_PATH" ]; then
