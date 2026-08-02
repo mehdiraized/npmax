@@ -20,7 +20,7 @@ Installers are published on GitHub Releases (Tauri builds for macOS, Windows, an
 
 **[All Releases](https://github.com/mehdiraized/npmax/releases/)** · **[Latest](https://github.com/mehdiraized/npmax/releases/latest)**
 
-After each release, platform assets (`.dmg`, `.exe` / NSIS, `.AppImage`, `.deb`, updater JSON) appear on that release page.
+After each release, platform assets (`.dmg`, `.exe` / NSIS, `.AppImage`, `.deb`, updater JSON) and `SHA256SUMS.txt` appear on that release page. Download the checksum file with your installer to verify the download before installing. Linux releases can additionally publish a GPG-signed checksum and its public key when release signing is configured.
 
 Web app / landing deploys automatically to **Vercel** on every push (no GitHub Pages).
 

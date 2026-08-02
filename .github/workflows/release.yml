@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
     paths-ignore:
+      - ".github/**"
       - "docs/superpowers/**"
       - "*.md"
       - "LICENSE"
@@ -84,6 +85,7 @@ jobs:
     if: needs.prepare-release.outputs.should_release == 'true'
     permissions:
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +100,7 @@ jobs:
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           - label: windows-x64
-            os: windows-latest
+            os: windows-2025
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
@@ -260,6 +262,7 @@ jobs:
               echo "::error::Could not submit the DMG to Apple's notary service."
               exit 1
             fi
+            printf '%s\n' "$SUBMISSION_ID" > "$(dirname "$DMG_PATH")/notarization-submission.txt"
 
             for ATTEMPT in 1 2 3 4 5 6; do
               echo "=== Waiting for Apple notarization ${ATTEMPT}/6 (submission: $SUBMISSION_ID) ==="
@@ -288,7 +291,29 @@ jobs:
             pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
           fi
 
+      - name: Sign in to Azure
+        if: matrix.label == 'windows-x64' && vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign Windows installers
+        if: matrix.label == 'windows-x64' && vars.AZURE_ARTIFACT_SIGNING_ENABLED == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\apps\desktop\src-tauri\target\${{ matrix.target }}\release\bundle
+          files-folder-filter: exe,msi
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       - name: Upload bundled artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-${{ matrix.label }}
@@ -304,6 +329,7 @@ jobs:
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/latest*.json
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/notarization-submission.txt
 
   create-release:
     name: Create GitHub Release
@@ -342,6 +368,10 @@ jobs:
       - name: Collect release files
         id: files
         shell: bash
+        env:
+          LINUX_GPG_PRIVATE_KEY: ${{ secrets.LINUX_GPG_PRIVATE_KEY }}
+          LINUX_GPG_KEY_ID: ${{ vars.LINUX_GPG_KEY_ID }}
+          LINUX_GPG_PASSPHRASE: ${{ secrets.LINUX_GPG_PASSPHRASE }}
         run: |
           mapfile -t file_list < <(find artifacts -type f \( \
             -name '*.dmg' -o \
@@ -359,6 +389,25 @@ jobs:
           if [ "${#file_list[@]}" -eq 0 ]; then
             echo "No release artifacts found."
             exit 1
+          fi
+
+          for file in "${file_list[@]}"; do
+            printf '%s  %s\n' "$(sha256sum "$file" | awk '{print $1}')" "$(basename "$file")"
+          done > SHA256SUMS.txt
+          file_list+=("SHA256SUMS.txt")
+
+          if [ -n "${LINUX_GPG_PRIVATE_KEY:-}" ]; then
+            if [ -z "${LINUX_GPG_KEY_ID:-}" ] || [ -z "${LINUX_GPG_PASSPHRASE:-}" ]; then
+              echo "::error::LINUX_GPG_KEY_ID and LINUX_GPG_PASSPHRASE are required with LINUX_GPG_PRIVATE_KEY."
+              exit 1
+            fi
+            export GNUPGHOME="$RUNNER_TEMP/npmax-gpg"
+            mkdir -m 700 "$GNUPGHOME"
+            printf '%s' "$LINUX_GPG_PRIVATE_KEY" | base64 --decode | gpg --batch --import
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$LINUX_GPG_PASSPHRASE" \
+              --armor --local-user "$LINUX_GPG_KEY_ID" --detach-sign --output SHA256SUMS.txt.asc SHA256SUMS.txt
+            gpg --batch --armor --export "$LINUX_GPG_KEY_ID" > npmax-release-key.asc
+            file_list+=("SHA256SUMS.txt.asc" "npmax-release-key.asc")
           fi
 
           {
