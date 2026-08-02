@@ -314,7 +314,7 @@ jobs:
 
       - name: Upload bundled artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: artifacts-${{ matrix.label }}
           if-no-files-found: error
