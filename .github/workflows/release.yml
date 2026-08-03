@@ -19,6 +19,11 @@ on:
         required: false
         type: boolean
         default: false
+      notarize_macos:
+        description: "Wait for Apple notarization (often 1–3h; can fail if Apple queue stalls). Default off = signed DMG only."
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: release
@@ -102,7 +107,8 @@ jobs:
             os: windows-2025
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 180
+    # Signed-only macOS builds finish in ~15–30m. Notarize path can take much longer.
+    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' && inputs.notarize_macos) && 180 || 60 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -220,10 +226,10 @@ jobs:
             fi
           fi
 
-          # Tauri's built-in notarization can wait indefinitely when the runner loses
-          # connectivity to Apple. Build the signed DMG first, then use notarytool
-          # with bounded waits so a transient Apple/network failure cannot consume
-          # the entire GitHub Actions job.
+          # Sign with Developer ID, then optionally notarize.
+          # Default: skip notarization. Apple's notary queue has repeatedly stalled
+          # for 150+ minutes on this project and blocked releases. Signed DMGs still
+          # ship; users may need right-click → Open once until notarized later.
           if [[ "${{ matrix.label }}" == macos-* ]] && [ -n "${APPLE_CERTIFICATE:-}" ]; then
             env -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID \
               pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
@@ -233,7 +239,7 @@ jobs:
               echo "::error::Tauri did not create a macOS app bundle."
               exit 1
             fi
-            echo "=== Verifying the signed app before notarization ==="
+            echo "=== Verifying Developer ID signature ==="
             codesign --verify --deep --strict --verbose=2 "$APP_PATH"
             codesign --display --verbose=4 "$APP_PATH" 2>&1 | \
               grep -E '^(Identifier|TeamIdentifier|Authority|Runtime Version)=' || true
@@ -243,58 +249,71 @@ jobs:
               echo "::error::Tauri did not create a macOS DMG."
               exit 1
             fi
-            if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
-              echo "::error::APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID are required to notarize macOS builds."
-              exit 1
+
+            NOTARIZE=false
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.notarize_macos }}" = "true" ]; then
+              NOTARIZE=true
             fi
 
-            SUBMISSION_ID=""
-            for ATTEMPT in 1 2 3; do
-              echo "=== Apple notarization upload attempt ${ATTEMPT}/3 ==="
-              SUBMISSION_OUTPUT="$(xcrun notarytool submit "$DMG_PATH" \
-                --apple-id "$APPLE_ID" \
-                --password "$APPLE_PASSWORD" \
-                --team-id "$APPLE_TEAM_ID" \
-                --no-s3-acceleration \
-                --output-format json)" && {
-                SUBMISSION_ID="$(printf '%s\n' "$SUBMISSION_OUTPUT" | sed -nE 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
-                [ -n "$SUBMISSION_ID" ]
-              } && break
-
-              if [ "$ATTEMPT" -lt 3 ]; then
-                echo "Notarization upload failed; waiting 60s before retry…"
-                sleep 60
+            if [ "$NOTARIZE" != "true" ]; then
+              echo "=== Skipping Apple notarization (signed DMG will still be released) ==="
+              echo "Re-run workflow_dispatch with notarize_macos=true when you want to wait on Apple."
+              echo "signed-only" > "$(dirname "$DMG_PATH")/notarization-status.txt"
+            else
+              if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
+                echo "::error::APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID are required when notarize_macos=true."
+                exit 1
               fi
-            done
 
-            if [ -z "$SUBMISSION_ID" ]; then
-              echo "::error::Could not submit the DMG to Apple's notary service."
-              exit 1
-            fi
-            printf '%s\n' "$SUBMISSION_ID" > "$(dirname "$DMG_PATH")/notarization-submission.txt"
+              SUBMISSION_ID=""
+              for ATTEMPT in 1 2 3; do
+                echo "=== Apple notarization upload attempt ${ATTEMPT}/3 ==="
+                SUBMISSION_OUTPUT="$(xcrun notarytool submit "$DMG_PATH" \
+                  --apple-id "$APPLE_ID" \
+                  --password "$APPLE_PASSWORD" \
+                  --team-id "$APPLE_TEAM_ID" \
+                  --no-s3-acceleration \
+                  --output-format json)" && {
+                  SUBMISSION_ID="$(printf '%s\n' "$SUBMISSION_OUTPUT" | sed -nE 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
+                  [ -n "$SUBMISSION_ID" ]
+                } && break
 
-            for ATTEMPT in 1 2 3 4 5 6; do
-              echo "=== Waiting for Apple notarization ${ATTEMPT}/6 (submission: $SUBMISSION_ID) ==="
-              if xcrun notarytool wait "$SUBMISSION_ID" \
-                --apple-id "$APPLE_ID" \
-                --password "$APPLE_PASSWORD" \
-                --team-id "$APPLE_TEAM_ID" \
-                --timeout 25m; then
-                xcrun stapler staple "$DMG_PATH" && xcrun stapler validate "$DMG_PATH" && break
+                if [ "$ATTEMPT" -lt 3 ]; then
+                  echo "Notarization upload failed; waiting 60s before retry…"
+                  sleep 60
+                fi
+              done
+
+              if [ -z "$SUBMISSION_ID" ]; then
+                echo "::error::Could not submit the DMG to Apple's notary service."
+                exit 1
               fi
-              if [ "$ATTEMPT" -lt 6 ]; then
-                echo "Notarization is not ready yet; waiting 60s before checking again…"
-                sleep 60
-              fi
-            done
+              printf '%s\n' "$SUBMISSION_ID" > "$(dirname "$DMG_PATH")/notarization-submission.txt"
 
-            if ! xcrun stapler validate "$DMG_PATH"; then
-              xcrun notarytool log "$SUBMISSION_ID" \
-                --apple-id "$APPLE_ID" \
-                --password "$APPLE_PASSWORD" \
-                --team-id "$APPLE_TEAM_ID" || true
-              echo "::error::Apple notarization did not finish within 150 minutes: $SUBMISSION_ID"
-              exit 1
+              for ATTEMPT in 1 2 3 4 5 6; do
+                echo "=== Waiting for Apple notarization ${ATTEMPT}/6 (submission: $SUBMISSION_ID) ==="
+                if xcrun notarytool wait "$SUBMISSION_ID" \
+                  --apple-id "$APPLE_ID" \
+                  --password "$APPLE_PASSWORD" \
+                  --team-id "$APPLE_TEAM_ID" \
+                  --timeout 25m; then
+                  xcrun stapler staple "$DMG_PATH" && xcrun stapler validate "$DMG_PATH" && break
+                fi
+                if [ "$ATTEMPT" -lt 6 ]; then
+                  echo "Notarization is not ready yet; waiting 60s before checking again…"
+                  sleep 60
+                fi
+              done
+
+              if ! xcrun stapler validate "$DMG_PATH"; then
+                xcrun notarytool log "$SUBMISSION_ID" \
+                  --apple-id "$APPLE_ID" \
+                  --password "$APPLE_PASSWORD" \
+                  --team-id "$APPLE_TEAM_ID" || true
+                echo "::error::Apple notarization did not finish within 150 minutes: $SUBMISSION_ID"
+                exit 1
+              fi
+              echo "notarized" > "$(dirname "$DMG_PATH")/notarization-status.txt"
             fi
           else
             pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
@@ -339,6 +358,7 @@ jobs:
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/latest*.json
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/notarization-submission.txt
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/notarization-status.txt
 
   create-release:
     name: Create GitHub Release
