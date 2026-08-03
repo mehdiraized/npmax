@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.5.0] — 2026-08-03
+
+### Added
+- enhance release workflow with checksum generation and signing
+
+### Fixed
+- pin macOS version and refine notarization checks
+
+### Changed
+- Merge remote-tracking branch 'origin/master'
+
+---
+
 ## [3.4.6] — 2026-08-01
 
 ### Fixed
