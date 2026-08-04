@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.6.0] — 2026-08-04
+
+### Added
+- add notarization option for macOS builds in release workflow
+
+### Changed
+- Merge remote-tracking branch 'origin/master'
+- Merge pull request #111 from mehdiraized/dependabot/github_actions/softprops/action-gh-release-3
+- Merge pull request #112 from mehdiraized/dependabot/github_actions/actions/download-artifact-8
+- Merge pull request #109 from mehdiraized/dependabot/github_actions/actions/upload-artifact-7
+- Merge pull request #110 from mehdiraized/dependabot/github_actions/github/codeql-action-4.37.3
+- build(deps): bump actions/upload-artifact from 4 to 7
+- build(deps): bump actions/download-artifact from 4 to 8
+- build(deps): bump softprops/action-gh-release from 2 to 3
+- build(deps): bump github/codeql-action from 3 to 4.37.3
+
+---
+
 ## [3.5.0] — 2026-08-03
 
 ### Added
