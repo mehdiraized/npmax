@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.1] — 2026-08-06
+
+### Fixed
+- update download links to open in new tab with noopener, remove App Store link
+
+---
+
 ## [3.7.0] — 2026-08-06
 
 ### Added
