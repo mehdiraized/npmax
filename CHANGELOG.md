@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.0] — 2026-08-06
+
+### Added
+- universal build, resilient notarization, working updater
+
+---
+
 ## [3.6.0] — 2026-08-04
 
 ### Added
