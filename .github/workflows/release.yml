@@ -19,11 +19,6 @@ on:
         required: false
         type: boolean
         default: false
-      notarize_macos:
-        description: "Wait for Apple notarization (often 1–3h; can fail if Apple queue stalls). Default off = signed DMG only."
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: release
@@ -95,20 +90,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: macos-arm64
+          # One universal DMG covers Intel and Apple Silicon. Two per-arch DMGs
+          # would mean two trips through Apple's notary queue, which is the part
+          # that takes hours — this halves the exposure and is why there is no
+          # separate macos-x64 job.
+          - label: macos-universal
             # Pin a stable Apple Silicon image. `macos-latest` changes over time
             # and can silently move the release to a new macOS/Xcode generation.
             os: macos-15
-            target: aarch64-apple-darwin
+            target: universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            # Build ~40m + up to 5h waiting on Apple's notary queue.
+            timeout: 360
           - label: linux-x64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            rust_targets: x86_64-unknown-linux-gnu
+            timeout: 60
           - label: windows-x64
             os: windows-2025
             target: x86_64-pc-windows-msvc
+            rust_targets: x86_64-pc-windows-msvc
+            timeout: 60
     runs-on: ${{ matrix.os }}
-    # Signed-only macOS builds finish in ~15–30m. Notarize path can take much longer.
-    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' && inputs.notarize_macos) && 180 || 60 }}
+    timeout-minutes: ${{ matrix.timeout }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -130,7 +135,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust_targets }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -226,95 +231,35 @@ jobs:
             fi
           fi
 
-          # Sign with Developer ID, then optionally notarize.
-          # Default: skip notarization. Apple's notary queue has repeatedly stalled
-          # for 150+ minutes on this project and blocked releases. Signed DMGs still
-          # ship; users may need right-click → Open once until notarized later.
           if [[ "${{ matrix.label }}" == macos-* ]] && [ -n "${APPLE_CERTIFICATE:-}" ]; then
+            # Build signed but NOT notarized. Tauri's bundler notarizes inline as
+            # soon as it sees APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID, using
+            # `notarytool submit --wait` with no timeout — that call has hung for
+            # hours here on submissions Apple had already accepted. Strip the three
+            # so Tauri only codesigns, then notarize explicitly with a bounded poll.
             env -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID \
               pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
 
-            APP_PATH="$(find "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
-            if [ -z "$APP_PATH" ]; then
-              echo "::error::Tauri did not create a macOS app bundle."
+            BUNDLE_DIR="apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+            APP_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
+            DMG_PATH="$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+            if [ -z "$APP_PATH" ] || [ -z "$DMG_PATH" ]; then
+              echo "::error::Tauri did not create a macOS .app and .dmg under $BUNDLE_DIR."
               exit 1
             fi
+
             echo "=== Verifying Developer ID signature ==="
             codesign --verify --deep --strict --verbose=2 "$APP_PATH"
             codesign --display --verbose=4 "$APP_PATH" 2>&1 | \
               grep -E '^(Identifier|TeamIdentifier|Authority|Runtime Version)=' || true
+            echo "=== Architectures in the universal binary ==="
+            lipo -archs "$APP_PATH/Contents/MacOS/npmax"
 
-            DMG_PATH="$(find "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
-            if [ -z "$DMG_PATH" ]; then
-              echo "::error::Tauri did not create a macOS DMG."
+            if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
+              echo "::error::APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID are required to notarize."
               exit 1
             fi
-
-            NOTARIZE=false
-            if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.notarize_macos }}" = "true" ]; then
-              NOTARIZE=true
-            fi
-
-            if [ "$NOTARIZE" != "true" ]; then
-              echo "=== Skipping Apple notarization (signed DMG will still be released) ==="
-              echo "Re-run workflow_dispatch with notarize_macos=true when you want to wait on Apple."
-              echo "signed-only" > "$(dirname "$DMG_PATH")/notarization-status.txt"
-            else
-              if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
-                echo "::error::APPLE_ID, APPLE_PASSWORD, and APPLE_TEAM_ID are required when notarize_macos=true."
-                exit 1
-              fi
-
-              SUBMISSION_ID=""
-              for ATTEMPT in 1 2 3; do
-                echo "=== Apple notarization upload attempt ${ATTEMPT}/3 ==="
-                SUBMISSION_OUTPUT="$(xcrun notarytool submit "$DMG_PATH" \
-                  --apple-id "$APPLE_ID" \
-                  --password "$APPLE_PASSWORD" \
-                  --team-id "$APPLE_TEAM_ID" \
-                  --no-s3-acceleration \
-                  --output-format json)" && {
-                  SUBMISSION_ID="$(printf '%s\n' "$SUBMISSION_OUTPUT" | sed -nE 's/.*"id"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
-                  [ -n "$SUBMISSION_ID" ]
-                } && break
-
-                if [ "$ATTEMPT" -lt 3 ]; then
-                  echo "Notarization upload failed; waiting 60s before retry…"
-                  sleep 60
-                fi
-              done
-
-              if [ -z "$SUBMISSION_ID" ]; then
-                echo "::error::Could not submit the DMG to Apple's notary service."
-                exit 1
-              fi
-              printf '%s\n' "$SUBMISSION_ID" > "$(dirname "$DMG_PATH")/notarization-submission.txt"
-
-              for ATTEMPT in 1 2 3 4 5 6; do
-                echo "=== Waiting for Apple notarization ${ATTEMPT}/6 (submission: $SUBMISSION_ID) ==="
-                if xcrun notarytool wait "$SUBMISSION_ID" \
-                  --apple-id "$APPLE_ID" \
-                  --password "$APPLE_PASSWORD" \
-                  --team-id "$APPLE_TEAM_ID" \
-                  --timeout 25m; then
-                  xcrun stapler staple "$DMG_PATH" && xcrun stapler validate "$DMG_PATH" && break
-                fi
-                if [ "$ATTEMPT" -lt 6 ]; then
-                  echo "Notarization is not ready yet; waiting 60s before checking again…"
-                  sleep 60
-                fi
-              done
-
-              if ! xcrun stapler validate "$DMG_PATH"; then
-                xcrun notarytool log "$SUBMISSION_ID" \
-                  --apple-id "$APPLE_ID" \
-                  --password "$APPLE_PASSWORD" \
-                  --team-id "$APPLE_TEAM_ID" || true
-                echo "::error::Apple notarization did not finish within 150 minutes: $SUBMISSION_ID"
-                exit 1
-              fi
-              echo "notarized" > "$(dirname "$DMG_PATH")/notarization-status.txt"
-            fi
+            scripts/notarize-macos.sh "$DMG_PATH"
           else
             pnpm --filter @npmax/desktop exec tauri build --target ${{ matrix.target }}
           fi
@@ -394,6 +339,13 @@ jobs:
             echo "See CHANGELOG.md for details." >> RELEASE_BODY.md
           fi
 
+      # The updater plugin points at releases/latest/download/latest.json, so the
+      # manifest has to be published as a release asset or auto-update never works.
+      - name: Generate updater manifest
+        run: >
+          node scripts/generate-latest-json.js
+          "${{ needs.prepare-release.outputs.new_version }}" artifacts RELEASE_BODY.md
+
       - name: Collect release files
         id: files
         shell: bash
@@ -411,14 +363,14 @@ jobs:
             -name '*.exe' -o \
             -name '*.AppImage' -o \
             -name '*.deb' -o \
-            -name '*.rpm' -o \
-            -name 'latest*.json' \
+            -name '*.rpm' \
           \) | sort)
 
           if [ "${#file_list[@]}" -eq 0 ]; then
             echo "No release artifacts found."
             exit 1
           fi
+          file_list+=("latest.json")
 
           for file in "${file_list[@]}"; do
             printf '%s  %s\n' "$(sha256sum "$file" | awk '{print $1}')" "$(basename "$file")"

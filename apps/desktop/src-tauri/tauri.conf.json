@@ -40,6 +40,7 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
+		"createUpdaterArtifacts": true,
 		"category": "Productivity",
 		"shortDescription": "Dependency and installed app update manager",
 		"longDescription": "npMax helps you find outdated dependencies and system apps, assess update risk, and keep projects current across npm, Composer, Swift, and more.",

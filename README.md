@@ -168,7 +168,23 @@ pnpm build:desktop
 
 Artifacts land under `apps/desktop/src-tauri/target/release/bundle/`.
 
-CI builds multi-platform installers on push to `master` (see `.github/workflows/release.yml`). Signing / notarization notes: `PRODUCTION.md`.
+### Signed macOS build
+
+`pnpm build:desktop` produces an unsigned bundle. For a signed, notarized universal DMG (Intel + Apple Silicon), put `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific password) and `APPLE_TEAM_ID` in `.env`, then:
+
+```bash
+scripts/build-macos.sh
+```
+
+Add `--no-notarize` to stop after signing. Apple's notary queue routinely takes 1–3 hours on this account, so expect the notarize step to sit and poll for a long while — it prints the elapsed time each minute. If a run is interrupted, the submission survives on Apple's side; check it with the submission ID printed at the start:
+
+```bash
+xcrun notarytool info <submission-id> --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID"
+```
+
+Do not run `tauri build` with those four variables exported — Tauri's bundler then notarizes inline via `notarytool submit --wait`, which has no timeout and hangs for hours. `scripts/build-macos.sh` strips them for the build and notarizes separately.
+
+CI builds multi-platform installers on push to `master` (see `.github/workflows/release.yml`) using the same `scripts/notarize-macos.sh`.
 
 Web builds on Vercel from the repo root (`vercel.json`).
 
