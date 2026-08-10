@@ -301,7 +301,7 @@ export function PackageEditor({
           {stats.loading > 0 ? (
             <span className="stat stat--loading">
               <span className="spin" />{" "}
-              {latestUpdateInFlight ? `داریم آپدیت می‌کنیم ${stats.loading}…` : `Checking ${stats.loading}…`}
+              {latestUpdateInFlight ? `Updating ${stats.loading}…` : `Checking ${stats.loading}…`}
             </span>
           ) : stats.outdated > 0 ? (
             <span className="stat stat--warn">{stats.outdated} outdated</span>
