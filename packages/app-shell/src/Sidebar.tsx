@@ -73,6 +73,7 @@ export function Sidebar({
   onOpenSettings,
   onOpenUrl,
   onHeaderMouseDown,
+  onSelectPackageManager,
   toolsVersions,
   showPackageManagers = true,
 }: {
@@ -87,6 +88,7 @@ export function Sidebar({
   onOpenSettings: () => void;
   onOpenUrl: (url: string) => void | Promise<void>;
   onHeaderMouseDown?: (e: MouseEvent) => void;
+  onSelectPackageManager?: (key: string) => void;
   toolsVersions?: () => Promise<Record<string, string | false>>;
   showPackageManagers?: boolean;
 }) {
@@ -290,15 +292,22 @@ export function Sidebar({
           {!pkgsCollapsed ? (
             <div id="nav-pkg-list" className="nav__pkgList">
               {activePkgs.map(({ key, label, version, Icon }) => (
-                <div key={key} className="nav__pkgRow">
-                  <figure className="nav__pkgIcon">
+                <button
+                  key={key}
+                  type="button"
+                  className={`nav__pkgRow ${active === `global_${key}` ? "nav__pkgRow--active" : ""}`}
+                  onClick={() => onSelectPackageManager?.(key)}
+                  disabled={!onSelectPackageManager}
+                  title={`Show globally installed ${label} packages`}
+                >
+                  <span className="nav__pkgIcon">
                     <Icon />
-                  </figure>
+                  </span>
                   <span className="nav__pkgName">{label}</span>
                   <span className="nav__pkgVer" title={version}>
                     {version}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           ) : null}

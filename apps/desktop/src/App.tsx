@@ -16,6 +16,7 @@ import { openProjectDialog, openUrl, tauriHost, toolsVersions } from "./lib/host
 import { loadActive, loadProjects, saveActive, saveProjects } from "./lib/projects";
 import { startWindowDrag } from "./lib/drag";
 import { InstalledAppsView } from "./views/InstalledAppsView";
+import { GlobalPackagesView } from "./views/GlobalPackagesView";
 import { SettingsView } from "./views/SettingsView";
 import { UpdateNotification } from "./views/UpdateNotification";
 
@@ -187,11 +188,17 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenUrl={openExternal}
         onHeaderMouseDown={startWindowDrag}
+        onSelectPackageManager={(manager) => {
+          setActive(`global_${manager}`);
+          saveActive(`global_${manager}`);
+        }}
         toolsVersions={toolsVersions}
         showPackageManagers
       />
       <div className="main-pane">
-        {active === "mcp" ? (
+        {active.startsWith("global_") ? (
+          <GlobalPackagesView manager={active.slice("global_".length)} />
+        ) : active === "mcp" ? (
           <McpView onOpenUrl={openExternal} onHeaderMouseDown={startWindowDrag} />
         ) : active === "installed-apps" || !current ? (
           <InstalledAppsView />

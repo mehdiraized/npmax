@@ -1,4 +1,5 @@
 use super::fs::{is_allowed, ExecResult};
+use serde::Serialize;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
@@ -194,9 +195,190 @@ pub async fn tools_versions() -> serde_json::Value {
     serde_json::Value::Object(map)
 }
 
+#[derive(Serialize)]
+pub struct GlobalPackage {
+    name: String,
+    version: String,
+}
+
+#[derive(Serialize)]
+pub struct GlobalPackagesResult {
+    supported: bool,
+    packages: Vec<GlobalPackage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+fn package(name: &str, version: &str) -> Option<GlobalPackage> {
+    let name = name.trim();
+    let version = version.trim().trim_start_matches('v');
+    (!name.is_empty() && !version.is_empty()).then(|| GlobalPackage {
+        name: name.to_string(),
+        version: version.to_string(),
+    })
+}
+
+fn parse_node_packages(raw: &str) -> Vec<GlobalPackage> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return vec![];
+    };
+    value
+        .get("dependencies")
+        .or_else(|| value.as_array()?.first()?.get("dependencies"))
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flat_map(|deps| deps.iter())
+        .filter_map(|(name, meta)| package(name, meta.get("version")?.as_str()?))
+        .collect()
+}
+
+fn parse_yarn_packages(raw: &str) -> Vec<GlobalPackage> {
+    for line in raw.lines() {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let Some(trees) = value
+            .pointer("/data/trees")
+            .and_then(serde_json::Value::as_array)
+        else {
+            continue;
+        };
+        return trees
+            .iter()
+            .filter_map(|tree| tree.get("name")?.as_str()?.rsplit_once('@'))
+            .filter_map(|(name, version)| package(name, version))
+            .collect();
+    }
+    vec![]
+}
+
+fn parse_composer_packages(raw: &str) -> Vec<GlobalPackage> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return vec![];
+    };
+    let packages = value
+        .get("installed")
+        .and_then(serde_json::Value::as_array)
+        .or_else(|| value.as_array());
+    packages
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let version = item
+                .get("version")
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| {
+                    item.get("versions")
+                        .and_then(serde_json::Value::as_array)?
+                        .first()?
+                        .as_str()
+                })?
+                .trim_start_matches("* ");
+            package(item.get("name")?.as_str()?, version)
+        })
+        .collect()
+}
+
+fn parse_cargo_packages(raw: &str) -> Vec<GlobalPackage> {
+    raw.lines()
+        .filter_map(|line| {
+            let (name, rest) = line.trim().split_once(" v")?;
+            let version = rest.split(':').next()?;
+            package(name, version)
+        })
+        .collect()
+}
+
+fn parse_gem_packages(raw: &str) -> Vec<GlobalPackage> {
+    raw.lines()
+        .filter_map(|line| {
+            let (name, versions) = line.trim().split_once(" (")?;
+            package(name, versions.trim_end_matches(')').split(',').next()?)
+        })
+        .collect()
+}
+
+fn parse_flutter_packages(raw: &str) -> Vec<GlobalPackage> {
+    raw.lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let name = parts.next()?;
+            let version = parts.next()?;
+            version.chars().next()?.is_ascii_digit().then(|| package(name, version))?
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn global_packages_scan(manager: String) -> Result<GlobalPackagesResult, String> {
+    let (cmd, args, parser): (&str, Vec<&str>, fn(&str) -> Vec<GlobalPackage>) = match manager
+        .as_str()
+    {
+        "npm" => (
+            "npm",
+            vec!["list", "--global", "--depth=0", "--json"],
+            parse_node_packages,
+        ),
+        "pnpm" => (
+            "pnpm",
+            vec!["list", "--global", "--depth=0", "--json"],
+            parse_node_packages,
+        ),
+        "yarn" => (
+            "yarn",
+            vec!["global", "list", "--json"],
+            parse_yarn_packages,
+        ),
+        "composer" => (
+            "composer",
+            vec!["global", "show", "--format=json", "--no-ansi"],
+            parse_composer_packages,
+        ),
+        "cargo" => ("cargo", vec!["install", "--list"], parse_cargo_packages),
+        "bundler" => ("gem", vec!["list", "--local"], parse_gem_packages),
+        "flutter" => (
+            "flutter",
+            vec!["pub", "global", "list"],
+            parse_flutter_packages,
+        ),
+        "swift" | "cocoapods" | "gradle" | "go" => {
+            return Ok(GlobalPackagesResult {
+                supported: false,
+                packages: vec![],
+                message: Some(
+                    "This package manager does not maintain a shared global package list.".into(),
+                ),
+            });
+        }
+        _ => return Err("Unsupported package manager".into()),
+    };
+
+    let result = shell_exec(
+        cmd.to_string(),
+        args.into_iter().map(str::to_string).collect(),
+        None,
+        Some(30_000),
+    )
+    .await?;
+    if result.code != 0 {
+        return Err(if result.stderr.trim().is_empty() {
+            format!("{cmd} could not list global packages")
+        } else {
+            result.stderr.trim().to_string()
+        });
+    }
+    let mut packages = parser(&result.stdout);
+    packages.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(GlobalPackagesResult {
+        supported: true,
+        packages,
+        message: None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::extract_version;
+    use super::{extract_version, parse_cargo_packages, parse_gem_packages, parse_node_packages};
 
     #[test]
     fn extracts_composer_version() {
@@ -232,5 +414,22 @@ mod tests {
     fn extracts_gradle_from_multiline() {
         let raw = "\nWelcome to Gradle 8.14.2!\n\nHere are the highlights...\n";
         assert_eq!(extract_version("gradle", raw), "8.14.2");
+    }
+
+    #[test]
+    fn parses_global_package_lists() {
+        let node = parse_node_packages(r#"{"dependencies":{"@scope/tool":{"version":"1.2.3"}}}"#);
+        assert_eq!(node[0].name, "@scope/tool");
+        assert_eq!(node[0].version, "1.2.3");
+        let pnpm = parse_node_packages(r#"[{"dependencies":{"pnpm":{"version":"10.0.0"}}}]"#);
+        assert_eq!(pnpm[0].name, "pnpm");
+        assert_eq!(
+            parse_cargo_packages("ripgrep v14.1.0:\n")[0].name,
+            "ripgrep"
+        );
+        assert_eq!(
+            parse_gem_packages("rake (13.2.1, 13.1.0)\n")[0].version,
+            "13.2.1"
+        );
     }
 }

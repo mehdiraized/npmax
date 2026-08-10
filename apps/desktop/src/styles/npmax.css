@@ -2457,3 +2457,85 @@ body {
 	.pkgStats { grid-template-columns: 1fr; }
 	.pkgVersionItem { flex-direction: column; align-items: flex-start; }
 }
+
+.nav__pkgRow {
+	width: 100%;
+	border: 0;
+	border-radius: 7px;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+	transition: background var(--transition-fast);
+}
+.nav__pkgRow:not(:disabled):hover,
+.nav__pkgRow--active { background: rgba(255, 255, 255, 0.09); }
+.nav__pkgRow:disabled { cursor: default; }
+
+.globalPkgsView__title { display: flex; align-items: center; gap: 10px; }
+.globalPkgsView__icon {
+	width: 30px;
+	height: 30px;
+	display: grid;
+	place-items: center;
+	padding: 4px;
+	border-radius: 9px;
+	background: rgba(255, 255, 255, 0.08);
+}
+.globalPkgsView__icon img,
+.globalPkgsView__icon svg { width: 100%; height: 100%; }
+.globalPkgsView__subtitle { margin-top: 5px; color: var(--text-muted); font-size: 12px; }
+.globalPkgsView__body { padding-bottom: 24px; }
+
+.globalPkgList { display: flex; flex-direction: column; gap: 8px; }
+.globalPkg {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 13px 15px;
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	background: var(--glass-ultra);
+}
+.globalPkg--update {
+	border-color: rgba(91, 156, 246, 0.3);
+	background: linear-gradient(105deg, rgba(91, 156, 246, 0.1), var(--glass-ultra));
+}
+.globalPkg__name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+	font-size: 13px;
+	font-weight: 600;
+}
+.globalPkg__versions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 10px;
+	flex-shrink: 0;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+.globalPkg__installed { color: var(--text-muted); }
+.globalPkg__checking,
+.globalPkg__current,
+.globalPkg__unknown { color: var(--text-secondary); }
+.globalPkg__checking { display: inline-flex; align-items: center; gap: 5px; }
+.globalPkg__current { color: rgba(52, 199, 89, 0.85); }
+.globalPkg__latest {
+	border: 1px solid rgba(91, 156, 246, 0.3);
+	border-radius: 8px;
+	padding: 4px 8px;
+	background: rgba(91, 156, 246, 0.14);
+	color: var(--accent-hover);
+	font: inherit;
+	font-weight: 600;
+	transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.globalPkg__latest:hover {
+	background: rgba(91, 156, 246, 0.25);
+	border-color: rgba(91, 156, 246, 0.55);
+}

@@ -21,6 +21,7 @@ pub fn run() {
             commands::project_open_dialog,
             commands::shell_exec,
             commands::tools_versions,
+            commands::global_packages_scan,
             commands::installed_apps_scan,
             commands::open_url,
             commands::get_app_info,

@@ -23,6 +23,7 @@ pub(crate) fn is_allowed(cmd: &str) -> bool {
             | "go"
             | "cargo"
             | "bundle"
+            | "gem"
             | "brew"
             | "winget"
             | "flatpak"

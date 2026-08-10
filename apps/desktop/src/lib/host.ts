@@ -36,6 +36,17 @@ export async function toolsVersions() {
   return invoke<Record<string, string | false>>("tools_versions");
 }
 
+export type GlobalPackage = { name: string; version: string };
+export type GlobalPackagesResult = {
+  supported: boolean;
+  packages: GlobalPackage[];
+  message?: string;
+};
+
+export async function scanGlobalPackages(manager: string) {
+  return invoke<GlobalPackagesResult>("global_packages_scan", { manager });
+}
+
 export async function getFileIcon(path: string) {
   return invoke<string | null>("get_file_icon", { path });
 }
