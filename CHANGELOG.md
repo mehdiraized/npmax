@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.8.0] — 2026-08-10
+
+### Added
+- add global package inventory and scanning
+
+### Fixed
+- replace persian loading text with english
+
+---
+
 ## [3.7.1] — 2026-08-06
 
 ### Fixed
