@@ -25,8 +25,8 @@
 		"@npmax/types": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/react": "^19.2.17",
-		"@types/react-dom": "^19.2.3",
+		"@types/react": "^19.2.18",
+		"@types/react-dom": "^19.2.4",
 		"typescript": "^7.0.2",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8"
