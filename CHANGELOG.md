@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.8.1] — 2026-09-05
+
+### Fixed
+- patch advisories and bump packages
+
+### Changed
+- Merge pull request #117 from mehdiraized/dependabot/npm_and_yarn/development-deps-3a922fa006
+- build(deps-dev): bump the development-deps group across 1 directory with 8 updates
+- Merge pull request #113 from mehdiraized/dependabot/cargo/apps/desktop/src-tauri/base64-0.23.1
+- Merge pull request #115 from mehdiraized/dependabot/github_actions/github/codeql-action-4.37.6
+- Merge pull request #114 from mehdiraized/dependabot/npm_and_yarn/production-deps-4b94ed4869
+- build(deps): bump next in the production-deps group across 1 directory
+- build(deps): bump github/codeql-action from 4.37.3 to 4.37.6
+- build(deps): bump base64 in /apps/desktop/src-tauri
+
+---
+
 ## [3.8.0] — 2026-08-10
 
 ### Added

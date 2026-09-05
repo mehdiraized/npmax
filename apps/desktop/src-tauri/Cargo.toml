@@ -1,6 +1,6 @@
 [package]
 name = "npmax"
-version = "3.8.0"
+version = "3.8.1"
 description = "npMax desktop"
 authors = ["mehdir"]
 edition = "2021"
