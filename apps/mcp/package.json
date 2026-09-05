@@ -23,11 +23,11 @@
 		"@npmax/api-client": "workspace:*",
 		"@npmax/core": "workspace:*",
 		"@npmax/types": "workspace:*",
-		"zod": "^4.4.3"
+		"zod": "^4.5.4"
 	},
 	"devDependencies": {
-		"@types/node": "^26.2.0",
-		"tsx": "^4.23.11",
+		"@types/node": "^26.4.1",
+		"tsx": "^4.23.13",
 		"typescript": "^7.0.2"
 	}
 }

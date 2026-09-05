@@ -38,11 +38,11 @@
 		]
 	},
 	"devDependencies": {
-		"@commitlint/cli": "^21.2.1",
-		"@commitlint/config-conventional": "^21.2.0",
+		"@commitlint/cli": "^21.2.2",
+		"@commitlint/config-conventional": "^21.2.2",
 		"husky": "^9.1.7",
-		"lint-staged": "^17.3.0",
-		"turbo": "^2.10.9",
+		"lint-staged": "^17.5.0",
+		"turbo": "^2.10.12",
 		"typescript": "^7.0.2",
 		"vitest": "^4.1.10"
 	},
@@ -50,7 +50,12 @@
 		"overrides": {
 			"postcss": "^8.5.18",
 			"sharp": "^0.35.3",
-			"@hono/node-server": "^2.0.12"
+			"@hono/node-server": "^2.0.12",
+			"fast-uri": "^3.1.7",
+			"hono": "^4.13.7",
+			"js-yaml": "^4.3.2",
+			"nanoid": "^3.3.18",
+			"qs": "^6.16.0"
 		}
 	}
 }
