@@ -29,13 +29,13 @@
 		"react-dom": "^19.2.8"
 	},
 	"devDependencies": {
-		"@tauri-apps/cli": "^2.11.4",
+		"@tauri-apps/cli": "^2.11.5",
 		"@types/react": "^19.2.18",
 		"@types/react-dom": "^19.2.7",
 		"@vitejs/plugin-react": "^6.1.1",
-		"sass": "^1.104.0",
+		"sass": "^1.105.0",
 		"typescript": "^7.0.2",
-		"vite": "^8.2.2",
-		"vitest": "^4.1.10"
+		"vite": "^8.3.0",
+		"vitest": "^5.0.1"
 	}
 }
