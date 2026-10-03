@@ -19,11 +19,11 @@
 		"test": "echo ok"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.30.0",
+		"@modelcontextprotocol/sdk": "^1.31.0",
 		"@npmax/api-client": "workspace:*",
 		"@npmax/core": "workspace:*",
 		"@npmax/types": "workspace:*",
-		"zod": "^4.5.4"
+		"zod": "^4.6.5"
 	},
 	"devDependencies": {
 		"@types/node": "^26.4.1",
