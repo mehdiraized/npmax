@@ -38,13 +38,13 @@
 		]
 	},
 	"devDependencies": {
-		"@commitlint/cli": "^21.2.2",
-		"@commitlint/config-conventional": "^21.2.2",
+		"@commitlint/cli": "^21.2.3",
+		"@commitlint/config-conventional": "^21.2.3",
 		"husky": "^9.1.7",
-		"lint-staged": "^17.5.0",
-		"turbo": "^2.10.12",
+		"lint-staged": "^17.6.0",
+		"turbo": "^2.11.7",
 		"typescript": "^7.0.2",
-		"vitest": "^4.1.10"
+		"vitest": "^5.0.3"
 	},
 	"pnpm": {
 		"overrides": {
